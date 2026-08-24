@@ -20,7 +20,12 @@ pnpm --filter @shotgo/agent-runtime run dev -- "我能使用哪些图片模型�
 pnpm --filter @shotgo/agent-runtime run typecheck
 pnpm --filter @shotgo/agent-runtime run test
 pnpm --filter @shotgo/agent-runtime run test:contract
+pnpm --filter @shotgo/agent-runtime run test:gateway
 ```
+
+## Deployment baseline
+
+The production baseline is documented in [`deploy/`](deploy/README.md). It builds a loopback-only Gateway with separate `/healthz` and `/readyz` endpoints. Readiness defaults to `503` until Laravel v1 integration acceptance explicitly enables traffic.
 
 ## Architecture
 
@@ -45,3 +50,4 @@ The three Presets have distinct persona text. Within one Preset, the prompt and 
 - Preset discovery and per-session selection are declared but not yet wired into a public session endpoint.
 - Laravel and Agent Runtime implementations of the frozen v1 protocol are not yet connected.
 - Billing, generation submission, and canvas mutation stay disabled until both implementations pass contract and integration acceptance.
+- The deployment Gateway currently exposes health/readiness only; public Agent session routes are not implemented.
