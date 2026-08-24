@@ -10,8 +10,8 @@
     "start:gateway": "node dist/gateway-bin.js",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run --root ../.. apps/shotgo-agent/tests",
-    "test:contract": "vitest run --root ../.. apps/shotgo-agent/tests/laravel-contract.spec.ts",
-    "test:gateway": "vitest run --root ../.. apps/shotgo-agent/tests/gateway.spec.ts",
+    "test:contract": "vitest run --root ../.. apps/shotgo-agent/tests/laravel-contract.spec.ts apps/shotgo-agent/tests/gateway-contract.spec.ts",
+    "test:gateway": "vitest run --root ../.. apps/shotgo-agent/tests/gateway.spec.ts apps/shotgo-agent/tests/gateway-session.spec.ts",
     "test:snapshot": "vitest run --root ../.. apps/shotgo-agent/tests/runtime.snapshot.spec.ts",
     "verify:isolation": "node scripts/verify-upstream-isolation.mjs"
   },

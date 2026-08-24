@@ -6,7 +6,7 @@ Private DeepSeek Harness assembly for ShotGo's Canvas, Image, and Video conversa
 
 Phase 0A is keyless and read-only. It boots a mock inference adapter, calls `generation_config_read`, records the complete Harness Session turn, and returns a deterministic answer. It does not connect to Laravel, call an AIGC supplier, charge credits, submit generation, or mutate a canvas.
 
-Phase 0B freezes the Laravel boundary in [`contracts/`](contracts/README.md). Phase 0B.2 loads the encrypted-at-rest Ark credential and provider endpoint mapping from Laravel into process memory; real writes and billing remain disabled until both sides pass contract and integration acceptance.
+Phase 0B freezes the Laravel boundary in [`contracts/`](contracts/README.md). Phase 0B.2 loads the encrypted-at-rest Ark credential and provider endpoint mapping from Laravel into process memory. The browser-facing [Gateway protocol](contracts/gateway/README.md) adds idempotent Session submission, cancellation, and replayable SSE while keeping production admission closed until Laravel can authorize the requested Session and Agent mode.
 
 ## Local smoke
 
@@ -33,7 +33,7 @@ The production baseline is documented in [`deploy/`](deploy/README.md). It build
 - `config/agent-presets/` contains the three trusted Agent Plane compositions.
 - `src/llm/` owns the Harness LLM provider implementation.
 - `src/tools/` owns shared model-facing ShotGo tools.
-- `contracts/` contains the frozen OpenAPI and JSON Schema Laravel protocol.
+- `contracts/` contains the separately versioned Laravel control-plane and browser Gateway protocols.
 - Laravel remains authoritative for identity, permissions, models, billing, canvas state, generation jobs, and assets.
 
 ## Model Experience
@@ -46,8 +46,8 @@ The three Presets have distinct persona text. Within one Preset, the prompt and 
 
 ## Known Limitations and Deferred Work
 
-- The executable is a Phase 0A smoke entry, not the production Gateway.
-- Preset discovery and per-session selection are declared but not yet wired into a public session endpoint.
+- The keyless executable remains a Phase 0A smoke entry; `gateway-bin` is the production process entry.
+- The Gateway server implements Session submission, SSE replay, and cancellation, but `gateway-bin` does not mount them until Laravel supplies an authorizer that validates the Grant's Session, project, and Agent-mode claims.
 - Laravel runtime configuration, inference policy, and metadata usage clients are implemented; handoff exchange and business capability clients remain disconnected.
 - Billing, generation submission, and canvas mutation stay disabled until both implementations pass contract and integration acceptance.
-- The deployment Gateway currently exposes health/readiness only; public Agent session routes are not implemented.
+- Gateway replay is process-local and bounded to 512 events; restart recovery from the persisted Harness Session log is not yet connected.

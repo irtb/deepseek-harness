@@ -1,7 +1,9 @@
 import { readFile } from 'node:fs/promises'
 import type { AddressInfo } from 'node:net'
 import { afterEach, describe, expect, it } from 'vitest'
+import type { GatewayStreamEvent } from '../src/contracts/gateway-v1.ts'
 import { createGatewayServer, readGatewayConfig } from '../src/gateway.ts'
+import type { GatewaySessionService } from '../src/gateway-transport.ts'
 
 const servers = new Set<ReturnType<typeof createGatewayServer>>()
 
@@ -20,13 +22,17 @@ afterEach(async () => {
   servers.clear()
 })
 
-async function startGateway(trafficEnabled: boolean, runtimeReady: boolean): Promise<string> {
+async function startGateway(
+  trafficEnabled: boolean,
+  runtimeReady: boolean,
+  sessions?: GatewaySessionService,
+): Promise<string> {
   const server = createGatewayServer({
     host: '127.0.0.1',
     port: 3010,
     trafficEnabled,
     deploymentId: 'test-sha',
-  }, { isInferenceRuntimeReady: () => runtimeReady })
+  }, { isInferenceRuntimeReady: () => runtimeReady }, sessions)
   servers.add(server)
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)
@@ -100,5 +106,89 @@ describe('production Gateway baseline', () => {
     expect(supervisor).toContain('directory=/data/projects/agent.shotgo.cn')
     expect(supervisor).toContain('user=www-data')
     expect(supervisor).not.toContain('ARK_API_KEY')
+  })
+
+  it('accepts one idempotent message and emits replayable SSE frames', async () => {
+    const submitted: string[] = []
+    const streamEvent: GatewayStreamEvent = {
+      protocolVersion: '2026-08-24.1',
+      cursor: 7,
+      sessionId: 'session-http',
+      runId: 'run-http',
+      agentMode: 'image',
+      occurredAt: '2026-08-24T00:00:00.000Z',
+      type: 'run.completed',
+      payload: {},
+    }
+    const sessions: GatewaySessionService = {
+      async submit(input) {
+        submitted.push(`${input.capabilityGrant}:${input.clientRequestId}:${input.text}`)
+        return { runId: 'run-http' }
+      },
+      async events(input) {
+        expect(input.afterCursor).toBe(6)
+        return (async function* () { yield streamEvent })()
+      },
+      async cancel() {},
+      async dispose() {},
+    }
+    const baseUrl = await startGateway(true, true, sessions)
+    const accepted = await fetch(`${baseUrl}/api/agent/v1/sessions/session-http/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer opaque-grant',
+        'Content-Type': 'application/json',
+        'Idempotency-Key': 'client-request-http',
+      },
+      body: JSON.stringify({
+        clientRequestId: 'client-request-http',
+        message: { type: 'text', text: '生成一张海报' },
+      }),
+    })
+    expect(accepted.status).toBe(202)
+    expect(accepted.headers.get('x-shotgo-gateway-protocol-version')).toBe('2026-08-24.1')
+    expect(await accepted.json()).toEqual({
+      protocolVersion: '2026-08-24.1',
+      sessionId: 'session-http',
+      runId: 'run-http',
+      streamUrl: '/api/agent/v1/sessions/session-http/events',
+    })
+    expect(submitted).toEqual(['opaque-grant:client-request-http:生成一张海报'])
+
+    const stream = await fetch(`${baseUrl}/api/agent/v1/sessions/session-http/events`, {
+      headers: { Authorization: 'Bearer opaque-grant', 'Last-Event-ID': '6' },
+    })
+    expect(stream.status).toBe(200)
+    expect(stream.headers.get('content-type')).toContain('text/event-stream')
+    expect(await stream.text()).toBe(`id: 7\nevent: run.completed\ndata: ${JSON.stringify(streamEvent)}\n\n`)
+  })
+
+  it('keeps Session APIs closed without traffic acceptance and validates idempotency', async () => {
+    const disabled = await startGateway(false, true)
+    const blocked = await fetch(`${disabled}/api/agent/v1/sessions/session/messages`, { method: 'POST' })
+    expect(blocked.status).toBe(503)
+    expect(await blocked.json()).toEqual({ code: 'AGENT_TRAFFIC_DISABLED' })
+
+    const sessions: GatewaySessionService = {
+      async submit() { throw new Error('must not submit') },
+      async events() { return (async function* () {})() },
+      async cancel() {},
+      async dispose() {},
+    }
+    const enabled = await startGateway(true, true, sessions)
+    const invalid = await fetch(`${enabled}/api/agent/v1/sessions/session/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer opaque-grant',
+        'Content-Type': 'application/json',
+        'Idempotency-Key': 'different-request',
+      },
+      body: JSON.stringify({
+        clientRequestId: 'client-request-http',
+        message: { type: 'text', text: 'hello' },
+      }),
+    })
+    expect(invalid.status).toBe(422)
+    expect(await invalid.json()).toEqual({ code: 'IDEMPOTENCY_KEY_MISMATCH' })
   })
 })
