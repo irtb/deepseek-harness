@@ -1,4 +1,4 @@
-export const SHOTGO_PROTOCOL_VERSION = '2026-08-24.1' as const
+export const SHOTGO_PROTOCOL_VERSION = '2026-08-24.2' as const
 export const SHOTGO_PROTOCOL_HEADER = 'X-ShotGo-Protocol-Version' as const
 export const IDEMPOTENCY_HEADER = 'Idempotency-Key' as const
 
@@ -38,6 +38,15 @@ export interface InferencePolicy {
   maxOutputTokens: number
   sessionTokenBudget: number
   expiresAt: string
+}
+
+export interface InferenceRuntimeConfig {
+  protocolVersion: typeof SHOTGO_PROTOCOL_VERSION
+  configurationVersion: string
+  provider: 'volcengine-ark'
+  baseURL: string
+  apiKey: string
+  models: Record<InferenceModel, string>
 }
 
 export interface InferenceTokenUsage {

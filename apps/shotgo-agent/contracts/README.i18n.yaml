@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write apps/shotgo-agent/contracts/README.md
-README.md: d667ec2fd9d8cca17ff15055300c8fef85b0a8fc
-README.zh.md: 3175f081771cd8bcaf286dfdf2b8d29f34ba8db0
+README.md: 748b76bb7c0700004414c1441fa8afbd09663d50
+README.zh.md: 1b0301ba3722b8ac5ab35e9b71a58c38f732c3fc

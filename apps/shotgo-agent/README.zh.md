@@ -6,7 +6,7 @@ ShotGo 的 Canvas、Image、Video 三类对话式 Agent 所使用的私有 DeepS
 
 Phase 0A 无需密钥且只读。它启动 mock 推理 Adapter，调用 `generation_config_read`，记录完整 Harness Session 回合，并返回确定性回答。它不连接 Laravel、不调用 AIGC 供应商、不扣积分、不提交生成任务，也不修改画布。
 
-Phase 0B 在 [`contracts/`](contracts/README.zh.md) 中冻结 Laravel 边界。该契约已经可以供 Laravel 与 Agent Runtime 分别实现；双方通过契约测试前，仍禁止真实写入和计费。
+Phase 0B 在 [`contracts/`](contracts/README.zh.md) 中冻结 Laravel 边界。Phase 0B.2 把 Laravel 中加密落库的方舟凭据和供应商节点映射加载到进程内存；双方通过契约与集成测试前，仍禁止真实写入和计费。
 
 ## 本地 Smoke
 
@@ -48,6 +48,6 @@ Phase 0A mock 总是请求只读 `generation_config_read` Tool，然后解释其
 
 - 当前 executable 是 Phase 0A smoke 入口，不是生产 Gateway。
 - Preset discovery 和按 Session 选择已经声明，但尚未接入公开 Session API。
-- Laravel 与 Agent Runtime 尚未连接已冻结的 v1 协议实现。
+- Laravel 运行时配置、推理策略和元数据用量客户端已经实现；交接票据交换与业务 Capability 客户端仍未接通。
 - 双方通过契约与集成验收前，计费、生成提交和画布写入保持禁用。
 - 当前部署 Gateway 仅提供健康与就绪检查，尚未实现公开 Agent Session 路由。

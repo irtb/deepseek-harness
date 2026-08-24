@@ -3,6 +3,7 @@ import {
   SHOTGO_PROTOCOL_HEADER,
   SHOTGO_PROTOCOL_VERSION,
   type InferencePolicy,
+  type InferenceRuntimeConfig,
   type InferenceUsageReport,
 } from '../contracts/laravel-v1.ts'
 
@@ -63,6 +64,32 @@ function isInferencePolicy(value: unknown): value is InferencePolicy {
     && Number.isFinite(Date.parse(candidate.expiresAt))
 }
 
+function isInferenceRuntimeConfig(value: unknown): value is InferenceRuntimeConfig {
+  if (value === null || typeof value !== 'object') return false
+  const candidate = value as Record<string, unknown>
+  const models = candidate.models
+  if (models === null || typeof models !== 'object' || Array.isArray(models)) return false
+  const modelMap = models as Record<string, unknown>
+  const modelKeys = Object.keys(modelMap).sort()
+  const expectedModelKeys = ['deepseek-v4-flash', 'deepseek-v4-pro'].sort()
+  const flash = modelMap['deepseek-v4-flash']
+  const pro = modelMap['deepseek-v4-pro']
+  return candidate.protocolVersion === SHOTGO_PROTOCOL_VERSION
+    && typeof candidate.configurationVersion === 'string'
+    && candidate.configurationVersion.length > 0
+    && candidate.provider === 'volcengine-ark'
+    && typeof candidate.baseURL === 'string'
+    && candidate.baseURL.startsWith('https://')
+    && typeof candidate.apiKey === 'string'
+    && candidate.apiKey.length > 0
+    && modelKeys.every((key, index) => key === expectedModelKeys[index])
+    && typeof flash === 'string'
+    && flash.length > 0
+    && typeof pro === 'string'
+    && pro.length > 0
+    && flash !== pro
+}
+
 function assertProtocolVersion(response: Response): void {
   const actual = response.headers.get(SHOTGO_PROTOCOL_HEADER)
   if (actual !== SHOTGO_PROTOCOL_VERSION) {
@@ -117,6 +144,42 @@ export class InferenceControlPlaneClient {
       throw new InferenceControlPlaneError('Laravel inference policy has expired', 'INFERENCE_POLICY_EXPIRED')
     }
     return policy
+  }
+
+  async readRuntimeConfig(signal?: AbortSignal): Promise<InferenceRuntimeConfig> {
+    const response = await this.fetch(`${this.baseURL}/api/internal/agent/v1/inference-runtime-config`, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: `Bearer ${this.options.serviceToken}`,
+        [SHOTGO_PROTOCOL_HEADER]: SHOTGO_PROTOCOL_VERSION,
+      },
+      cache: 'no-store',
+      ...(signal === undefined ? {} : { signal }),
+    })
+    assertProtocolVersion(response)
+    if (!response.ok) {
+      throw new InferenceControlPlaneError(
+        'Laravel rejected inference runtime configuration request',
+        'RUNTIME_CONFIG_REQUEST_FAILED',
+        response.status,
+      )
+    }
+    if (!response.headers.get('cache-control')?.toLowerCase().includes('no-store')) {
+      throw new InferenceControlPlaneError(
+        'Laravel inference runtime configuration response is cacheable',
+        'RUNTIME_CONFIG_CACHE_POLICY_INVALID',
+        response.status,
+      )
+    }
+    const configuration: unknown = await response.json()
+    if (!isInferenceRuntimeConfig(configuration)) {
+      throw new InferenceControlPlaneError(
+        'Laravel returned an invalid inference runtime configuration',
+        'INVALID_INFERENCE_RUNTIME_CONFIG',
+      )
+    }
+    return configuration
   }
 
   async reportUsage(report: InferenceUsageReport, signal?: AbortSignal): Promise<void> {

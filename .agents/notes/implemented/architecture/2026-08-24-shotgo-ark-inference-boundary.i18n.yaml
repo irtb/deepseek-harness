@@ -1,6 +1,0 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
-#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-24-shotgo-ark-inference-boundary.md
-2026-08-24-shotgo-ark-inference-boundary.md: 8687141e0e7044485631c2478f5c078ab92f838e
-2026-08-24-shotgo-ark-inference-boundary.zh.md: 10fb8beaab3fe1c57cc21ebf6b2acf0f956c3634

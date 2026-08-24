@@ -3,7 +3,7 @@
   "$id": "https://agent.shotgo.cn/contracts/laravel-v1.schema.json",
   "title": "ShotGo Laravel Agent Protocol v1",
   "$defs": {
-    "ProtocolVersion": { "const": "2026-08-24.1" },
+    "ProtocolVersion": { "const": "2026-08-24.2" },
     "OpaqueId": { "type": "string", "minLength": 1, "maxLength": 255 },
     "DateTime": { "type": "string", "format": "date-time" },
     "AgentMode": { "enum": ["canvas", "image", "video"] },
@@ -200,6 +200,27 @@
         "maxOutputTokens": { "type": "integer", "minimum": 1, "maximum": 65536 },
         "sessionTokenBudget": { "type": "integer", "minimum": 1 },
         "expiresAt": { "$ref": "#/$defs/DateTime" }
+      }
+    },
+    "InferenceRuntimeConfig": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "configurationVersion", "provider", "baseURL", "apiKey", "models"],
+      "properties": {
+        "protocolVersion": { "$ref": "#/$defs/ProtocolVersion" },
+        "configurationVersion": { "$ref": "#/$defs/OpaqueId" },
+        "provider": { "const": "volcengine-ark" },
+        "baseURL": { "type": "string", "format": "uri", "pattern": "^https://" },
+        "apiKey": { "type": "string", "minLength": 1 },
+        "models": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["deepseek-v4-flash", "deepseek-v4-pro"],
+          "properties": {
+            "deepseek-v4-flash": { "type": "string", "minLength": 1, "maxLength": 255 },
+            "deepseek-v4-pro": { "type": "string", "minLength": 1, "maxLength": 255 }
+          }
+        }
       }
     },
     "InferenceUsageReport": {

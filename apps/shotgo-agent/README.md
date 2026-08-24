@@ -6,7 +6,7 @@ Private DeepSeek Harness assembly for ShotGo's Canvas, Image, and Video conversa
 
 Phase 0A is keyless and read-only. It boots a mock inference adapter, calls `generation_config_read`, records the complete Harness Session turn, and returns a deterministic answer. It does not connect to Laravel, call an AIGC supplier, charge credits, submit generation, or mutate a canvas.
 
-Phase 0B freezes the Laravel boundary in [`contracts/`](contracts/README.md). The contract is ready for independent Laravel and Agent Runtime implementation; real writes and billing remain disabled until both sides pass the contract suite.
+Phase 0B freezes the Laravel boundary in [`contracts/`](contracts/README.md). Phase 0B.2 loads the encrypted-at-rest Ark credential and provider endpoint mapping from Laravel into process memory; real writes and billing remain disabled until both sides pass contract and integration acceptance.
 
 ## Local smoke
 
@@ -48,6 +48,6 @@ The three Presets have distinct persona text. Within one Preset, the prompt and 
 
 - The executable is a Phase 0A smoke entry, not the production Gateway.
 - Preset discovery and per-session selection are declared but not yet wired into a public session endpoint.
-- Laravel and Agent Runtime implementations of the frozen v1 protocol are not yet connected.
+- Laravel runtime configuration, inference policy, and metadata usage clients are implemented; handoff exchange and business capability clients remain disconnected.
 - Billing, generation submission, and canvas mutation stay disabled until both implementations pass contract and integration acceptance.
 - The deployment Gateway currently exposes health/readiness only; public Agent session routes are not implemented.
