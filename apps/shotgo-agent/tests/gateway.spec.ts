@@ -43,10 +43,10 @@ describe('production Gateway baseline', () => {
     const readiness = await fetch(`${baseUrl}/readyz`)
 
     expect(health.status).toBe(200)
-    expect(health.headers.get('x-shotgo-protocol-version')).toBe('2026-08-24')
+    expect(health.headers.get('x-shotgo-protocol-version')).toBe('2026-08-24.1')
     expect(await health.json()).toEqual({
       service: 'shotgo-agent',
-      protocolVersion: '2026-08-24',
+      protocolVersion: '2026-08-24.1',
       deploymentId: 'test-sha',
       status: 'ok',
     })
@@ -74,11 +74,11 @@ describe('production Gateway baseline', () => {
 
   it('keeps deployment templates loopback-only and traffic-disabled', async () => {
     const deployRoot = new URL('../deploy/', import.meta.url)
-    const [environment, nginxBootstrap, nginx, systemd] = await Promise.all([
+    const [environment, nginxBootstrap, nginx, supervisor] = await Promise.all([
       readFile(new URL('env/shotgo-agent.env.example', deployRoot), 'utf8'),
       readFile(new URL('nginx/agent.shotgo.cn.bootstrap.conf', deployRoot), 'utf8'),
       readFile(new URL('nginx/agent.shotgo.cn.conf', deployRoot), 'utf8'),
-      readFile(new URL('systemd/shotgo-agent.service', deployRoot), 'utf8'),
+      readFile(new URL('supervisor/agent-shotgo.conf', deployRoot), 'utf8'),
     ])
 
     expect(environment).toContain('SHOTGO_AGENT_HOST=127.0.0.1')
@@ -87,8 +87,10 @@ describe('production Gateway baseline', () => {
     expect(nginxBootstrap).not.toContain('ssl_certificate')
     expect(nginx).toContain('server 127.0.0.1:3010;')
     expect(nginx).toContain('server_name agent.shotgo.cn;')
-    expect(systemd).toContain('User=shotgo-agent')
-    expect(systemd).toContain('ProtectSystem=strict')
-    expect(systemd).not.toContain('MemoryDenyWriteExecute=true')
+    expect(environment).toContain('ARK_API_KEY=')
+    expect(supervisor).toContain('[program:agent-shotgo]')
+    expect(supervisor).toContain('directory=/data/projects/agent.shotgo.cn')
+    expect(supervisor).toContain('user=www-data')
+    expect(supervisor).not.toContain('ARK_API_KEY')
   })
 })

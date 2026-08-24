@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "ShotGo Laravel Agent Protocol",
-    "version": "2026-08-24",
-    "description": "Frozen Agent Runtime to Laravel protocol. Laravel is the business authority; Harness never calls model suppliers directly."
+    "version": "2026-08-24.1",
+    "description": "Frozen Agent Runtime to Laravel control-plane and AIGC capability protocol. Harness calls the approved reasoning provider directly; Laravel remains the policy, budget, audit, and business authority."
   },
   "servers": [{ "url": "https://shotgo.cn" }],
   "tags": [
@@ -38,15 +38,28 @@
         }
       }
     },
-    "/api/internal/agent/v1/inference/stream": {
-      "post": {
-        "operationId": "streamAgentInference",
+    "/api/agent/v1/inference-policy": {
+      "get": {
+        "operationId": "readAgentInferencePolicy",
         "tags": ["Inference"],
-        "description": "Tool-calling text/reasoning inference for Harness. This endpoint is not an AIGC generation endpoint.",
-        "security": [{ "serviceAuth": [], "capabilityGrant": [] }],
-        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "./schemas/laravel-v1.schema.json#/$defs/InferenceRequest" } } } },
+        "description": "Read the short-lived Laravel policy that constrains direct Harness inference. This endpoint never returns provider credentials.",
+        "security": [{ "capabilityGrant": [] }],
         "responses": {
-          "200": { "description": "SSE inference chunks", "headers": { "X-ShotGo-Protocol-Version": { "$ref": "#/components/headers/ProtocolVersion" } }, "content": { "text/event-stream": { "schema": { "$ref": "./schemas/laravel-v1.schema.json#/$defs/InferenceEvent" } } } },
+          "200": { "description": "Effective inference policy for this grant", "headers": { "X-ShotGo-Protocol-Version": { "$ref": "#/components/headers/ProtocolVersion" } }, "content": { "application/json": { "schema": { "$ref": "./schemas/laravel-v1.schema.json#/$defs/InferencePolicy" } } } },
+          "default": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/api/internal/agent/v1/inference-usage": {
+      "post": {
+        "operationId": "reportAgentInferenceUsage",
+        "tags": ["Inference"],
+        "description": "Idempotently record metadata and token usage for a direct provider call. Prompts, completions, and provider credentials are forbidden.",
+        "security": [{ "serviceAuth": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/InferenceUsageIdempotencyKey" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "./schemas/laravel-v1.schema.json#/$defs/InferenceUsageReport" } } } },
+        "responses": {
+          "202": { "description": "Usage accepted or replayed idempotently", "headers": { "X-ShotGo-Protocol-Version": { "$ref": "#/components/headers/ProtocolVersion" } } },
           "default": { "$ref": "#/components/responses/Problem" }
         }
       }
@@ -163,10 +176,11 @@
       "capabilityGrant": { "type": "http", "scheme": "bearer", "bearerFormat": "opaque-capability-grant" }
     },
     "headers": {
-      "ProtocolVersion": { "required": true, "schema": { "type": "string", "const": "2026-08-24" } }
+      "ProtocolVersion": { "required": true, "schema": { "type": "string", "const": "2026-08-24.1" } }
     },
     "parameters": {
       "IdempotencyKey": { "name": "Idempotency-Key", "in": "header", "required": true, "description": "Must equal body context.clientRequestId", "schema": { "type": "string", "minLength": 1 } },
+      "InferenceUsageIdempotencyKey": { "name": "Idempotency-Key", "in": "header", "required": true, "description": "Must equal body llmRequestId", "schema": { "type": "string", "minLength": 1 } },
       "GenerationId": { "name": "generationId", "in": "path", "required": true, "schema": { "type": "string" } },
       "CanvasId": { "name": "canvasId", "in": "path", "required": true, "schema": { "type": "string" } }
     },

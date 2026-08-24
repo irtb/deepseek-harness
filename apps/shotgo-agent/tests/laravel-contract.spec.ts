@@ -62,13 +62,14 @@ describe('Laravel Agent Protocol v1', () => {
         '/api/agent/v1/canvases/{canvasId}/operations',
         '/api/agent/v1/capabilities',
         '/api/agent/v1/events',
+        '/api/agent/v1/inference-policy',
         '/api/agent/v1/generation-quotes',
         '/api/agent/v1/generations',
         '/api/agent/v1/generations/by-client-request/{clientRequestId}',
         '/api/agent/v1/generations/{generationId}',
         '/api/agent/v1/generations/{generationId}/cancel',
         '/api/internal/agent/v1/grants/exchange',
-        '/api/internal/agent/v1/inference/stream',
+        '/api/internal/agent/v1/inference-usage',
       ].sort(),
     )
   })
@@ -104,13 +105,17 @@ describe('Laravel Agent Protocol v1', () => {
     }
   })
 
-  it('keeps reasoning inference distinct from business generation', async () => {
+  it('keeps direct reasoning control-plane traffic distinct from business generation', async () => {
     const openapi = await readJson<OpenApiDocument>('openapi.json')
-    const inference = operation(openapi, '/api/internal/agent/v1/inference/stream', 'post')
+    const policy = operation(openapi, '/api/agent/v1/inference-policy', 'get')
+    const usage = operation(openapi, '/api/internal/agent/v1/inference-usage', 'post')
     const generation = operation(openapi, '/api/agent/v1/generations', 'post')
 
-    expect(inference.responses['200']?.content?.['text/event-stream']).toBeDefined()
-    expect(inference.description).toContain('not an AIGC generation endpoint')
+    expect(openapi.paths['/api/internal/agent/v1/inference/stream']).toBeUndefined()
+    expect(policy.responses['200']?.content?.['application/json']).toBeDefined()
+    expect(policy.description).toContain('never returns provider credentials')
+    expect(usage.parameters).toContainEqual({ $ref: '#/components/parameters/InferenceUsageIdempotencyKey' })
+    expect(usage.description).toContain('Prompts, completions, and provider credentials are forbidden')
     expect(generation.responses['202']?.content?.['application/json']).toBeDefined()
   })
 

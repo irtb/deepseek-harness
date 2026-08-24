@@ -31,6 +31,7 @@ describe('ShotGo Phase 0A runtime', () => {
 
     const output = JSON.parse(result.stdout) as {
       answer: string
+      availableProviders: string[]
       eventTypes: string[]
       visibleTools: string[]
       calledTools: string[]
@@ -39,6 +40,10 @@ describe('ShotGo Phase 0A runtime', () => {
     expect(output).toMatchInlineSnapshot(`
       {
         "answer": "当前可用图片模型：ShotGo Image Mock。此结果来自只读 generation_config_read 工具。",
+        "availableProviders": [
+          "shotgo-mock",
+          "volcengine-ark",
+        ],
         "calledTools": [
           "generation_config_read",
         ],

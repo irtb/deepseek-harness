@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/** Phase 0A keyless entry point for the ShotGo Agent Runtime assembly. */
+/** Keyless smoke entry point for the ShotGo Agent Runtime assembly. */
 
 import type { Context } from '@deepseek-ai/cordis'
 import { boot, installFailLoud } from '@deepseek-ai/dsh-app-boot'
@@ -24,6 +24,8 @@ try {
   if (runtimeEntry === undefined) throw new Error(`${NAME}: shotgo-agent-host entry is not mounted`)
   const agents = runtimeEntry.ctx.get('agents')
   if (agents === undefined) throw new Error(`${NAME}: agent registry is unavailable`)
+  const llm = runtimeEntry.ctx.get('llm')
+  if (llm === undefined) throw new Error(`${NAME}: LLM runtime is unavailable`)
   const handle = await agents.create({
     sessionId: SessionId('shotgo-phase-0a-smoke'),
     meta: { cwd: process.cwd() },
@@ -57,6 +59,7 @@ try {
       : ''
     process.stdout.write(`${JSON.stringify({
       answer,
+      availableProviders: llm.listProviders().map(provider => provider.id).sort(),
       eventTypes,
       visibleTools: [...visibleTools].sort(),
       calledTools,

@@ -1,9 +1,12 @@
-export const SHOTGO_PROTOCOL_VERSION = '2026-08-24' as const
+export const SHOTGO_PROTOCOL_VERSION = '2026-08-24.1' as const
 export const SHOTGO_PROTOCOL_HEADER = 'X-ShotGo-Protocol-Version' as const
 export const IDEMPOTENCY_HEADER = 'Idempotency-Key' as const
 
 export type AgentMode = 'canvas' | 'image' | 'video'
 export type AssetKind = 'text' | 'image' | 'video' | 'audio'
+export type InferenceModel = 'deepseek-v4-flash' | 'deepseek-v4-pro'
+export type InferenceReasoningEffort = 'off' | 'high' | 'max'
+export type InferenceUsageStatus = 'completed' | 'failed' | 'cancelled'
 export type GenerationState =
   | 'draft'
   | 'creating'
@@ -23,6 +26,43 @@ export interface MutationContext {
 export interface Money {
   amount: string
   currency: string
+}
+
+export interface InferencePolicy {
+  protocolVersion: typeof SHOTGO_PROTOCOL_VERSION
+  policyVersion: string
+  provider: 'volcengine-ark'
+  allowedModels: InferenceModel[]
+  defaultModel: InferenceModel
+  defaultReasoningEffort: InferenceReasoningEffort
+  maxOutputTokens: number
+  sessionTokenBudget: number
+  expiresAt: string
+}
+
+export interface InferenceTokenUsage {
+  inputTokens: number
+  outputTokens: number
+  cacheReadTokens?: number
+  cacheWriteTokens?: number
+  reasoningTokens?: number
+}
+
+export interface InferenceUsageReport {
+  protocolVersion: typeof SHOTGO_PROTOCOL_VERSION
+  llmRequestId: string
+  sessionId: string
+  runId?: string
+  purpose?: string
+  provider: 'volcengine-ark'
+  model: InferenceModel
+  status: InferenceUsageStatus
+  startedAt: string
+  completedAt: string
+  durationMs: number
+  usage: InferenceTokenUsage
+  providerRequestId?: string
+  errorCode?: string
 }
 
 export interface ProtocolProblem {
