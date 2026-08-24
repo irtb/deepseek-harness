@@ -4,10 +4,14 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "build:gateway": "tsc -p tsconfig.deploy.json",
     "dev": "node --import tsx/esm src/bin.ts",
+    "dev:gateway": "node --import tsx/esm src/gateway-bin.ts",
+    "start:gateway": "node dist/gateway-bin.js",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run --root ../.. apps/shotgo-agent/tests",
     "test:contract": "vitest run --root ../.. apps/shotgo-agent/tests/laravel-contract.spec.ts",
+    "test:gateway": "vitest run --root ../.. apps/shotgo-agent/tests/gateway.spec.ts",
     "test:snapshot": "vitest run --root ../.. apps/shotgo-agent/tests/runtime.snapshot.spec.ts",
     "verify:isolation": "node scripts/verify-upstream-isolation.mjs"
   },

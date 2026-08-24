@@ -1,6 +1,6 @@
 # Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
-#   pnpm run verify-translation-pairing --write apps/shotgo-agent/README.md
-README.md: 5fd3787b0b41e2fd3f331fdf8fdb5c158767264b
-README.zh.md: c403cc020ec5b639bb9a41ddbb153b85ffe367c9
+#   pnpm run verify-translation-pairing --write apps/shotgo-agent/deploy/README.md
+README.md: bf5375d5de85963909f674fb003a8b3cafc7e2df
+README.zh.md: b7d72e0434f4fe00317d82e0622500a1602bd4d9

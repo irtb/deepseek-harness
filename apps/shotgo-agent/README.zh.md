@@ -20,7 +20,12 @@ pnpm --filter @shotgo/agent-runtime run dev -- "我能使用哪些图片模型�
 pnpm --filter @shotgo/agent-runtime run typecheck
 pnpm --filter @shotgo/agent-runtime run test
 pnpm --filter @shotgo/agent-runtime run test:contract
+pnpm --filter @shotgo/agent-runtime run test:gateway
 ```
+
+## 部署基线
+
+生产部署基线记录在 [`deploy/`](deploy/README.zh.md)。它构建仅监听回环地址的 Gateway，并分离 `/healthz` 与 `/readyz`。Laravel v1 集成验收明确启用流量前，readiness 默认返回 `503`。
 
 ## 架构
 
@@ -45,3 +50,4 @@ Phase 0A mock 总是请求只读 `generation_config_read` Tool，然后解释其
 - Preset discovery 和按 Session 选择已经声明，但尚未接入公开 Session API。
 - Laravel 与 Agent Runtime 尚未连接已冻结的 v1 协议实现。
 - 双方通过契约与集成验收前，计费、生成提交和画布写入保持禁用。
+- 当前部署 Gateway 仅提供健康与就绪检查，尚未实现公开 Agent Session 路由。
