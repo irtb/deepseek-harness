@@ -1,4 +1,4 @@
-/** Minimal keyless Harness bundle owned by the ShotGo Agent Runtime. */
+/** Keyless-bootable Harness bundle owned by the ShotGo Agent Runtime. */
 
 import type { Context } from '@deepseek-ai/cordis'
 import Timer from '@deepseek-ai/cordis-plugin-timer'
@@ -12,11 +12,12 @@ import SessionTitleService from '@deepseek-ai/dsh-session-title'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import * as mockLlm from './llm/mock.ts'
+import * as arkLlm from './llm/ark.ts'
 import * as generationConfigRead from './tools/generation-config-read.ts'
 
 export const name = 'shotgo-agent-runtime'
 
-/** Compose the Phase 0A runtime without coding tools or external integrations. */
+/** Compose the restricted runtime; external providers remain request-time gated. */
 export async function apply(ctx: Context): Promise<void> {
   await ctx.plugin(Timer)
   await ctx.plugin(LlmRuntime)
@@ -36,6 +37,7 @@ export async function apply(ctx: Context): Promise<void> {
   await ctx.plugin(AgentRegistry)
   await ctx.plugin(llmRetry)
   await ctx.plugin(mockLlm)
+  await ctx.plugin(arkLlm)
   await ctx.plugin(generationConfigRead)
   await ctx.plugin(AgentLoop, {
     agents: [],

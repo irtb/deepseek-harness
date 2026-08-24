@@ -36,12 +36,12 @@ Every contribution is a Cordis effect. Function plugins use named `name`, `injec
 
 Distinguish these calls in names, types, logs, and tests:
 
-- Agent inference: a tool-calling text/reasoning model used by the Harness loop. `ShotGoLlmAdapter` reaches it only through Laravel's internal inference API.
+- Agent inference: a tool-calling text/reasoning model used by the Harness loop. `ShotGoArkLlmAdapter` reaches only the Laravel-approved `deepseek-v4-flash` and `deepseek-v4-pro` models through Volcano Ark's OpenAI-compatible API.
 - Business generation: text, image, video, and audio asset generation. Model-facing Tools reach it only through Laravel capability APIs.
 
-Harness must never connect directly to any model supplier. Provider keys, model visibility, routing, usage authority, quotes, credits, generation queues, assets, and refunds remain in Laravel.
+The Agent Runtime owns its service-scoped `ARK_API_KEY` and direct inference transport. Laravel never receives or returns that key. Laravel remains authoritative for model allowlists and defaults, per-session budget policy, usage audit, users, permissions, quotes, credits, generation queues, assets, and refunds. A policy failure must fail closed; it must never silently widen a grant or switch to an unapproved model.
 
-`ShotGoLlmAdapter` extends Harness `LlmAdapter`. It must preserve tool-call streaming, usage, finish reasons, provider request identity, retry classification, and `AbortSignal` cancellation. Never log credentials or raw provider responses.
+`ShotGoArkLlmAdapter` extends Harness `LlmAdapter` through the public DeepSeek adapter package. It must preserve tool-call streaming, usage, finish reasons, provider request identity, retry classification, and `AbortSignal` cancellation. Never log credentials, prompts, completions, or raw provider responses in control-plane usage reports.
 
 ## Laravel capability rules
 
@@ -84,4 +84,4 @@ Phase 0B freezes `contracts/openapi.json`, `contracts/schemas/laravel-v1.schema.
 
 ## Current implementation boundary
 
-The Phase 0B wire protocol is frozen at `2026-08-24`. Do not change an endpoint, field, lifecycle, authentication flow, error code contract, or event cursor semantics without a new development branch, synchronized contract artifacts, compatibility analysis, and passing contract tests. External integrations remain fixtures or mocks until a Laravel implementation is available and accepted.
+The Phase 0B.1 wire protocol is frozen at `2026-08-24.1`. It removes Laravel inference streaming and adds inference-policy plus metadata-only usage control-plane endpoints. Do not change an endpoint, field, lifecycle, authentication flow, error code contract, or event cursor semantics without a new development branch, synchronized contract artifacts, compatibility analysis, and passing contract tests. Business-generation integrations remain fixtures or mocks until a Laravel implementation is available and accepted.

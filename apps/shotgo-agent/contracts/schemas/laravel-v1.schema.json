@@ -3,11 +3,12 @@
   "$id": "https://agent.shotgo.cn/contracts/laravel-v1.schema.json",
   "title": "ShotGo Laravel Agent Protocol v1",
   "$defs": {
-    "ProtocolVersion": { "const": "2026-08-24" },
+    "ProtocolVersion": { "const": "2026-08-24.1" },
     "OpaqueId": { "type": "string", "minLength": 1, "maxLength": 255 },
     "DateTime": { "type": "string", "format": "date-time" },
     "AgentMode": { "enum": ["canvas", "image", "video"] },
     "AssetKind": { "enum": ["text", "image", "video", "audio"] },
+    "InferenceModel": { "enum": ["deepseek-v4-flash", "deepseek-v4-pro"] },
     "Money": {
       "type": "object",
       "additionalProperties": false,
@@ -185,25 +186,52 @@
         "operationId": { "$ref": "#/$defs/OpaqueId" }
       }
     },
-    "InferenceRequest": {
+    "InferencePolicy": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["sessionId", "runId", "modelPolicy", "messages", "tools"],
+      "required": ["protocolVersion", "policyVersion", "provider", "allowedModels", "defaultModel", "defaultReasoningEffort", "maxOutputTokens", "sessionTokenBudget", "expiresAt"],
       "properties": {
-        "sessionId": { "$ref": "#/$defs/OpaqueId" },
-        "runId": { "$ref": "#/$defs/OpaqueId" },
-        "modelPolicy": { "$ref": "#/$defs/OpaqueId" },
-        "messages": { "type": "array", "items": { "type": "object" } },
-        "tools": { "type": "array", "items": { "type": "object" } }
+        "protocolVersion": { "$ref": "#/$defs/ProtocolVersion" },
+        "policyVersion": { "$ref": "#/$defs/OpaqueId" },
+        "provider": { "const": "volcengine-ark" },
+        "allowedModels": { "type": "array", "minItems": 1, "uniqueItems": true, "items": { "$ref": "#/$defs/InferenceModel" } },
+        "defaultModel": { "$ref": "#/$defs/InferenceModel" },
+        "defaultReasoningEffort": { "enum": ["off", "high", "max"] },
+        "maxOutputTokens": { "type": "integer", "minimum": 1, "maximum": 65536 },
+        "sessionTokenBudget": { "type": "integer", "minimum": 1 },
+        "expiresAt": { "$ref": "#/$defs/DateTime" }
       }
     },
-    "InferenceEvent": {
+    "InferenceUsageReport": {
       "type": "object",
-      "required": ["type"],
+      "additionalProperties": false,
+      "required": ["protocolVersion", "llmRequestId", "sessionId", "provider", "model", "status", "startedAt", "completedAt", "durationMs", "usage"],
       "properties": {
-        "type": { "enum": ["response.start", "text.delta", "tool_call.delta", "usage", "response.completed", "error"] },
-        "providerRequestId": { "type": "string" },
-        "data": {}
+        "protocolVersion": { "$ref": "#/$defs/ProtocolVersion" },
+        "llmRequestId": { "$ref": "#/$defs/OpaqueId" },
+        "sessionId": { "$ref": "#/$defs/OpaqueId" },
+        "runId": { "$ref": "#/$defs/OpaqueId" },
+        "purpose": { "type": "string", "maxLength": 255 },
+        "provider": { "const": "volcengine-ark" },
+        "model": { "$ref": "#/$defs/InferenceModel" },
+        "status": { "enum": ["completed", "failed", "cancelled"] },
+        "startedAt": { "$ref": "#/$defs/DateTime" },
+        "completedAt": { "$ref": "#/$defs/DateTime" },
+        "durationMs": { "type": "integer", "minimum": 0 },
+        "usage": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["inputTokens", "outputTokens"],
+          "properties": {
+            "inputTokens": { "type": "integer", "minimum": 0 },
+            "outputTokens": { "type": "integer", "minimum": 0 },
+            "cacheReadTokens": { "type": "integer", "minimum": 0 },
+            "cacheWriteTokens": { "type": "integer", "minimum": 0 },
+            "reasoningTokens": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "providerRequestId": { "type": "string", "maxLength": 255 },
+        "errorCode": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" }
       }
     },
     "AgentEvent": {

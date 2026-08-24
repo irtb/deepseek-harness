@@ -2,20 +2,22 @@
 
 [English](README.md) | 中文
 
-状态：已于 2026-08-24 **冻结，可进入实现**。Wire 版本：`2026-08-24`。
+状态：Phase 0B.1 已于 2026-08-24 **冻结，可进入实现**。Wire 版本：`2026-08-24.1`。
 
 本目录是 Agent Runtime 与 ShotGo Laravel 边界的权威来源。`openapi.json` 定义 HTTP 操作，`schemas/laravel-v1.schema.json` 定义共享消息，`src/contracts/laravel-v1.ts` 映射稳定的运行时类型和不变量。任何影响 wire format 的 Laravel 或 Agent Runtime 改动，必须同步更新这些文件和契约测试。
 
 ## 职责与调用路径
 
-Harness 只通过 Laravel 内部推理流调用文本/推理模型。图片、视频、音频和业务文本生成都不是推理调用：模型可见 Tool 必须通过 Laravel Capability 端点提交这些操作。Laravel 始终负责供应商路由、密钥、权限、报价有效期、积分、任务、资产、退款和画布状态。
+Harness 通过火山方舟直连 Laravel 批准的 `deepseek-v4-flash` 或 `deepseek-v4-pro` 推理模型。Agent Host Plane 持有 `ARK_API_KEY`，Laravel 不传输、也不保存该服务密钥。推理前，Runtime 使用用户 Capability Grant 读取具有有效期的模型与预算策略；推理后，Runtime 使用服务身份幂等回传仅含元数据的用量。图片、视频、音频和业务文本生成不属于 Harness 推理：模型可见 Tool 必须通过 Laravel Capability 端点提交。Laravel 始终负责策略、权限、用量审计、报价有效期、积分、任务、资产、退款和画布状态。
 
 浏览器先从已登录的 Laravel Session 获取一次性交接票据。Agent Runtime 使用服务身份交换该票据，获得不透明的短期 Capability Grant。Runtime 将 Grant 作为 Bearer Token 转发，不把本地解码出的声明当作权限权威。
 
 ## 已冻结约定
 
-- 基础路径：`/api/agent/v1`；内部推理：`/api/internal/agent/v1`。
-- 每个响应携带 `X-ShotGo-Protocol-Version: 2026-08-24`。
+- 基础路径：`/api/agent/v1`；服务身份控制面写入：`/api/internal/agent/v1`。
+- 每个响应携带 `X-ShotGo-Protocol-Version: 2026-08-24.1`。
+- 推理策略具有短有效期并采用失败关闭；默认模型必须位于允许列表中。
+- 推理用量以 `llmRequestId` 作为 `Idempotency-Key`，只允许标识符、模型、时间、状态和 Token 计数；禁止供应商密钥、提示词、消息、回答和原始响应。
 - 每个写请求携带 `Idempotency-Key`，且必须等于请求体中的 `context.clientRequestId`。
 - 写上下文包含 `sessionId`、`runId`、`actionId` 和 `clientRequestId`。
 - 金额使用十进制字符串和 ISO 4217 币种，禁止使用 JavaScript number 表示金额。
@@ -32,9 +34,9 @@ Harness 只通过 Laravel 内部推理流调用文本/推理模型。图片、�
 ## 端点分组
 
 - 交接票据交换与 Capability 目录；
-- Harness 推理使用的 inference SSE stream；
+- 直连推理策略读取与仅含元数据的用量审计；
 - 生成报价、创建、状态、恢复查询和取消；
 - 画布快照与乐观并发操作应用；
 - 可重放的 Agent 事件流。
 
-协议冻结不代表 Laravel 已经完成实现。它是双方实现必须共同满足的验收契约，在此之前不得启用真实写入或计费。
+协议冻结不代表 Laravel 已经完成实现。它是双方实现必须共同满足的验收契约，在此之前不得开放 Agent readiness。删除 `/api/internal/agent/v1/inference/stream` 是相对 Wire 版本 `2026-08-24` 的有意不兼容变更。
