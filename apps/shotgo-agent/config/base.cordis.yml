@@ -1,0 +1,5 @@
+# Phase 0A Host Plane. The ShotGo bundle composes only public Harness services
+# and keeps its provider and consumer registrations in the same Cordis scope.
+
+- id: shotgo-agent-host
+  name: '../src/runtime.ts'

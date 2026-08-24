@@ -1,0 +1,42 @@
+# ShotGo Agent Runtime
+
+English | [中文](README.zh.md)
+
+Private DeepSeek Harness assembly for ShotGo's Canvas, Image, and Video conversational agents.
+
+Phase 0A is keyless and read-only. It boots a mock inference adapter, calls `generation_config_read`, records the complete Harness Session turn, and returns a deterministic answer. It does not connect to Laravel, call an AIGC supplier, charge credits, submit generation, or mutate a canvas.
+
+## Local smoke
+
+```sh
+pnpm --filter @shotgo/agent-runtime run dev -- "我能使用哪些图片模型？"
+```
+
+## Focused checks
+
+```sh
+pnpm --filter @shotgo/agent-runtime run typecheck
+pnpm --filter @shotgo/agent-runtime run test
+```
+
+## Architecture
+
+- `config/base.cordis.yml` assembles the Phase 0A Host Plane.
+- `config/agent-presets/` contains the three trusted Agent Plane compositions.
+- `src/llm/` owns the Harness LLM provider implementation.
+- `src/tools/` owns shared model-facing ShotGo tools.
+- Laravel remains authoritative for identity, permissions, models, billing, canvas state, generation jobs, and assets.
+
+## Model Experience
+
+The Phase 0A mock always requests the read-only `generation_config_read` tool and then explains its result. No supplier model is called, so the transcript is keyless and deterministic. Replacing the mock after Phase 0B changes the inference provider but not the business-generation ownership boundary.
+
+#### KV Cache effect
+
+The three Presets have distinct persona text. Within one Preset, the prompt and tool schema remain stable across turns; dynamic Laravel capability results will appear only as tool results after Phase 0B.
+
+## Known Limitations and Deferred Work
+
+- The executable is a Phase 0A smoke entry, not the production Gateway.
+- Preset discovery and per-session selection are declared but not yet wired into a public session endpoint.
+- Laravel inference, authentication, capability APIs, billing, generation submission, and canvas mutation are deferred until Phase 0B freezes their protocols.
