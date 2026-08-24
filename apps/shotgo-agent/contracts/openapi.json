@@ -1,0 +1,177 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ShotGo Laravel Agent Protocol",
+    "version": "2026-08-24",
+    "description": "Frozen Agent Runtime to Laravel protocol. Laravel is the business authority; Harness never calls model suppliers directly."
+  },
+  "servers": [{ "url": "https://shotgo.cn" }],
+  "tags": [
+    { "name": "Authentication" },
+    { "name": "Inference" },
+    { "name": "Generation" },
+    { "name": "Canvas" },
+    { "name": "Events" }
+  ],
+  "paths": {
+    "/api/internal/agent/v1/grants/exchange": {
+      "post": {
+        "operationId": "exchangeAgentHandoffTicket",
+        "tags": ["Authentication"],
+        "security": [{ "serviceAuth": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "./schemas/laravel-v1.schema.json#/$defs/GrantExchangeRequest" } } } },
+        "responses": {
+          "200": { "description": "Opaque short-lived capability grant", "headers": { "X-ShotGo-Protocol-Version": { "$ref": "#/components/headers/ProtocolVersion" } }, "content": { "application/json": { "schema": { "$ref": "./schemas/laravel-v1.schema.json#/$defs/GrantExchangeResponse" } } } },
+          "default": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/api/agent/v1/capabilities": {
+      "get": {
+        "operationId": "readAgentCapabilityCatalog",
+        "tags": ["Generation"],
+        "security": [{ "capabilityGrant": [] }],
+        "parameters": [{ "name": "kind", "in": "query", "required": false, "schema": { "$ref": "./schemas/laravel-v1.schema.json#/$defs/AssetKind" } }],
+        "responses": {
+          "200": { "description": "Models visible to the current grant", "headers": { "X-ShotGo-Protocol-Version": { "$ref": "#/components/headers/ProtocolVersion" } }, "content": { "application/json": { "schema": { "$ref": "./schemas/laravel-v1.schema.json#/$defs/CapabilityCatalog" } } } },
+          "default": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/api/internal/agent/v1/inference/stream": {
+      "post": {
+        "operationId": "streamAgentInference",
+        "tags": ["Inference"],
+        "description": "Tool-calling text/reasoning inference for Harness. This endpoint is not an AIGC generation endpoint.",
+        "security": [{ "serviceAuth": [], "capabilityGrant": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "./schemas/laravel-v1.schema.json#/$defs/InferenceRequest" } } } },
+        "responses": {
+          "200": { "description": "SSE inference chunks", "headers": { "X-ShotGo-Protocol-Version": { "$ref": "#/components/headers/ProtocolVersion" } }, "content": { "text/event-stream": { "schema": { "$ref": "./schemas/laravel-v1.schema.json#/$defs/InferenceEvent" } } } },
+          "default": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/api/agent/v1/generation-quotes": {
+      "post": {
+        "operationId": "createGenerationQuote",
+        "tags": ["Generation"],
+        "security": [{ "capabilityGrant": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "./schemas/laravel-v1.schema.json#/$defs/QuoteRequest" } } } },
+        "responses": {
+          "200": { "description": "Authoritative quote requiring user confirmation", "headers": { "X-ShotGo-Protocol-Version": { "$ref": "#/components/headers/ProtocolVersion" } }, "content": { "application/json": { "schema": { "$ref": "./schemas/laravel-v1.schema.json#/$defs/QuoteResponse" } } } },
+          "default": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/api/agent/v1/generations": {
+      "post": {
+        "operationId": "createGeneration",
+        "tags": ["Generation"],
+        "security": [{ "capabilityGrant": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "./schemas/laravel-v1.schema.json#/$defs/GenerationCreateRequest" } } } },
+        "responses": {
+          "202": { "description": "Generation accepted or replayed idempotently", "headers": { "X-ShotGo-Protocol-Version": { "$ref": "#/components/headers/ProtocolVersion" } }, "content": { "application/json": { "schema": { "$ref": "./schemas/laravel-v1.schema.json#/$defs/Generation" } } } },
+          "default": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/api/agent/v1/generations/by-client-request/{clientRequestId}": {
+      "get": {
+        "operationId": "recoverGenerationByClientRequestId",
+        "tags": ["Generation"],
+        "security": [{ "capabilityGrant": [] }],
+        "parameters": [{ "name": "clientRequestId", "in": "path", "required": true, "schema": { "type": "string" } }],
+        "responses": {
+          "200": { "description": "Authoritative result for unknown mutation outcome recovery", "headers": { "X-ShotGo-Protocol-Version": { "$ref": "#/components/headers/ProtocolVersion" } }, "content": { "application/json": { "schema": { "$ref": "./schemas/laravel-v1.schema.json#/$defs/Generation" } } } },
+          "404": { "$ref": "#/components/responses/Problem" },
+          "default": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/api/agent/v1/generations/{generationId}": {
+      "get": {
+        "operationId": "readGeneration",
+        "tags": ["Generation"],
+        "security": [{ "capabilityGrant": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/GenerationId" }],
+        "responses": {
+          "200": { "description": "Authoritative generation state", "headers": { "X-ShotGo-Protocol-Version": { "$ref": "#/components/headers/ProtocolVersion" } }, "content": { "application/json": { "schema": { "$ref": "./schemas/laravel-v1.schema.json#/$defs/Generation" } } } },
+          "default": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/api/agent/v1/generations/{generationId}/cancel": {
+      "post": {
+        "operationId": "cancelGeneration",
+        "tags": ["Generation"],
+        "security": [{ "capabilityGrant": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/GenerationId" }, { "$ref": "#/components/parameters/IdempotencyKey" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "./schemas/laravel-v1.schema.json#/$defs/CancelRequest" } } } },
+        "responses": {
+          "200": { "description": "Final Laravel state after cancellation race resolution", "headers": { "X-ShotGo-Protocol-Version": { "$ref": "#/components/headers/ProtocolVersion" } }, "content": { "application/json": { "schema": { "$ref": "./schemas/laravel-v1.schema.json#/$defs/Generation" } } } },
+          "default": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/api/agent/v1/canvases/{canvasId}": {
+      "get": {
+        "operationId": "readCanvasSnapshot",
+        "tags": ["Canvas"],
+        "security": [{ "capabilityGrant": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/CanvasId" }],
+        "responses": {
+          "200": { "description": "Authoritative revisioned canvas snapshot", "headers": { "X-ShotGo-Protocol-Version": { "$ref": "#/components/headers/ProtocolVersion" } }, "content": { "application/json": { "schema": { "$ref": "./schemas/laravel-v1.schema.json#/$defs/CanvasSnapshot" } } } },
+          "default": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/api/agent/v1/canvases/{canvasId}/operations": {
+      "post": {
+        "operationId": "applyCanvasOperations",
+        "tags": ["Canvas"],
+        "security": [{ "capabilityGrant": [] }],
+        "parameters": [{ "$ref": "#/components/parameters/CanvasId" }, { "$ref": "#/components/parameters/IdempotencyKey" }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "./schemas/laravel-v1.schema.json#/$defs/CanvasApplyRequest" } } } },
+        "responses": {
+          "200": { "description": "Operations applied against expected revision", "headers": { "X-ShotGo-Protocol-Version": { "$ref": "#/components/headers/ProtocolVersion" } }, "content": { "application/json": { "schema": { "$ref": "./schemas/laravel-v1.schema.json#/$defs/CanvasApplyResponse" } } } },
+          "409": { "description": "CANVAS_REVISION_CONFLICT; reread and replan", "headers": { "X-ShotGo-Protocol-Version": { "$ref": "#/components/headers/ProtocolVersion" } }, "content": { "application/problem+json": { "schema": { "$ref": "./schemas/laravel-v1.schema.json#/$defs/Problem" } } } },
+          "default": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/api/agent/v1/events": {
+      "get": {
+        "operationId": "streamAgentEvents",
+        "tags": ["Events"],
+        "security": [{ "capabilityGrant": [] }],
+        "parameters": [
+          { "name": "projectId", "in": "query", "required": true, "schema": { "type": "string" } },
+          { "name": "Last-Event-ID", "in": "header", "required": false, "schema": { "type": "string" } }
+        ],
+        "responses": {
+          "200": { "description": "Replayable SSE events ordered by project sequence", "headers": { "X-ShotGo-Protocol-Version": { "$ref": "#/components/headers/ProtocolVersion" } }, "content": { "text/event-stream": { "schema": { "$ref": "./schemas/laravel-v1.schema.json#/$defs/AgentEvent" } } } },
+          "default": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "serviceAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "opaque-service-token" },
+      "capabilityGrant": { "type": "http", "scheme": "bearer", "bearerFormat": "opaque-capability-grant" }
+    },
+    "headers": {
+      "ProtocolVersion": { "required": true, "schema": { "type": "string", "const": "2026-08-24" } }
+    },
+    "parameters": {
+      "IdempotencyKey": { "name": "Idempotency-Key", "in": "header", "required": true, "description": "Must equal body context.clientRequestId", "schema": { "type": "string", "minLength": 1 } },
+      "GenerationId": { "name": "generationId", "in": "path", "required": true, "schema": { "type": "string" } },
+      "CanvasId": { "name": "canvasId", "in": "path", "required": true, "schema": { "type": "string" } }
+    },
+    "responses": {
+      "Problem": { "description": "Stable machine-readable protocol error", "headers": { "X-ShotGo-Protocol-Version": { "$ref": "#/components/headers/ProtocolVersion" } }, "content": { "application/problem+json": { "schema": { "$ref": "./schemas/laravel-v1.schema.json#/$defs/Problem" } } } }
+    }
+  }
+}

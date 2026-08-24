@@ -1,0 +1,241 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://agent.shotgo.cn/contracts/laravel-v1.schema.json",
+  "title": "ShotGo Laravel Agent Protocol v1",
+  "$defs": {
+    "ProtocolVersion": { "const": "2026-08-24" },
+    "OpaqueId": { "type": "string", "minLength": 1, "maxLength": 255 },
+    "DateTime": { "type": "string", "format": "date-time" },
+    "AgentMode": { "enum": ["canvas", "image", "video"] },
+    "AssetKind": { "enum": ["text", "image", "video", "audio"] },
+    "Money": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["amount", "currency"],
+      "properties": {
+        "amount": { "type": "string", "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]{1,8})?$" },
+        "currency": { "type": "string", "pattern": "^[A-Z]{3}$" }
+      }
+    },
+    "MutationContext": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sessionId", "runId", "actionId", "clientRequestId"],
+      "properties": {
+        "sessionId": { "$ref": "#/$defs/OpaqueId" },
+        "runId": { "$ref": "#/$defs/OpaqueId" },
+        "actionId": { "$ref": "#/$defs/OpaqueId" },
+        "clientRequestId": { "$ref": "#/$defs/OpaqueId" }
+      }
+    },
+    "GrantExchangeRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["handoffTicket", "sessionId", "agentMode"],
+      "properties": {
+        "handoffTicket": { "$ref": "#/$defs/OpaqueId" },
+        "sessionId": { "$ref": "#/$defs/OpaqueId" },
+        "agentMode": { "$ref": "#/$defs/AgentMode" }
+      }
+    },
+    "GrantExchangeResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "grantToken", "expiresAt", "userId", "teamId", "projectId", "agentMode", "allowedCapabilities"],
+      "properties": {
+        "protocolVersion": { "$ref": "#/$defs/ProtocolVersion" },
+        "grantToken": { "$ref": "#/$defs/OpaqueId" },
+        "expiresAt": { "$ref": "#/$defs/DateTime" },
+        "userId": { "$ref": "#/$defs/OpaqueId" },
+        "teamId": { "$ref": "#/$defs/OpaqueId" },
+        "projectId": { "$ref": "#/$defs/OpaqueId" },
+        "agentMode": { "$ref": "#/$defs/AgentMode" },
+        "allowedCapabilities": { "type": "array", "items": { "$ref": "#/$defs/OpaqueId" }, "uniqueItems": true },
+        "budgetLimit": { "$ref": "#/$defs/Money" }
+      }
+    },
+    "CapabilityCatalog": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "catalogVersion", "models"],
+      "properties": {
+        "protocolVersion": { "$ref": "#/$defs/ProtocolVersion" },
+        "catalogVersion": { "$ref": "#/$defs/OpaqueId" },
+        "models": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["modelId", "kind", "displayName", "inputSchema", "enabled"],
+            "properties": {
+              "modelId": { "$ref": "#/$defs/OpaqueId" },
+              "kind": { "$ref": "#/$defs/AssetKind" },
+              "displayName": { "type": "string", "minLength": 1 },
+              "inputSchema": { "type": "object" },
+              "enabled": { "type": "boolean" }
+            }
+          }
+        }
+      }
+    },
+    "QuoteRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["context", "kind", "modelId", "parameters"],
+      "properties": {
+        "context": { "$ref": "#/$defs/MutationContext" },
+        "kind": { "$ref": "#/$defs/AssetKind" },
+        "modelId": { "$ref": "#/$defs/OpaqueId" },
+        "parameters": { "type": "object" }
+      }
+    },
+    "QuoteResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "quoteId", "quoteVersion", "price", "expiresAt", "normalizedParameters", "requiresConfirmation"],
+      "properties": {
+        "protocolVersion": { "$ref": "#/$defs/ProtocolVersion" },
+        "quoteId": { "$ref": "#/$defs/OpaqueId" },
+        "quoteVersion": { "type": "integer", "minimum": 1 },
+        "price": { "$ref": "#/$defs/Money" },
+        "expiresAt": { "$ref": "#/$defs/DateTime" },
+        "normalizedParameters": { "type": "object" },
+        "requiresConfirmation": { "const": true }
+      }
+    },
+    "GenerationCreateRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["context", "kind", "modelId", "parameters", "quoteId", "quoteVersion", "confirmedAt"],
+      "properties": {
+        "context": { "$ref": "#/$defs/MutationContext" },
+        "kind": { "$ref": "#/$defs/AssetKind" },
+        "modelId": { "$ref": "#/$defs/OpaqueId" },
+        "parameters": { "type": "object" },
+        "quoteId": { "$ref": "#/$defs/OpaqueId" },
+        "quoteVersion": { "type": "integer", "minimum": 1 },
+        "confirmedAt": { "$ref": "#/$defs/DateTime" },
+        "canvasTarget": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["canvasId", "expectedRevision"],
+          "properties": {
+            "canvasId": { "$ref": "#/$defs/OpaqueId" },
+            "expectedRevision": { "type": "integer", "minimum": 0 }
+          }
+        }
+      }
+    },
+    "GenerationState": { "enum": ["draft", "creating", "queued", "processing", "completed", "failed", "cancelled"] },
+    "Generation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "generationId", "clientRequestId", "operationId", "state", "stage", "createdAt", "updatedAt"],
+      "properties": {
+        "protocolVersion": { "$ref": "#/$defs/ProtocolVersion" },
+        "generationId": { "$ref": "#/$defs/OpaqueId" },
+        "clientRequestId": { "$ref": "#/$defs/OpaqueId" },
+        "operationId": { "$ref": "#/$defs/OpaqueId" },
+        "state": { "$ref": "#/$defs/GenerationState" },
+        "stage": { "type": "string", "minLength": 1 },
+        "createdAt": { "$ref": "#/$defs/DateTime" },
+        "updatedAt": { "$ref": "#/$defs/DateTime" },
+        "assets": { "type": "array", "items": { "type": "object" } },
+        "failureCode": { "type": "string" }
+      }
+    },
+    "CancelRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["context"],
+      "properties": { "context": { "$ref": "#/$defs/MutationContext" } }
+    },
+    "CanvasSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "canvasId", "revision", "nodes", "edges"],
+      "properties": {
+        "protocolVersion": { "$ref": "#/$defs/ProtocolVersion" },
+        "canvasId": { "$ref": "#/$defs/OpaqueId" },
+        "revision": { "type": "integer", "minimum": 0 },
+        "nodes": { "type": "array", "items": { "type": "object" } },
+        "edges": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "CanvasApplyRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["context", "expectedRevision", "operations", "confirmedAt"],
+      "properties": {
+        "context": { "$ref": "#/$defs/MutationContext" },
+        "expectedRevision": { "type": "integer", "minimum": 0 },
+        "operations": { "type": "array", "minItems": 1, "items": { "type": "object", "required": ["type"], "properties": { "type": { "type": "string" } } } },
+        "confirmedAt": { "$ref": "#/$defs/DateTime" }
+      }
+    },
+    "CanvasApplyResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "canvasId", "previousRevision", "revision", "operationId"],
+      "properties": {
+        "protocolVersion": { "$ref": "#/$defs/ProtocolVersion" },
+        "canvasId": { "$ref": "#/$defs/OpaqueId" },
+        "previousRevision": { "type": "integer", "minimum": 0 },
+        "revision": { "type": "integer", "minimum": 1 },
+        "operationId": { "$ref": "#/$defs/OpaqueId" }
+      }
+    },
+    "InferenceRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sessionId", "runId", "modelPolicy", "messages", "tools"],
+      "properties": {
+        "sessionId": { "$ref": "#/$defs/OpaqueId" },
+        "runId": { "$ref": "#/$defs/OpaqueId" },
+        "modelPolicy": { "$ref": "#/$defs/OpaqueId" },
+        "messages": { "type": "array", "items": { "type": "object" } },
+        "tools": { "type": "array", "items": { "type": "object" } }
+      }
+    },
+    "InferenceEvent": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": { "enum": ["response.start", "text.delta", "tool_call.delta", "usage", "response.completed", "error"] },
+        "providerRequestId": { "type": "string" },
+        "data": {}
+      }
+    },
+    "AgentEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "eventId", "projectId", "sequence", "operationId", "occurredAt", "type", "payload"],
+      "properties": {
+        "protocolVersion": { "$ref": "#/$defs/ProtocolVersion" },
+        "eventId": { "$ref": "#/$defs/OpaqueId" },
+        "projectId": { "$ref": "#/$defs/OpaqueId" },
+        "sequence": { "type": "integer", "minimum": 1 },
+        "operationId": { "$ref": "#/$defs/OpaqueId" },
+        "occurredAt": { "$ref": "#/$defs/DateTime" },
+        "type": { "type": "string", "minLength": 1 },
+        "payload": { "type": "object" }
+      }
+    },
+    "Problem": {
+      "type": "object",
+      "additionalProperties": true,
+      "required": ["type", "title", "status", "code", "retryable", "requestId"],
+      "properties": {
+        "type": { "type": "string", "format": "uri-reference" },
+        "title": { "type": "string" },
+        "status": { "type": "integer", "minimum": 400, "maximum": 599 },
+        "detail": { "type": "string" },
+        "instance": { "type": "string" },
+        "code": { "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$" },
+        "retryable": { "type": "boolean" },
+        "requestId": { "$ref": "#/$defs/OpaqueId" },
+        "details": { "type": "object" }
+      }
+    }
+  }
+}

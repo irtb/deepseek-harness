@@ -1,0 +1,16 @@
+---
+description: Enforce isolated branches and test-gated merges for ShotGo development
+globs: apps/shotgo-agent/**,.agents/notes/**/*shotgo*,.cursor/rules/shotgo-*
+alwaysApply: false
+---
+
+# ShotGo Branch Workflow
+
+- Start every independently reviewable development item on a new branch created from the current local `master` or the designated `release/*` branch.
+- Use `feature/<scope>`, `fix/<scope>`, `docs/<scope>`, or `chore/<scope>` names. Never implement directly on `master` or `release/*`.
+- Keep one development item per branch. Do not mix unrelated cleanup or upstream dependency refreshes into it.
+- Record the required focused checks before implementation. Run them after implementation and keep the exact results in the handoff.
+- Merge into `master` or the designated `release/*` branch only after all required tests, contract checks, lint, and isolation checks pass.
+- Do not merge when a required check is skipped, flaky, unavailable, or failing. Document and resolve the blocker on the development branch.
+- Do not push, open a pull request, deploy, or delete the branch unless the user explicitly requests that external action.
+- Use a non-fast-forward merge so the development item remains auditable as a branch-level unit.
