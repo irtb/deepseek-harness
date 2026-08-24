@@ -69,6 +69,7 @@ describe('Laravel Agent Protocol v1', () => {
         '/api/agent/v1/generations/{generationId}',
         '/api/agent/v1/generations/{generationId}/cancel',
         '/api/internal/agent/v1/grants/exchange',
+        '/api/internal/agent/v1/inference-runtime-config',
         '/api/internal/agent/v1/inference-usage',
       ].sort(),
     )
@@ -108,12 +109,16 @@ describe('Laravel Agent Protocol v1', () => {
   it('keeps direct reasoning control-plane traffic distinct from business generation', async () => {
     const openapi = await readJson<OpenApiDocument>('openapi.json')
     const policy = operation(openapi, '/api/agent/v1/inference-policy', 'get')
+    const runtimeConfig = operation(openapi, '/api/internal/agent/v1/inference-runtime-config', 'get')
     const usage = operation(openapi, '/api/internal/agent/v1/inference-usage', 'post')
     const generation = operation(openapi, '/api/agent/v1/generations', 'post')
 
     expect(openapi.paths['/api/internal/agent/v1/inference/stream']).toBeUndefined()
     expect(policy.responses['200']?.content?.['application/json']).toBeDefined()
     expect(policy.description).toContain('never returns provider credentials')
+    expect(runtimeConfig.security).toContainEqual({ serviceAuth: [] })
+    expect(runtimeConfig.description).toContain('must not be cached or logged')
+    expect(runtimeConfig.responses['200']?.content?.['application/json']).toBeDefined()
     expect(usage.parameters).toContainEqual({ $ref: '#/components/parameters/InferenceUsageIdempotencyKey' })
     expect(usage.description).toContain('Prompts, completions, and provider credentials are forbidden')
     expect(generation.responses['202']?.content?.['application/json']).toBeDefined()

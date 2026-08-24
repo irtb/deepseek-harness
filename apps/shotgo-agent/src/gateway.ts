@@ -6,6 +6,14 @@ export interface GatewayConfig {
   port: number
   trafficEnabled: boolean
   deploymentId: string
+  laravel?: {
+    baseURL: string
+    serviceToken: string
+  }
+}
+
+export interface GatewayReadiness {
+  isInferenceRuntimeReady: () => boolean
 }
 
 export interface GatewayStatus {
@@ -25,7 +33,7 @@ function sendJson(response: ServerResponse, statusCode: number, body: GatewaySta
   response.end(JSON.stringify(body))
 }
 
-export function createGatewayServer(config: GatewayConfig): Server {
+export function createGatewayServer(config: GatewayConfig, readiness: GatewayReadiness): Server {
   return createServer((request, response) => {
     const url = new URL(request.url ?? '/', 'http://shotgo-agent.internal')
     if (request.method !== 'GET' && request.method !== 'HEAD') {
@@ -45,11 +53,12 @@ export function createGatewayServer(config: GatewayConfig): Server {
     }
 
     if (url.pathname === '/readyz') {
-      sendJson(response, config.trafficEnabled ? 200 : 503, {
+      const ready = config.trafficEnabled && readiness.isInferenceRuntimeReady()
+      sendJson(response, ready ? 200 : 503, {
         service: 'shotgo-agent',
         protocolVersion: SHOTGO_PROTOCOL_VERSION,
         deploymentId: config.deploymentId,
-        status: config.trafficEnabled ? 'ok' : 'not_ready',
+        status: ready ? 'ok' : 'not_ready',
       })
       return
     }
@@ -69,10 +78,19 @@ export function readGatewayConfig(environment: NodeJS.ProcessEnv): GatewayConfig
   const deploymentId = environment.SHOTGO_DEPLOYMENT_ID?.trim() ?? ''
   if (!deploymentId) throw new Error('SHOTGO_DEPLOYMENT_ID_REQUIRED')
 
+  const laravelBaseURL = environment.SHOTGO_LARAVEL_BASE_URL?.trim() ?? ''
+  const laravelServiceToken = environment.SHOTGO_LARAVEL_SERVICE_TOKEN?.trim() ?? ''
+  if ((laravelBaseURL === '') !== (laravelServiceToken === '')) {
+    throw new Error('SHOTGO_LARAVEL_RUNTIME_CONFIG_INCOMPLETE')
+  }
+
   return {
     host: rawHost,
     port,
     trafficEnabled: environment.SHOTGO_ENABLE_TRAFFIC === 'true',
     deploymentId,
+    ...laravelBaseURL === ''
+      ? {}
+      : { laravel: { baseURL: laravelBaseURL, serviceToken: laravelServiceToken } },
   }
 }

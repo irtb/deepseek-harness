@@ -20,13 +20,13 @@ afterEach(async () => {
   servers.clear()
 })
 
-async function startGateway(trafficEnabled: boolean): Promise<string> {
+async function startGateway(trafficEnabled: boolean, runtimeReady: boolean): Promise<string> {
   const server = createGatewayServer({
     host: '127.0.0.1',
     port: 3010,
     trafficEnabled,
     deploymentId: 'test-sha',
-  })
+  }, { isInferenceRuntimeReady: () => runtimeReady })
   servers.add(server)
   await new Promise<void>((resolve, reject) => {
     server.once('error', reject)
@@ -38,15 +38,15 @@ async function startGateway(trafficEnabled: boolean): Promise<string> {
 
 describe('production Gateway baseline', () => {
   it('stays live while keeping readiness closed before integration acceptance', async () => {
-    const baseUrl = await startGateway(false)
+    const baseUrl = await startGateway(false, true)
     const health = await fetch(`${baseUrl}/healthz`)
     const readiness = await fetch(`${baseUrl}/readyz`)
 
     expect(health.status).toBe(200)
-    expect(health.headers.get('x-shotgo-protocol-version')).toBe('2026-08-24.1')
+    expect(health.headers.get('x-shotgo-protocol-version')).toBe('2026-08-24.2')
     expect(await health.json()).toEqual({
       service: 'shotgo-agent',
-      protocolVersion: '2026-08-24.1',
+      protocolVersion: '2026-08-24.2',
       deploymentId: 'test-sha',
       status: 'ok',
     })
@@ -54,8 +54,12 @@ describe('production Gateway baseline', () => {
     expect(await readiness.json()).toMatchObject({ status: 'not_ready' })
   })
 
-  it('opens readiness only through explicit traffic configuration', async () => {
-    const baseUrl = await startGateway(true)
+  it('opens readiness only when traffic and Laravel runtime configuration are ready', async () => {
+    const unavailableUrl = await startGateway(true, false)
+    const unavailable = await fetch(`${unavailableUrl}/readyz`)
+    expect(unavailable.status).toBe(503)
+
+    const baseUrl = await startGateway(true, true)
     const response = await fetch(`${baseUrl}/readyz`)
 
     expect(response.status).toBe(200)
@@ -70,6 +74,10 @@ describe('production Gateway baseline', () => {
       'SHOTGO_AGENT_PORT_INVALID',
     )
     expect(() => readGatewayConfig({})).toThrow('SHOTGO_DEPLOYMENT_ID_REQUIRED')
+    expect(() => readGatewayConfig({
+      SHOTGO_DEPLOYMENT_ID: 'sha',
+      SHOTGO_LARAVEL_BASE_URL: 'https://api.shotgo.cn',
+    })).toThrow('SHOTGO_LARAVEL_RUNTIME_CONFIG_INCOMPLETE')
   })
 
   it('keeps deployment templates loopback-only and traffic-disabled', async () => {
@@ -87,7 +95,7 @@ describe('production Gateway baseline', () => {
     expect(nginxBootstrap).not.toContain('ssl_certificate')
     expect(nginx).toContain('server 127.0.0.1:3010;')
     expect(nginx).toContain('server_name agent.shotgo.cn;')
-    expect(environment).toContain('ARK_API_KEY=')
+    expect(environment).not.toContain('ARK_API_KEY=')
     expect(supervisor).toContain('[program:agent-shotgo]')
     expect(supervisor).toContain('directory=/data/projects/agent.shotgo.cn')
     expect(supervisor).toContain('user=www-data')

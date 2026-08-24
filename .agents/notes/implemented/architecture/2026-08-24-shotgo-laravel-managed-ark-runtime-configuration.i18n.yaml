@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-24-shotgo-laravel-managed-ark-runtime-configuration.md
+2026-08-24-shotgo-laravel-managed-ark-runtime-configuration.md: 6e3c08363c76428dd60ab4702110279b42c974f7
+2026-08-24-shotgo-laravel-managed-ark-runtime-configuration.zh.md: 400ef71b458009cded5dc06f82749409ea2e983b
