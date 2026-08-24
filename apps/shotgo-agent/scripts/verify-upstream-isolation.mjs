@@ -28,7 +28,8 @@ const paths = new Set([
 
 const allowed = path => path.startsWith('apps/shotgo-agent/')
   || path === 'pnpm-lock.yaml'
-  || (/^\.agents\/notes\/(implemented|proposed)\/(architecture|process|testing)\/[^/]*shotgo-agent[^/]*\.(md|yaml)$/u).test(path)
+  || (/^\.agents\/notes\/(implemented|proposed)\/(architecture|process|testing)\/[^/]*shotgo[^/]*\.(md|yaml)$/u).test(path)
+  || (/^\.cursor\/rules\/shotgo-[^/]+\.mdc$/u).test(path)
 
 const violations = [...paths].filter(path => !allowed(path)).sort()
 if (violations.length > 0) {

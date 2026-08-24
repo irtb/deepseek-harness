@@ -1,0 +1,92 @@
+export const SHOTGO_PROTOCOL_VERSION = '2026-08-24' as const
+export const SHOTGO_PROTOCOL_HEADER = 'X-ShotGo-Protocol-Version' as const
+export const IDEMPOTENCY_HEADER = 'Idempotency-Key' as const
+
+export type AgentMode = 'canvas' | 'image' | 'video'
+export type AssetKind = 'text' | 'image' | 'video' | 'audio'
+export type GenerationState =
+  | 'draft'
+  | 'creating'
+  | 'queued'
+  | 'processing'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+
+export interface MutationContext {
+  sessionId: string
+  runId: string
+  actionId: string
+  clientRequestId: string
+}
+
+export interface Money {
+  amount: string
+  currency: string
+}
+
+export interface ProtocolProblem {
+  type: string
+  title: string
+  status: number
+  detail?: string
+  instance?: string
+  code: string
+  retryable: boolean
+  requestId: string
+  details?: Record<string, unknown>
+}
+
+export interface AgentEvent<TPayload = Record<string, unknown>> {
+  protocolVersion: typeof SHOTGO_PROTOCOL_VERSION
+  eventId: string
+  projectId: string
+  sequence: number
+  operationId: string
+  occurredAt: string
+  type: string
+  payload: TPayload
+}
+
+const generationTransitions: Readonly<Record<GenerationState, readonly GenerationState[]>> = {
+  draft: ['creating', 'cancelled'],
+  creating: ['queued', 'failed', 'cancelled'],
+  queued: ['processing', 'failed', 'cancelled'],
+  processing: ['completed', 'failed', 'cancelled'],
+  completed: [],
+  failed: [],
+  cancelled: [],
+}
+
+export function canTransitionGeneration(from: GenerationState, to: GenerationState): boolean {
+  return generationTransitions[from].includes(to)
+}
+
+export function assertMutationHeaders(
+  context: MutationContext,
+  headers: Readonly<Record<string, string | undefined>>,
+): void {
+  const idempotencyKey = Object.entries(headers).find(
+    ([name]) => name.toLowerCase() === IDEMPOTENCY_HEADER.toLowerCase(),
+  )?.[1]
+
+  if (!context.sessionId || !context.runId || !context.actionId || !context.clientRequestId) {
+    throw new Error('SHOTGO_MUTATION_CONTEXT_INCOMPLETE')
+  }
+  if (idempotencyKey !== context.clientRequestId) {
+    throw new Error('SHOTGO_IDEMPOTENCY_KEY_MISMATCH')
+  }
+}
+
+export function isProtocolProblem(value: unknown): value is ProtocolProblem {
+  if (!value || typeof value !== 'object') return false
+  const candidate = value as Partial<ProtocolProblem>
+  return (
+    typeof candidate.type === 'string' &&
+    typeof candidate.title === 'string' &&
+    typeof candidate.status === 'number' &&
+    typeof candidate.code === 'string' &&
+    typeof candidate.retryable === 'boolean' &&
+    typeof candidate.requestId === 'string'
+  )
+}

@@ -6,6 +6,8 @@ ShotGo 的 Canvas、Image、Video 三类对话式 Agent 所使用的私有 DeepS
 
 Phase 0A 无需密钥且只读。它启动 mock 推理 Adapter，调用 `generation_config_read`，记录完整 Harness Session 回合，并返回确定性回答。它不连接 Laravel、不调用 AIGC 供应商、不扣积分、不提交生成任务，也不修改画布。
 
+Phase 0B 在 [`contracts/`](contracts/README.zh.md) 中冻结 Laravel 边界。该契约已经可以供 Laravel 与 Agent Runtime 分别实现；双方通过契约测试前，仍禁止真实写入和计费。
+
 ## 本地 Smoke
 
 ```sh
@@ -17,6 +19,7 @@ pnpm --filter @shotgo/agent-runtime run dev -- "我能使用哪些图片模型�
 ```sh
 pnpm --filter @shotgo/agent-runtime run typecheck
 pnpm --filter @shotgo/agent-runtime run test
+pnpm --filter @shotgo/agent-runtime run test:contract
 ```
 
 ## 架构
@@ -25,6 +28,7 @@ pnpm --filter @shotgo/agent-runtime run test
 - `config/agent-presets/` 保存三个可信 Agent Plane 组合。
 - `src/llm/` 负责 Harness LLM Provider 实现。
 - `src/tools/` 负责共享的模型可见 ShotGo Tool。
+- `contracts/` 保存已冻结的 OpenAPI 与 JSON Schema Laravel 协议。
 - Laravel 始终负责身份、权限、模型、计费、画布状态、生成任务和资产。
 
 ## Model Experience
@@ -39,4 +43,5 @@ Phase 0A mock 总是请求只读 `generation_config_read` Tool，然后解释其
 
 - 当前 executable 是 Phase 0A smoke 入口，不是生产 Gateway。
 - Preset discovery 和按 Session 选择已经声明，但尚未接入公开 Session API。
-- Laravel inference、鉴权、Capability API、计费、生成提交和画布写入需等待 Phase 0B 冻结协议。
+- Laravel 与 Agent Runtime 尚未连接已冻结的 v1 协议实现。
+- 双方通过契约与集成验收前，计费、生成提交和画布写入保持禁用。

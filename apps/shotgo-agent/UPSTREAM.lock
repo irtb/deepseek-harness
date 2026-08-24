@@ -4,7 +4,7 @@ sha: 528c682e061696f5a160f363f236ecbf53cbd006
 node: ^22.19.0 || >=24.0.0
 pnpm: 11.7.0
 session_format: 0
-shotgo_capability_api: phase-0b-draft
+shotgo_capability_api: v1-2026-08-24-frozen
 presets:
   - shotgo-canvas-v1
   - shotgo-image-v1

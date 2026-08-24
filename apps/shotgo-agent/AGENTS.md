@@ -14,7 +14,8 @@ The three modes share the Gateway, LLM adapter, Laravel capability client, sessi
 
 ## Upstream isolation
 
-- Product development occurs on `feature/agent-*` branches created from `shotgo/main`.
+- Follow `DEVELOPMENT.md`: every independently reviewable item uses a new branch created from `master` or the designated `release/*` branch. Never develop directly on either protected branch.
+- Merge only after every applicable required check passes. A skipped, unavailable, flaky, or failing gate blocks the merge.
 - Never place product behavior in upstream-owned `packages/`, `vendor/`, `native/`, or `apps/web/`.
 - Consume Harness only through published workspace package exports and documented Cordis extension points. Never import another workspace's `src/` by relative path.
 - Do not modify `agent-loop` for ShotGo behavior. Implement behavior as a plugin, provider, consumer, policy, prompt section, or preset.
@@ -69,6 +70,8 @@ Phase 0A is intentionally keyless and read-only:
 4. Prove the complete message → tool call → tool result → answer loop with a keyless assembled snapshot.
 5. Add no Laravel writes, billing, generation submission, or canvas mutation until Phase 0B freezes the wire protocols.
 
+Phase 0B freezes `contracts/openapi.json`, `contracts/schemas/laravel-v1.schema.json`, and `src/contracts/laravel-v1.ts`. Laravel and Agent Runtime implementations may now proceed independently, but real writes and billing stay disabled until both sides pass contract and integration acceptance.
+
 ## Tests and documentation
 
 - Add focused unit coverage for parsers, policies, and adapter chunk mapping.
@@ -81,4 +84,4 @@ Phase 0A is intentionally keyless and read-only:
 
 ## Current implementation boundary
 
-Until Phase 0B is accepted, external integrations are fixtures or mocks. Do not invent a provisional Laravel endpoint, authentication token, event name, billing rule, or persistent schema in production code.
+The Phase 0B wire protocol is frozen at `2026-08-24`. Do not change an endpoint, field, lifecycle, authentication flow, error code contract, or event cursor semantics without a new development branch, synchronized contract artifacts, compatibility analysis, and passing contract tests. External integrations remain fixtures or mocks until a Laravel implementation is available and accepted.
