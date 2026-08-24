@@ -1,0 +1,38 @@
+{
+  "name": "@shotgo/agent-runtime",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --import tsx/esm src/bin.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run --root ../.. apps/shotgo-agent/tests",
+    "test:snapshot": "vitest run --root ../.. apps/shotgo-agent/tests/runtime.snapshot.spec.ts",
+    "verify:isolation": "node scripts/verify-upstream-isolation.mjs"
+  },
+  "dependencies": {
+    "@deepseek-ai/cordis": "workspace:^",
+    "@deepseek-ai/cordis-plugin-include": "workspace:^",
+    "@deepseek-ai/cordis-plugin-loader": "workspace:^",
+    "@deepseek-ai/cordis-plugin-timer": "workspace:^",
+    "@deepseek-ai/dsh-agent": "workspace:^",
+    "@deepseek-ai/dsh-agent-loop": "workspace:^",
+    "@deepseek-ai/dsh-app-boot": "workspace:^",
+    "@deepseek-ai/dsh-llm": "workspace:^",
+    "@deepseek-ai/dsh-llm-retry": "workspace:^",
+    "@deepseek-ai/dsh-persona": "workspace:^",
+    "@deepseek-ai/dsh-session": "workspace:^",
+    "@deepseek-ai/dsh-session-persistence-jsonl": "workspace:^",
+    "@deepseek-ai/dsh-session-title": "workspace:^",
+    "@deepseek-ai/dsh-system-prompt": "workspace:^",
+    "@deepseek-ai/dsh-tools": "workspace:^",
+    "@deepseek-ai/schemastery": "workspace:^"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.0",
+    "execa": "^10.0.0",
+    "tsx": "^4.22.4",
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.8"
+  }
+}

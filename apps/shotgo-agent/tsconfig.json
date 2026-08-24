@@ -1,0 +1,27 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "rootDir": ".",
+    "types": ["node", "vitest/globals"]
+  },
+  "include": ["src/**/*.ts", "tests/**/*.ts"],
+  "references": [
+    { "path": "../../vendor/cordis" },
+    { "path": "../../vendor/schemastery" },
+    { "path": "../../vendor/loader" },
+    { "path": "../../vendor/include" },
+    { "path": "../../vendor/timer" },
+    { "path": "../../packages/boot/app-boot" },
+    { "path": "../../packages/core/agent" },
+    { "path": "../../packages/core/agent-loop" },
+    { "path": "../../packages/core/session" },
+    { "path": "../../packages/core/system-prompt" },
+    { "path": "../../packages/core/tools" },
+    { "path": "../../packages/llm/llm" },
+    { "path": "../../packages/llm/llm-retry" },
+    { "path": "../../packages/preset/persona" },
+    { "path": "../../packages/session/session-persistence-jsonl" },
+    { "path": "../../packages/session/session-title" }
+  ]
+}

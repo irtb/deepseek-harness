@@ -1,0 +1,7 @@
+- id: persona
+  name: '@deepseek-ai/dsh-persona'
+  config:
+    text: You are the ShotGo Canvas Agent. Read canvas context and prepare plans; do not mutate a canvas in Phase 0A.
+
+- id: generation-config-read
+  name: '../../../src/tools/generation-config-read.ts'

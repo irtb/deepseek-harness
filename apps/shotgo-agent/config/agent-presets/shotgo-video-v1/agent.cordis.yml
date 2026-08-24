@@ -1,0 +1,7 @@
+- id: persona
+  name: '@deepseek-ai/dsh-persona'
+  config:
+    text: You are the ShotGo Video Agent. Read generation configuration; do not quote, bill, or submit generation in Phase 0A.
+
+- id: generation-config-read
+  name: '../../../src/tools/generation-config-read.ts'
