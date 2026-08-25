@@ -103,31 +103,161 @@
         "kind": { "$ref": "#/$defs/GenerationKind" }
       }
     },
+    "GenerationOption": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label"],
+      "properties": {
+        "id": { "$ref": "#/$defs/OpaqueId" },
+        "label": { "type": "string", "minLength": 1 },
+        "value": { "type": "boolean" },
+        "credits": { "type": "number", "minimum": 0 }
+      }
+    },
+    "GenerationRange": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "min": { "type": "number", "minimum": 0 },
+        "max": { "type": "number", "minimum": 0 },
+        "step": { "type": "number", "exclusiveMinimum": 0 },
+        "default": { "type": "number", "minimum": 0 },
+        "unit": { "type": "string", "minLength": 1 }
+      }
+    },
+    "GenerationConfigModel": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "label", "vip"],
+      "properties": {
+        "id": { "$ref": "#/$defs/OpaqueId" },
+        "label": { "type": "string", "minLength": 1 },
+        "shortLabel": { "type": "string", "minLength": 1 },
+        "badge": { "type": "string", "minLength": 1 },
+        "duration": { "type": "string", "minLength": 1 },
+        "description": { "type": "string", "minLength": 1 },
+        "credits": { "type": "number", "minimum": 0 },
+        "vip": { "type": "boolean" },
+        "supportedOptions": { "type": "object", "additionalProperties": { "type": "array", "items": { "type": "string", "minLength": 1 } } },
+        "optionOverrides": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "enabled": { "type": "boolean" },
+                "credits": { "type": "number", "minimum": 0 }
+              }
+            }
+          }
+        },
+        "operationOptionConstraints": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": { "type": "array", "items": { "type": "string", "minLength": 1 } }
+          }
+        },
+        "durationRange": { "$ref": "#/$defs/GenerationRange" },
+        "fpsEnabled": { "type": "boolean" },
+        "fpsRanges": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["minFps", "maxFps"],
+            "properties": {
+              "minFps": { "type": "number", "minimum": 0 },
+              "maxFps": { "type": "number", "minimum": 0 },
+              "credits": { "type": "number", "minimum": 0 }
+            }
+          }
+        }
+      }
+    },
+    "ImageGenerationParameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["qualities", "resolutions", "aspectRatios", "multiples"],
+      "properties": {
+        "qualities": { "type": "array", "items": { "$ref": "#/$defs/GenerationOption" } },
+        "resolutions": { "type": "array", "items": { "$ref": "#/$defs/GenerationOption" } },
+        "aspectRatios": { "type": "array", "items": { "$ref": "#/$defs/GenerationOption" } },
+        "multiples": { "type": "array", "items": { "$ref": "#/$defs/GenerationOption" } }
+      }
+    },
+    "VideoGenerationParameters": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["aspectRatios", "resolutions", "duration", "fps", "audioOptions", "operationTypes"],
+      "properties": {
+        "aspectRatios": { "type": "array", "items": { "$ref": "#/$defs/GenerationOption" } },
+        "resolutions": { "type": "array", "items": { "$ref": "#/$defs/GenerationOption" } },
+        "duration": { "$ref": "#/$defs/GenerationRange" },
+        "fps": { "$ref": "#/$defs/GenerationRange" },
+        "audioOptions": { "type": "array", "items": { "$ref": "#/$defs/GenerationOption" } },
+        "operationTypes": { "type": "array", "items": { "$ref": "#/$defs/GenerationOption" } }
+      }
+    },
+    "ImageGenerationDefaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "modelId": { "$ref": "#/$defs/OpaqueId" },
+        "qualityId": { "$ref": "#/$defs/OpaqueId" },
+        "resolutionId": { "$ref": "#/$defs/OpaqueId" },
+        "aspectRatioId": { "$ref": "#/$defs/OpaqueId" },
+        "multipleId": { "$ref": "#/$defs/OpaqueId" }
+      }
+    },
+    "VideoGenerationDefaults": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "modelId": { "$ref": "#/$defs/OpaqueId" },
+        "aspectRatioId": { "$ref": "#/$defs/OpaqueId" },
+        "resolutionId": { "$ref": "#/$defs/OpaqueId" },
+        "duration": { "type": "integer", "minimum": 0 },
+        "audio": { "type": "boolean" }
+      }
+    },
     "GenerationConfigReadResponse": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["protocolVersion", "authorizationContextId", "sessionId", "kind", "models", "defaults"],
+      "required": ["protocolVersion", "parameterSchemaVersion", "authorizationContextId", "sessionId", "kind", "models", "parameters", "defaults"],
+      "allOf": [
+        {
+          "if": { "properties": { "kind": { "const": "image" } }, "required": ["kind"] },
+          "then": {
+            "properties": {
+              "parameters": { "$ref": "#/$defs/ImageGenerationParameters" },
+              "defaults": { "$ref": "#/$defs/ImageGenerationDefaults" }
+            }
+          }
+        },
+        {
+          "if": { "properties": { "kind": { "const": "video" } }, "required": ["kind"] },
+          "then": {
+            "properties": {
+              "parameters": { "$ref": "#/$defs/VideoGenerationParameters" },
+              "defaults": { "$ref": "#/$defs/VideoGenerationDefaults" }
+            }
+          }
+        }
+      ],
       "properties": {
         "protocolVersion": { "$ref": "#/$defs/ProtocolVersion" },
+        "parameterSchemaVersion": { "const": 1 },
         "authorizationContextId": { "$ref": "#/$defs/OpaqueId" },
         "sessionId": { "$ref": "#/$defs/OpaqueId" },
         "kind": { "$ref": "#/$defs/GenerationKind" },
         "models": {
           "type": "array",
-          "items": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": ["id", "label", "vip"],
-            "properties": {
-              "id": { "$ref": "#/$defs/OpaqueId" },
-              "label": { "type": "string", "minLength": 1 },
-              "shortLabel": { "type": "string", "minLength": 1 },
-              "description": { "type": "string", "minLength": 1 },
-              "credits": { "type": "number", "minimum": 0 },
-              "vip": { "type": "boolean" }
-            }
-          }
+          "items": { "$ref": "#/$defs/GenerationConfigModel" }
         },
+        "parameters": { "oneOf": [{ "$ref": "#/$defs/ImageGenerationParameters" }, { "$ref": "#/$defs/VideoGenerationParameters" }] },
         "defaults": {
           "type": "object",
           "additionalProperties": { "type": ["string", "number", "boolean"] }

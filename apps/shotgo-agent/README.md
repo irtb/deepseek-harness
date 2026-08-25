@@ -8,7 +8,7 @@ Phase 0A is keyless and read-only. It boots a mock inference adapter, calls `gen
 
 Phase 0B freezes the Laravel boundary in [`contracts/`](contracts/README.md). Phase 0B.2 loads the encrypted-at-rest Ark credential and provider endpoint mapping from Laravel into process memory. The Canvas-hosted browser obtains a scoped Grant through its existing Sanctum identity; the browser-facing [Gateway protocol](contracts/gateway/README.md) uses Laravel introspection for idempotent Session submission, cancellation, and replayable SSE.
 
-Phase 1 connects `generation_config_read` to Laravel's service-authenticated, Grant-bound read API. The opaque Grant remains only in the live Session binding and is never persisted. This phase still performs no quote, credit, generation, or canvas mutation.
+Phase 1 connects `generation_config_read` to Laravel's service-authenticated, Grant-bound read API. The tool returns the visible image or video models, safe parameter options and constraints, and defaults so the Agent can identify missing choices. Catalog credit metadata is descriptive and never replaces a Laravel quote or user confirmation. The opaque Grant remains only in the live Session binding and is never persisted; this phase still performs no quote, credit, generation, or canvas mutation.
 
 ## Local smoke
 

@@ -79,19 +79,83 @@ export interface GenerationConfigModel {
   id: string
   label: string
   shortLabel?: string
+  badge?: string
+  duration?: string
   description?: string
   credits?: number
   vip: boolean
+  supportedOptions?: Record<string, string[]>
+  optionOverrides?: Record<string, Record<string, GenerationOptionOverride>>
+  operationOptionConstraints?: Record<string, Record<string, string[]>>
+  durationRange?: GenerationRange
+  fpsEnabled?: boolean
+  fpsRanges?: GenerationFpsRange[]
 }
 
-export interface GenerationConfigReadResponse {
+export interface GenerationOption {
+  id: string
+  label: string
+  value?: boolean
+  credits?: number
+}
+
+export interface GenerationOptionOverride {
+  enabled?: boolean
+  credits?: number
+}
+
+export interface GenerationRange {
+  min?: number
+  max?: number
+  step?: number
+  default?: number
+  unit?: string
+}
+
+export interface GenerationFpsRange {
+  minFps: number
+  maxFps: number
+  credits?: number
+}
+
+export interface ImageGenerationParameters {
+  qualities: GenerationOption[]
+  resolutions: GenerationOption[]
+  aspectRatios: GenerationOption[]
+  multiples: GenerationOption[]
+}
+
+export interface VideoGenerationParameters {
+  aspectRatios: GenerationOption[]
+  resolutions: GenerationOption[]
+  duration: GenerationRange
+  fps: GenerationRange
+  audioOptions: GenerationOption[]
+  operationTypes: GenerationOption[]
+}
+
+interface GenerationConfigReadResponseBase {
   protocolVersion: typeof SHOTGO_PROTOCOL_VERSION
+  parameterSchemaVersion: 1
   authorizationContextId: string
   sessionId: string
-  kind: GenerationKind
   models: GenerationConfigModel[]
   defaults: Record<string, string | number | boolean>
 }
+
+export interface ImageGenerationConfigReadResponse extends GenerationConfigReadResponseBase {
+  kind: 'image'
+  parameters: ImageGenerationParameters
+}
+
+export interface VideoGenerationConfigReadResponse extends GenerationConfigReadResponseBase {
+  kind: 'video'
+  parameters: VideoGenerationParameters
+}
+
+export type GenerationConfigReadResponse =
+  | ImageGenerationConfigReadResponse
+  | VideoGenerationConfigReadResponse
 
 export interface InferencePolicy {
   protocolVersion: typeof SHOTGO_PROTOCOL_VERSION

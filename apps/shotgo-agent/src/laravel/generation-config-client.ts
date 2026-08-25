@@ -1,7 +1,11 @@
 import {
   SHOTGO_PROTOCOL_HEADER,
   SHOTGO_PROTOCOL_VERSION,
+  type GenerationFpsRange,
   type GenerationConfigModel,
+  type GenerationOption,
+  type GenerationOptionOverride,
+  type GenerationRange,
   type GenerationConfigReadResponse,
   type GenerationKind,
 } from '../contracts/laravel-v1.ts'
@@ -28,37 +32,205 @@ function optionalString(value: unknown): value is string | undefined {
 }
 
 function optionalNumber(value: unknown): value is number | undefined {
-  return value === undefined || (typeof value === 'number' && Number.isFinite(value))
+  return value === undefined || nonNegativeNumber(value)
 }
 
-function isModel(value: unknown): value is GenerationConfigModel {
+function nonNegativeNumber(value: unknown): value is number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0
+}
+
+function nonNegativeInteger(value: unknown): value is number {
+  return nonNegativeNumber(value) && Number.isInteger(value)
+}
+
+function hasOnlyKeys(value: Record<string, unknown>, allowed: readonly string[]): boolean {
+  return Object.keys(value).every(key => allowed.includes(key))
+}
+
+function isStringLists(value: unknown): value is Record<string, string[]> | undefined {
+  if (value === undefined) return true
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false
+  return Object.values(value).every(items => Array.isArray(items) && items.every(nonEmptyString))
+}
+
+function isOptionOverride(value: unknown): value is GenerationOptionOverride {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false
+  const override = value as Record<string, unknown>
+  return hasOnlyKeys(override, ['enabled', 'credits'])
+    && (override.enabled === undefined || typeof override.enabled === 'boolean')
+    && optionalNumber(override.credits)
+}
+
+function isOptionOverrides(
+  value: unknown,
+): value is Record<string, Record<string, GenerationOptionOverride>> | undefined {
+  if (value === undefined) return true
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false
+  return Object.values(value).every(group => group !== null
+    && typeof group === 'object'
+    && !Array.isArray(group)
+    && Object.values(group as Record<string, unknown>).every(isOptionOverride))
+}
+
+function isOperationConstraints(value: unknown): value is Record<string, Record<string, string[]>> | undefined {
+  if (value === undefined) return true
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false
+  return Object.values(value).every(isStringLists)
+}
+
+function isRange(value: unknown): value is GenerationRange {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false
+  const range = value as Record<string, unknown>
+  if (!(hasOnlyKeys(range, ['min', 'max', 'step', 'default', 'unit'])
+    && (range.min === undefined || nonNegativeInteger(range.min))
+    && (range.max === undefined || nonNegativeInteger(range.max))
+    && (range.step === undefined || nonNegativeInteger(range.step))
+    && (range.default === undefined || nonNegativeInteger(range.default))
+    && optionalString(range.unit))) return false
+  if (typeof range.step === 'number' && range.step === 0) return false
+  if (typeof range.min === 'number' && typeof range.max === 'number' && range.min > range.max) return false
+  if (typeof range.default === 'number') {
+    if (typeof range.min === 'number' && range.default < range.min) return false
+    if (typeof range.max === 'number' && range.default > range.max) return false
+  }
+  return true
+}
+
+function isFpsRange(value: unknown): value is GenerationFpsRange {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false
+  const range = value as Record<string, unknown>
+  return hasOnlyKeys(range, ['minFps', 'maxFps', 'credits'])
+    && nonNegativeInteger(range.minFps)
+    && nonNegativeInteger(range.maxFps)
+    && range.minFps <= range.maxFps
+    && optionalNumber(range.credits)
+}
+
+function isOption(value: unknown): value is GenerationOption {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false
+  const option = value as Record<string, unknown>
+  return hasOnlyKeys(option, ['id', 'label', 'value', 'credits'])
+    && nonEmptyString(option.id)
+    && nonEmptyString(option.label)
+    && (option.value === undefined || typeof option.value === 'boolean')
+    && optionalNumber(option.credits)
+}
+
+function isOptions(value: unknown): value is GenerationOption[] {
+  return Array.isArray(value)
+    && value.every(isOption)
+    && new Set(value.map(option => option.id)).size === value.length
+}
+
+function isModel(value: unknown, kind: GenerationKind): value is GenerationConfigModel {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return false
   const model = value as Record<string, unknown>
-  return nonEmptyString(model.id)
+  return hasOnlyKeys(model, [
+    'id', 'label', 'shortLabel', 'badge', 'duration', 'description', 'credits', 'vip',
+    'supportedOptions', 'optionOverrides', 'operationOptionConstraints', 'durationRange',
+    'fpsEnabled', 'fpsRanges',
+  ])
+    && nonEmptyString(model.id)
     && nonEmptyString(model.label)
     && optionalString(model.shortLabel)
+    && optionalString(model.badge)
+    && optionalString(model.duration)
     && optionalString(model.description)
     && optionalNumber(model.credits)
     && typeof model.vip === 'boolean'
+    && isStringLists(model.supportedOptions)
+    && isOptionOverrides(model.optionOverrides)
+    && isOperationConstraints(model.operationOptionConstraints)
+    && (model.durationRange === undefined || isRange(model.durationRange))
+    && (model.fpsEnabled === undefined || typeof model.fpsEnabled === 'boolean')
+    && (model.fpsRanges === undefined || (Array.isArray(model.fpsRanges) && model.fpsRanges.every(isFpsRange)))
+    && (kind === 'image'
+      ? model.durationRange === undefined && model.fpsEnabled === undefined && model.fpsRanges === undefined
+      : model.operationOptionConstraints === undefined)
 }
 
-function isDefaults(value: unknown): value is Record<string, string | number | boolean> {
-  return value !== null
-    && typeof value === 'object'
-    && !Array.isArray(value)
-    && Object.values(value).every(item => ['string', 'number', 'boolean'].includes(typeof item))
+function isDefaults(
+  value: unknown,
+  kind: GenerationKind,
+  models: readonly GenerationConfigModel[],
+  parameters: Record<string, unknown>,
+): value is Record<string, string | number | boolean> {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false
+  const defaults = value as Record<string, unknown>
+  const allowed = kind === 'image'
+    ? ['modelId', 'qualityId', 'resolutionId', 'aspectRatioId', 'multipleId']
+    : ['modelId', 'aspectRatioId', 'resolutionId', 'duration', 'audio']
+  if (!hasOnlyKeys(defaults, allowed)) return false
+  if (defaults.modelId !== undefined
+    && (!nonEmptyString(defaults.modelId) || !models.some(model => model.id === defaults.modelId))) return false
+  const optionKeys = kind === 'image'
+    ? { qualityId: 'qualities', resolutionId: 'resolutions', aspectRatioId: 'aspectRatios', multipleId: 'multiples' }
+    : { aspectRatioId: 'aspectRatios', resolutionId: 'resolutions' }
+  for (const [defaultKey, parameterKey] of Object.entries(optionKeys)) {
+    const defaultValue = defaults[defaultKey]
+    if (defaultValue === undefined) continue
+    const options = parameters[parameterKey]
+    if (!nonEmptyString(defaultValue)
+      || !Array.isArray(options)
+      || !options.some(option => isOption(option) && option.id === defaultValue)) return false
+  }
+  if (kind === 'video') {
+    if (defaults.duration !== undefined && !nonNegativeInteger(defaults.duration)) return false
+    if (typeof defaults.duration === 'number') {
+      const duration = parameters.duration
+      if (!isRange(duration)) return false
+      if (duration.min !== undefined && defaults.duration < duration.min) return false
+      if (duration.max !== undefined && defaults.duration > duration.max) return false
+    }
+    if (defaults.audio !== undefined && typeof defaults.audio !== 'boolean') return false
+  }
+  return true
+}
+
+function isParameters(value: unknown, kind: GenerationKind): boolean {
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) return false
+  const parameters = value as Record<string, unknown>
+  if (kind === 'image') {
+    return hasOnlyKeys(parameters, ['qualities', 'resolutions', 'aspectRatios', 'multiples'])
+      && isOptions(parameters.qualities)
+      && isOptions(parameters.resolutions)
+      && isOptions(parameters.aspectRatios)
+      && isOptions(parameters.multiples)
+  }
+  return hasOnlyKeys(parameters, [
+    'aspectRatios', 'resolutions', 'duration', 'fps', 'audioOptions', 'operationTypes',
+  ])
+    && isOptions(parameters.aspectRatios)
+    && isOptions(parameters.resolutions)
+    && isRange(parameters.duration)
+    && isRange(parameters.fps)
+    && isOptions(parameters.audioOptions)
+    && isOptions(parameters.operationTypes)
 }
 
 function isGenerationConfig(value: unknown): value is GenerationConfigReadResponse {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return false
   const config = value as Record<string, unknown>
-  return config.protocolVersion === SHOTGO_PROTOCOL_VERSION
+  if (config.kind !== 'image' && config.kind !== 'video') return false
+  const kind = config.kind
+  return hasOnlyKeys(config, [
+    'protocolVersion', 'parameterSchemaVersion', 'authorizationContextId', 'sessionId',
+    'kind', 'models', 'parameters', 'defaults',
+  ])
+    && config.protocolVersion === SHOTGO_PROTOCOL_VERSION
+    && config.parameterSchemaVersion === 1
     && nonEmptyString(config.authorizationContextId)
     && nonEmptyString(config.sessionId)
-    && (config.kind === 'image' || config.kind === 'video')
     && Array.isArray(config.models)
-    && config.models.every(isModel)
-    && isDefaults(config.defaults)
+    && config.models.every(model => isModel(model, kind))
+    && new Set(config.models.map(model => model.id)).size === config.models.length
+    && isParameters(config.parameters, kind)
+    && isDefaults(
+      config.defaults,
+      kind,
+      config.models,
+      config.parameters as Record<string, unknown>,
+    )
 }
 
 function normalizedBaseURL(value: string): string {
