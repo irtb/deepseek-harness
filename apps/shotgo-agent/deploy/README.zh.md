@@ -20,7 +20,7 @@
 
 ## 中国网络发布策略
 
-服务器切换期间不得现场执行 `pnpm install`、GitHub 下载或源码构建。本地或 CI 对已评审提交完成构建与测试，生成包含 Gateway 产物及生产依赖闭包的发布包，记录 Git SHA 和 SHA-256，再通过现有 SSH 通道传输。将通过校验和验证的 Node 发行包安装到 `/opt`，并让 `/opt/node-current` 指向已验收版本；新二进制的版本和校验和验证通过前不得替换该链接。这样发布结果不会依赖易受 GFW 影响的海外仓库可用性。
+服务器切换期间不得现场执行 `pnpm install`、GitHub 下载或源码构建。本地或 CI 对已评审提交完成构建与测试后，执行 `pnpm --filter @shotgo/agent-runtime run build:release`，生成 `.artifacts/shotgo-agent-<git-sha>.tar.gz` 及 SHA-256 文件；发布包包含 Gateway 产物和生产依赖闭包，再通过现有 SSH 通道传输。将通过校验和验证的 Node 发行包安装到 `/opt`，并让 `/opt/node-current` 指向已验收版本；新二进制的版本和校验和验证通过前不得替换该链接。这样发布结果不会依赖易受 GFW 影响的海外仓库可用性。
 
 ## 安全顺序
 

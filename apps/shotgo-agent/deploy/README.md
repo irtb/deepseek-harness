@@ -20,7 +20,7 @@ Verified on 2026-08-24: the Beijing Volcano ECS runs Ubuntu 24.04, Nginx 1.24, C
 
 ## China-network release policy
 
-Do not run `pnpm install`, GitHub downloads, or a source build as part of the server cutover. Build and test the reviewed commit locally or in CI, produce an artifact containing the Gateway output and its production dependency closure, record the Git SHA and SHA-256, then transfer it over the existing SSH path. Install a checksum-verified Node distribution under `/opt` and point `/opt/node-current` at the accepted version; do not replace it until the new binary passes its version and checksum checks. This keeps releases repeatable without coupling availability to GFW-sensitive registries.
+Do not run `pnpm install`, GitHub downloads, or a source build as part of the server cutover. Build and test the reviewed commit locally or in CI with `pnpm --filter @shotgo/agent-runtime run build:release`. The command creates `.artifacts/shotgo-agent-<git-sha>.tar.gz` plus its SHA-256 file and includes the Gateway output and production dependency closure for transfer over the existing SSH path. Install a checksum-verified Node distribution under `/opt` and point `/opt/node-current` at the accepted version; do not replace it until the new binary passes its version and checksum checks. This keeps releases repeatable without coupling availability to GFW-sensitive registries.
 
 ## Safe order
 
