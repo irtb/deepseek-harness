@@ -8,7 +8,7 @@ Use `feature/<scope>`, `fix/<scope>`, `docs/<scope>`, or `chore/<scope>`. Keep o
 
 Before handoff, run the focused typecheck, unit/contract tests, lint, translation and Agent Note checks when applicable, upstream-isolation verification, and `git diff --check`. A skipped, unavailable, flaky, or failing required check blocks handoff.
 
-After all gates pass, leave the reviewed commits on the development branch for the user to merge manually. The assistant must not merge into `master` or `release/*`, including a local merge. Pushing, opening a pull request, deployment, and branch deletion remain separate actions and require explicit user authorization.
+After all gates pass, report the reviewed source branch or commit, target production branch, configured production remote, and exact check results, then stop for the user's second explicit confirmation. Only after that confirmation may the Agent merge the reviewed source into the named `master` or `release/*` branch and push the resulting commit to the production remote. If the base moves after testing, synchronize the branch, rerun affected checks, and obtain renewed confirmation. After a successful production-branch push, provide the exact server deployment, verification, and rollback commands with the resulting commit SHA; the user executes production deployment manually, and the Agent must not run production pull, build, migration, restart, or deployment commands.
 
 ## Database and table changes
 
@@ -21,8 +21,10 @@ Production database execution belongs to the user. After local acceptance, provi
 ## Required handoff evidence
 
 - source branch and base branch;
-- commits prepared for the user's merge;
+- reviewed source commits, target production branch, and production remote;
 - exact checks and results;
+- the user's second confirmation and the resulting merge/push commit, when authorized;
 - any warning or deferred acceptance item;
 - database or table statement preview, local validation, and production handoff status when applicable;
-- confirmation that no assistant-performed merge or production database mutation occurred.
+- exact manual production deployment, verification, and rollback commands after a production-branch push;
+- confirmation that the Agent did not execute production deployment or a production database mutation.

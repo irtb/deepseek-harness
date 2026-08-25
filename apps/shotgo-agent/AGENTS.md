@@ -15,7 +15,7 @@ The three modes share the Gateway, LLM adapter, Laravel capability client, sessi
 ## Upstream isolation
 
 - Follow `DEVELOPMENT.md`: fast-forward the designated base from its configured remote before every independently reviewable item, then create a new branch from that updated base. Never develop directly on a protected branch or from a stale local base.
-- Complete every applicable required check, then leave the development branch for the user to merge manually. Never merge into `master` or `release/*`; a skipped, unavailable, flaky, or failing gate blocks handoff.
+- Complete every applicable required check, report the exact evidence, and stop for the user's second explicit confirmation. Only after that confirmation may the Agent merge the reviewed source into the named `master` or `release/*` production branch and push the resulting commit; a skipped, unavailable, flaky, or failing gate blocks confirmation and merge. After the push, provide exact production deployment, verification, and rollback commands, but never execute production deployment.
 - Preview every database or table mutation as exact migration or SQL plus impact, rollback, and validation, and wait for the user's second confirmation. The user applies it locally first and executes every production database change; the Agent performs no production DDL, DML, migration, import, or copy.
 - Never place product behavior in upstream-owned `packages/`, `vendor/`, `native/`, or `apps/web/`.
 - Consume Harness only through published workspace package exports and documented Cordis extension points. Never import another workspace's `src/` by relative path.
