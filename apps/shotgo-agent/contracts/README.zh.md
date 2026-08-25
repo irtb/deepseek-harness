@@ -23,6 +23,7 @@ Laravel 为用户、可为空的团队、空间、可为空的项目、Agent 模
 - 推理用量以 `llmRequestId` 作为 `Idempotency-Key`，只允许标识符、模型、时间、状态和 Token 计数；禁止供应商密钥、提示词、消息、回答和原始响应。
 - 生成配置在 `parameterSchemaVersion: 1` 下返回可见模型、安全选项约束和按生成类型区分的默认值；其中的积分字段属于目录元数据，不构成报价或确认依据。
 - 生成报价使用当前 Capability Grant，不执行任何业务写入，并返回整数积分和短期 opaque Quote Envelope。报价请求不携带变更上下文或幂等 Key；后续生成提交仍必须幂等。
+- 创建生成只发送可信写上下文、`quoteId` 和 `quoteVersion`。Laravel 重新验证报价与账户上下文，在扣费前先占用 `(user_id, client_request_id)`，仅在事务提交后派发任务；完全相同的重试返回 `replayed: true`，同一幂等 Key 改变请求则返回 `IDEMPOTENCY_CONFLICT`。
 - 每个写请求携带 `Idempotency-Key`，且必须等于请求体中的 `context.clientRequestId`。
 - 写上下文包含 `sessionId`、`runId`、`actionId` 和 `clientRequestId`。
 - 金额使用十进制字符串和 ISO 4217 币种，禁止使用 JavaScript number 表示金额。
@@ -44,4 +45,4 @@ Laravel 为用户、可为空的团队、空间、可为空的项目、Agent 模
 - 画布快照与乐观并发操作应用；
 - 可重放的 Agent 事件流。
 
-协议冻结不代表 Laravel 已经完成实现。它是双方实现必须共同满足的验收契约，在此之前不得开放 Agent readiness。删除 `/api/internal/agent/v1/inference/stream` 是相对 Wire 版本 `2026-08-24` 的有意不兼容变更。
+Grant、推理、生成配置、报价、确认和幂等创建生成已经在双方完成对应实现。状态、取消、资产投影和画布写入仍是尚未完成的验收契约。删除 `/api/internal/agent/v1/inference/stream` 是相对 Wire 版本 `2026-08-24` 的有意不兼容变更。

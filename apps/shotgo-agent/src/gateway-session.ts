@@ -1,4 +1,5 @@
 import type { Context } from '@deepseek-ai/cordis'
+import { createHash } from 'node:crypto'
 import type { AgentHandle } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-presets/types'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
@@ -7,6 +8,7 @@ import type { ApprovalOutcome, ApprovalRequestId } from '@deepseek-ai/dsh-user-a
 import type { AgentMode, AgentSessionCapability } from './contracts/laravel-v1.ts'
 import type { LaravelGenerationConfigClient } from './laravel/generation-config-client.ts'
 import type { LaravelGenerationQuoteClient } from './laravel/generation-quote-client.ts'
+import type { LaravelGenerationSubmitClient } from './laravel/generation-submit-client.ts'
 import {
   SHOTGO_GATEWAY_PROTOCOL_VERSION,
   type GatewayStreamEvent,
@@ -121,6 +123,7 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
   private readonly stopApprovalRequests?: () => void
   private readonly stopGenerationConfigReader?: () => void
   private readonly stopGenerationQuoteReader?: () => void
+  private readonly stopGenerationSubmitter?: () => void
   private disposed = false
 
   constructor(
@@ -133,6 +136,7 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
     },
     generationConfig?: LaravelGenerationConfigClient,
     generationQuote?: LaravelGenerationQuoteClient,
+    generationSubmit?: LaravelGenerationSubmitClient,
   ) {
     if (generationConfig !== undefined) {
       this.stopGenerationConfigReader = ctx.provide('shotgoGenerationConfigReader', {
@@ -159,6 +163,31 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
             kind,
             modelId,
             parameters,
+            ...(signal === undefined ? {} : { signal }),
+          })
+        },
+      })
+    }
+    if (generationSubmit !== undefined) {
+      this.stopGenerationSubmitter = ctx.provide('shotgoGenerationSubmitter', {
+        submit: async ({ sessionId, actionId, quoteId, quoteVersion, signal }) => {
+          const live = this.sessions.get(sessionId)
+          if (live === undefined) throw new GatewaySessionError('SESSION_NOT_FOUND', 404)
+          if (live.activeRunId === undefined) throw new GatewaySessionError('RUN_NOT_ACTIVE', 409)
+          const clientRequestId = `gen-${createHash('sha256')
+            .update(`${sessionId}\0${quoteId}`)
+            .digest('hex')
+            .slice(0, 60)}`
+          return await generationSubmit.submit({
+            capabilityGrant: live.capabilityGrant.current,
+            context: {
+              sessionId,
+              runId: live.activeRunId,
+              actionId,
+              clientRequestId,
+            },
+            quoteId,
+            quoteVersion,
             ...(signal === undefined ? {} : { signal }),
           })
         },
@@ -394,6 +423,7 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
     this.stopApprovalRequests?.()
     this.stopGenerationConfigReader?.()
     this.stopGenerationQuoteReader?.()
+    this.stopGenerationSubmitter?.()
     this.sessions.clear()
     this.resolvedApprovals.clear()
   }
