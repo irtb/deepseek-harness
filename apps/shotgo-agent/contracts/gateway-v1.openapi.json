@@ -1,0 +1,131 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "ShotGo Agent Gateway Protocol",
+    "version": "2026-08-24.1",
+    "description": "Browser-facing Session submission, cancellation, and replayable SSE delivery for the ShotGo Harness Runtime."
+  },
+  "servers": [{ "url": "https://agent.shotgo.cn" }],
+  "paths": {
+    "/api/agent/v1/sessions/{sessionId}/messages": {
+      "post": {
+        "operationId": "submitAgentMessage",
+        "security": [{ "capabilityGrant": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/SessionId" },
+          { "$ref": "#/components/parameters/IdempotencyKey" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/MessageRequest" }
+            }
+          }
+        },
+        "responses": {
+          "202": {
+            "description": "The Harness run was accepted",
+            "headers": { "X-ShotGo-Gateway-Protocol-Version": { "$ref": "#/components/headers/ProtocolVersion" } },
+            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/RunAccepted" } } }
+          },
+          "default": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/api/agent/v1/sessions/{sessionId}/events": {
+      "get": {
+        "operationId": "streamAgentSessionEvents",
+        "security": [{ "capabilityGrant": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/SessionId" },
+          {
+            "name": "Last-Event-ID",
+            "in": "header",
+            "required": false,
+            "schema": { "type": "integer", "minimum": 0 },
+            "description": "Last processed Gateway cursor; the stream starts with the next retained event."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "SSE frames whose id field is the monotonic per-session Gateway cursor",
+            "headers": { "X-ShotGo-Gateway-Protocol-Version": { "$ref": "#/components/headers/ProtocolVersion" } },
+            "content": { "text/event-stream": { "schema": { "type": "string" } } }
+          },
+          "default": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/api/agent/v1/sessions/{sessionId}/runs/{runId}": {
+      "delete": {
+        "operationId": "cancelAgentRun",
+        "security": [{ "capabilityGrant": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/SessionId" },
+          { "name": "runId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "responses": {
+          "202": {
+            "description": "Cancellation was requested; the terminal SSE event remains authoritative",
+            "headers": { "X-ShotGo-Gateway-Protocol-Version": { "$ref": "#/components/headers/ProtocolVersion" } }
+          },
+          "default": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "capabilityGrant": { "type": "http", "scheme": "bearer", "bearerFormat": "opaque ShotGo capability grant" }
+    },
+    "headers": {
+      "ProtocolVersion": { "schema": { "type": "string", "const": "2026-08-24.1" } }
+    },
+    "parameters": {
+      "SessionId": { "name": "sessionId", "in": "path", "required": true, "schema": { "type": "string", "minLength": 1, "maxLength": 128 } },
+      "IdempotencyKey": { "name": "Idempotency-Key", "in": "header", "required": true, "schema": { "type": "string", "minLength": 8, "maxLength": 128 } }
+    },
+    "schemas": {
+      "MessageRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["clientRequestId", "message"],
+        "properties": {
+          "clientRequestId": { "type": "string", "minLength": 8, "maxLength": 128 },
+          "message": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["type", "text"],
+            "properties": {
+              "type": { "const": "text" },
+              "text": { "type": "string", "minLength": 1, "maxLength": 20000 }
+            }
+          }
+        }
+      },
+      "RunAccepted": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["protocolVersion", "sessionId", "runId", "streamUrl"],
+        "properties": {
+          "protocolVersion": { "const": "2026-08-24.1" },
+          "sessionId": { "type": "string" },
+          "runId": { "type": "string", "format": "uuid" },
+          "streamUrl": { "type": "string" }
+        }
+      },
+      "Problem": {
+        "type": "object",
+        "required": ["code"],
+        "properties": { "code": { "type": "string" } }
+      }
+    },
+    "responses": {
+      "Problem": {
+        "description": "Stable Gateway failure code",
+        "content": { "application/json": { "schema": { "$ref": "#/components/schemas/Problem" } } }
+      }
+    }
+  }
+}
