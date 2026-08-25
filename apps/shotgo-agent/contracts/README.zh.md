@@ -10,6 +10,8 @@
 
 Harness 通过火山方舟直连 Laravel 批准的 `deepseek-v4-flash` 或 `deepseek-v4-pro` 推理模型。Laravel 加密保存供应商凭据，并仅向通过服务身份认证的 Agent Runtime 返回凭据和两个供应商节点 ID；Runtime 只把配置保留在进程内存中，不向浏览器、Capability Grant、Session 日志或用量报告暴露。推理前，Runtime 使用用户 Capability Grant 读取具有有效期的模型与预算策略；推理后，Runtime 使用服务身份幂等回传仅含元数据的用量。图片、视频、音频和业务文本生成不属于 Harness 推理：模型可见 Tool 必须通过 Laravel Capability 端点提交。Laravel 始终负责策略、权限、用量审计、报价有效期、积分、任务、资产、退款和画布状态。
 
+已完成的生成响应可以包含 `assets`。每项都是通过归属核验的已转存资产，只包含 `assetId`、`kind`、公开 HTTP(S) `url` 和 `sizeBytes`。供应商 URL、供应商原始响应、无法匹配的存储记录、手动上传记录或私有路径都不得投影到该字段。
+
 浏览器停留在 `canvas.shotgo.cn`，使用现有 Sanctum Bearer Token 向 Laravel 申请不透明的短期 Capability Grant。Laravel 从已认证主体推导用户和可为空的团队身份，验证请求的空间、项目、Agent 模式与当前推理模型可用性，并且不接受浏览器请求体提供 `userId` 或 `teamId`。个人上下文使用 `teamId: null`，禁止构造伪团队 ID。个人账号继续使用已有的启用推理模型来源，并与团队账号使用相同的 DeepSeek 逻辑模型；团队上下文再叠加现有团队授权过滤。Agent Runtime 通过使用服务身份认证且禁止缓存的端点内省不透明 Grant，不把本地解码出的声明当作权限权威。
 
 Laravel 为用户、可为空的团队、空间、可为空的项目、Agent 模式和 Session 绑定返回稳定的 `authorizationContextId`。Gateway 分别要求消息提交、事件读取、审批响应和取消能力；刷新后的 Grant 只有在 Laravel 返回相同授权上下文时才能访问已有 Session。

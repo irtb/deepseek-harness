@@ -13,6 +13,12 @@ const generation = {
   replayed: false,
   createdAt: '2026-08-25T20:00:00+08:00',
   updatedAt: '2026-08-25T20:01:00+08:00',
+  assets: [{
+    assetId: 'asset-42',
+    kind: 'video',
+    url: 'https://cdn.shotgo.cn/resource/canvas/2/result.mp4',
+    sizeBytes: 12345,
+  }],
 } as const
 
 describe('Laravel generation lifecycle client', () => {
@@ -41,7 +47,7 @@ describe('Laravel generation lifecycle client', () => {
     })
 
     await expect(client.read({ capabilityGrant: 'grant-a', generationId: '42' }))
-      .resolves.toMatchObject({ generationId: '42', state: 'processing' })
+      .resolves.toMatchObject({ generationId: '42', state: 'processing', assets: generation.assets })
     await expect(client.cancel({
       capabilityGrant: 'grant-a',
       generationId: '42',
@@ -79,6 +85,21 @@ describe('Laravel generation lifecycle client', () => {
     const client = new LaravelGenerationLifecycleClient({
       baseURL: 'https://api.shotgo.cn',
       fetch: async () => new Response(JSON.stringify({ ...generation, userBalance: 1.5 }), {
+        status: 200,
+        headers: { 'X-ShotGo-Protocol-Version': '2026-08-25.1' },
+      }),
+    })
+    await expect(client.read({ capabilityGrant: 'grant-a', generationId: '42' }))
+      .rejects.toThrow('GENERATION_STATUS_PROTOCOL_INVALID')
+  })
+
+  it('rejects private paths and unknown fields in asset results', async () => {
+    const client = new LaravelGenerationLifecycleClient({
+      baseURL: 'https://api.shotgo.cn',
+      fetch: async () => new Response(JSON.stringify({
+        ...generation,
+        assets: [{ ...generation.assets[0], url: '/private/result.mp4', providerResponse: 'secret' }],
+      }), {
         status: 200,
         headers: { 'X-ShotGo-Protocol-Version': '2026-08-25.1' },
       }),

@@ -36,6 +36,7 @@ export function apply(ctx: Context): void {
         replayed: value.replayed,
         createdAt: value.createdAt,
         updatedAt: value.updatedAt,
+        ...(value.assets === undefined ? {} : { assets: value.assets }),
         ...(value.failureCode === undefined ? {} : { failureCode: value.failureCode }),
       }
     },
