@@ -5,6 +5,7 @@ import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type { AgentMode, AgentSessionCapability } from './contracts/laravel-v1.ts'
 import type { LaravelGenerationConfigClient } from './laravel/generation-config-client.ts'
+import type { LaravelGenerationQuoteClient } from './laravel/generation-quote-client.ts'
 import {
   SHOTGO_GATEWAY_PROTOCOL_VERSION,
   type GatewayStreamEvent,
@@ -103,6 +104,7 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
   private readonly admissions = new Map<string, Promise<void>>()
   private readonly stopSessionEvents: () => void
   private readonly stopGenerationConfigReader?: () => void
+  private readonly stopGenerationQuoteReader?: () => void
   private disposed = false
 
   constructor(
@@ -114,6 +116,7 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
       await presets.mount(agentCtx, `shotgo-${agentMode}-v1`)
     },
     generationConfig?: LaravelGenerationConfigClient,
+    generationQuote?: LaravelGenerationQuoteClient,
   ) {
     if (generationConfig !== undefined) {
       this.stopGenerationConfigReader = ctx.provide('shotgoGenerationConfigReader', {
@@ -124,6 +127,22 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
             capabilityGrant: live.capabilityGrant.current,
             sessionId,
             kind,
+            ...(signal === undefined ? {} : { signal }),
+          })
+        },
+      })
+    }
+    if (generationQuote !== undefined) {
+      this.stopGenerationQuoteReader = ctx.provide('shotgoGenerationQuoteReader', {
+        quote: async ({ sessionId, kind, modelId, parameters, signal }) => {
+          const live = this.sessions.get(sessionId)
+          if (live === undefined) throw new GatewaySessionError('SESSION_NOT_FOUND', 404)
+          return await generationQuote.quote({
+            capabilityGrant: live.capabilityGrant.current,
+            sessionId,
+            kind,
+            modelId,
+            parameters,
             ...(signal === undefined ? {} : { signal }),
           })
         },
@@ -280,6 +299,7 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
     }
     await Promise.all(live.map(session => session.handle.dispose()))
     this.stopGenerationConfigReader?.()
+    this.stopGenerationQuoteReader?.()
     this.sessions.clear()
   }
 

@@ -157,6 +157,36 @@ export type GenerationConfigReadResponse =
   | ImageGenerationConfigReadResponse
   | VideoGenerationConfigReadResponse
 
+export type GenerationQuoteParameters = Record<string, string | number | boolean>
+
+export interface GenerationQuoteRequest {
+  sessionId: string
+  kind: GenerationKind
+  modelId: string
+  parameters: GenerationQuoteParameters
+}
+
+export interface GenerationQuoteBreakdownItem {
+  key: string
+  label: string
+  credits: number
+}
+
+export interface GenerationQuoteResponse {
+  protocolVersion: typeof SHOTGO_PROTOCOL_VERSION
+  quoteId: string
+  quoteVersion: 1
+  kind: GenerationKind
+  modelId: string
+  credits: number
+  breakdown: GenerationQuoteBreakdownItem[]
+  canAfford: boolean
+  userBalance: number
+  expiresAt: string
+  normalizedParameters: GenerationQuoteParameters
+  requiresConfirmation: true
+}
+
 export interface InferencePolicy {
   protocolVersion: typeof SHOTGO_PROTOCOL_VERSION
   policyVersion: string

@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url'
 import * as mockLlm from './llm/mock.ts'
 import * as arkLlm from './llm/ark.ts'
 import * as generationConfigRead from './tools/generation-config-read.ts'
+import * as generationQuote from './tools/generation-quote.ts'
 
 export const name = 'shotgo-agent-runtime'
 
@@ -42,7 +43,7 @@ export async function apply(ctx: Context): Promise<void> {
     includeHarnessIdentity: false,
     includeRuntimeContext: false,
     persona: 'You are the ShotGo Image Agent. Use only the tools mounted for this session.',
-    toolOrder: ['generation_config_read', '<unlisted-tools>'],
+    toolOrder: ['generation_config_read', 'generation_quote', '<unlisted-tools>'],
   })
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(AgentRegistry)
@@ -63,6 +64,7 @@ export async function apply(ctx: Context): Promise<void> {
   await ctx.plugin(mockLlm)
   await ctx.plugin(arkLlm)
   await ctx.plugin(generationConfigRead)
+  await ctx.plugin(generationQuote)
   await ctx.plugin(AgentLoop, {
     agents: [],
   })

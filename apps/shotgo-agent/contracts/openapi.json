@@ -107,8 +107,8 @@
       "post": {
         "operationId": "createGenerationQuote",
         "tags": ["Generation"],
+        "description": "Return a short-lived Laravel-authoritative credit quote without charging credits, creating a generation record, or dispatching work. The response must not be cached.",
         "security": [{ "capabilityGrant": [] }],
-        "parameters": [{ "$ref": "#/components/parameters/IdempotencyKey" }],
         "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "./schemas/laravel-v1.schema.json#/$defs/QuoteRequest" } } } },
         "responses": {
           "200": { "description": "Authoritative quote requiring user confirmation", "headers": { "X-ShotGo-Protocol-Version": { "$ref": "#/components/headers/ProtocolVersion" } }, "content": { "application/json": { "schema": { "$ref": "./schemas/laravel-v1.schema.json#/$defs/QuoteResponse" } } } },
