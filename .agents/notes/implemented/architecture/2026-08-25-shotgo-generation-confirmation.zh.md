@@ -10,7 +10,7 @@ Status: implemented
 
 ## 决策
 
-ShotGo 运行时挂载 Harness `ApprovalService`。执行前门禁仅将 `generation_submit` 标记为需要审批。待决策请求记入 Session 审计日志并投影为 `approval.requested`；Canvas 使用当前 Capability Grant 调用 `POST /api/agent/v1/sessions/{sessionId}/approvals/{approvalId}` 回复。
+ShotGo 运行时挂载 Harness `ApprovalService`。执行前门禁将产生扣费的 `generation_submit` 与具有破坏性的 `generation_cancel` 标记为需要审批。待决策请求记入 Session 审计日志并投影为 `approval.requested`；Canvas 使用当前 Capability Grant 调用 `POST /api/agent/v1/sessions/{sessionId}/approvals/{approvalId}` 回复。
 
 Gateway 重新内省 `agent.session.approval.respond`，验证实时授权上下文与 Session，且仅接受 `allowed-once` 或 `rejected`。相同响应的重试幂等成功；修改已决策结果、过期、跨 Session、通道不可用或取消均安全失败。审批由同一个执行中的工具调用消费，不会作为可重用授权返回给模型。
 

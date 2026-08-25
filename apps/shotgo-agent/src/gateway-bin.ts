@@ -9,6 +9,7 @@ import { InferenceRuntimeConfigStore } from './laravel/inference-runtime-config.
 import { LaravelGenerationConfigClient } from './laravel/generation-config-client.ts'
 import { LaravelGenerationQuoteClient } from './laravel/generation-quote-client.ts'
 import { LaravelGenerationSubmitClient } from './laravel/generation-submit-client.ts'
+import { LaravelGenerationLifecycleClient } from './laravel/generation-lifecycle-client.ts'
 
 const NAME = 'shotgo-agent-gateway'
 const config = readGatewayConfig(process.env)
@@ -45,6 +46,7 @@ try {
   const generationConfig = new LaravelGenerationConfigClient(config.laravel)
   const generationQuote = new LaravelGenerationQuoteClient(config.laravel)
   const generationSubmit = new LaravelGenerationSubmitClient(config.laravel)
+  const generationLifecycle = new LaravelGenerationLifecycleClient(config.laravel)
   const sessions = new HarnessGatewaySessionService(
     runtimeEntry.ctx,
     authorizer,
@@ -52,6 +54,7 @@ try {
     generationConfig,
     generationQuote,
     generationSubmit,
+    generationLifecycle,
   )
   const server = createGatewayServer(config, {
     isInferenceRuntimeReady: () => runtimeConfig.isReady(),

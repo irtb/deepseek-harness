@@ -10,7 +10,7 @@ A model-authored sentence such as "the user confirmed" is not proof that the aut
 
 ## Decision
 
-Harness `ApprovalService` is mounted in the ShotGo runtime. A pre-execution gate marks only `generation_submit` as approval-required. Its pending request is audited in the Session log and projected as `approval.requested`; Canvas answers through `POST /api/agent/v1/sessions/{sessionId}/approvals/{approvalId}` with the current Capability Grant.
+Harness `ApprovalService` is mounted in the ShotGo runtime. A pre-execution gate marks credit-bearing `generation_submit` and destructive `generation_cancel` as approval-required. Its pending request is audited in the Session log and projected as `approval.requested`; Canvas answers through `POST /api/agent/v1/sessions/{sessionId}/approvals/{approvalId}` with the current Capability Grant.
 
 The Gateway re-introspects `agent.session.approval.respond`, verifies the live authorization context and Session, and accepts only `allowed-once` or `rejected`. An identical retry is idempotent; a changed, stale, cross-Session, unavailable, or cancelled decision fails closed. Approval is consumed by the same in-flight tool execution and is never returned to the model as reusable authority.
 
