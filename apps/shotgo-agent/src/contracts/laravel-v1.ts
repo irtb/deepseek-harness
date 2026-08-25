@@ -4,6 +4,7 @@ export const IDEMPOTENCY_HEADER = 'Idempotency-Key' as const
 
 export type AgentMode = 'canvas' | 'image' | 'video'
 export type AssetKind = 'text' | 'image' | 'video' | 'audio'
+export type GenerationKind = 'image' | 'video'
 export type InferenceModel = 'deepseek-v4-flash' | 'deepseek-v4-pro'
 export type InferenceReasoningEffort = 'off' | 'high' | 'max'
 export type InferenceUsageStatus = 'completed' | 'failed' | 'cancelled'
@@ -72,6 +73,24 @@ export interface AgentGrantIntrospectionResponse {
   agentMode: AgentMode
   allowedCapabilities: string[]
   inferencePolicy: InferencePolicy
+}
+
+export interface GenerationConfigModel {
+  id: string
+  label: string
+  shortLabel?: string
+  description?: string
+  credits?: number
+  vip: boolean
+}
+
+export interface GenerationConfigReadResponse {
+  protocolVersion: typeof SHOTGO_PROTOCOL_VERSION
+  authorizationContextId: string
+  sessionId: string
+  kind: GenerationKind
+  models: GenerationConfigModel[]
+  defaults: Record<string, string | number | boolean>
 }
 
 export interface InferencePolicy {

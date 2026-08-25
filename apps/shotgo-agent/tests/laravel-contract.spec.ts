@@ -70,10 +70,22 @@ describe('Laravel Agent Protocol v1', () => {
         '/api/agent/v1/generations/{generationId}',
         '/api/agent/v1/generations/{generationId}/cancel',
         '/api/internal/agent/v1/grants/introspect',
+        '/api/internal/agent/v1/generation/config',
         '/api/internal/agent/v1/inference-runtime-config',
         '/api/internal/agent/v1/inference-usage',
       ].sort(),
     )
+  })
+
+  it('reads generation configuration only through service auth plus a bound grant', async () => {
+    const openapi = await readJson<OpenApiDocument>('openapi.json')
+    const read = operation(openapi, '/api/internal/agent/v1/generation/config', 'post')
+
+    expect(read.security).toContainEqual({ serviceAuth: [] })
+    expect(read.description).toContain('opaque capability grant')
+    expect(read.description).toContain('must not be cached')
+    expect(read.requestBody?.required).toBe(true)
+    expect(read.responses['200']?.content?.['application/json']).toBeDefined()
   })
 
   it('issues grants from Sanctum identity and introspects them under service authentication', async () => {

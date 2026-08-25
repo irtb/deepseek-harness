@@ -6,6 +6,8 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { SHOTGO_MOCK_MODEL, SHOTGO_MOCK_PROVIDER, ShotGoMockLlmAdapter } from '../src/llm/mock.ts'
 import { HarnessGatewaySessionService } from '../src/gateway-session.ts'
+import { LaravelGenerationConfigClient } from '../src/laravel/generation-config-client.ts'
+import * as generationConfigRead from '../src/tools/generation-config-read.ts'
 import * as runtime from '../src/runtime.ts'
 
 const cleanup: Array<() => Promise<void>> = []
@@ -42,13 +44,38 @@ describe('Gateway to Harness session composition', () => {
     const ctx = new Context()
     await ctx.plugin(runtime)
     const requiredCapabilities: string[] = []
+    const configRequests: Array<Record<string, unknown>> = []
+    const generationConfig = new LaravelGenerationConfigClient({
+      baseURL: 'https://api.shotgo.cn',
+      serviceToken: 'service-token',
+      fetch: async (_url, init) => {
+        if (typeof init?.body !== 'string') throw new Error('expected JSON request body')
+        configRequests.push(JSON.parse(init.body) as Record<string, unknown>)
+        return new Response(JSON.stringify({
+          protocolVersion: '2026-08-25.1',
+          authorizationContextId: 'team:1:user:2',
+          sessionId: 'gateway-keyless-session',
+          kind: 'image',
+          models: [{ id: 'image-real', label: 'Image Real', credits: 18, vip: false }],
+          defaults: { modelId: 'image-real' },
+        }), {
+          status: 200,
+          headers: {
+            'Cache-Control': 'no-store, private',
+            'X-ShotGo-Protocol-Version': '2026-08-25.1',
+          },
+        })
+      },
+    })
     const service = new HarnessGatewaySessionService(ctx, {
       authorize: async ({ capabilityGrant, sessionId, requiredCapability }) => {
         if (capabilityGrant !== 'grant-a' || sessionId !== 'gateway-keyless-session') throw new Error('denied')
         requiredCapabilities.push(requiredCapability)
         return { ...authorization('team:1:user:2'), sessionId }
       },
-    }, mountTestPreset)
+    }, async (agentCtx) => {
+      generationConfigRead.apply(agentCtx)
+    }, generationConfig)
     cleanup.push(async () => {
       await service.dispose()
       await ctx.fiber.dispose()
@@ -86,6 +113,12 @@ describe('Gateway to Harness session composition', () => {
     expect(sessionTypes).toContain('tool/call')
     expect(sessionTypes).toContain('tool/result')
     expect(sessionTypes).toContain('assistant/message')
+    expect(JSON.stringify(events)).toContain('image-real')
+    expect(configRequests).toEqual([{
+      grantToken: 'grant-a',
+      sessionId: 'gateway-keyless-session',
+      kind: 'image',
+    }])
 
     const replay = []
     for await (const event of await service.events({

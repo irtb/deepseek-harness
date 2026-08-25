@@ -8,6 +8,8 @@ Phase 0A 无需密钥且只读。它启动 mock 推理 Adapter，调用 `generat
 
 Phase 0B 在 [`contracts/`](contracts/README.zh.md) 中冻结 Laravel 边界。Phase 0B.2 把 Laravel 中加密落库的方舟凭据和供应商节点映射加载到进程内存。Canvas 承载的浏览器使用现有 Sanctum 身份取得受限 Grant；面向浏览器的 [Gateway 协议](contracts/gateway/README.zh.md) 通过 Laravel 内省实现幂等 Session 提交、取消和可重放 SSE。
 
+Phase 1 将 `generation_config_read` 接入 Laravel 的“服务身份 + Grant 绑定”只读接口。Opaque Grant 只保留在当前活动 Session 的内存绑定中，绝不持久化。本阶段仍不报价、不扣积分、不提交生成任务、不修改画布。
+
 ## 本地 Smoke
 
 ```sh
@@ -48,6 +50,6 @@ Phase 0A mock 总是请求只读 `generation_config_read` Tool，然后解释其
 
 - 无密钥 executable 仍是 Phase 0A smoke 入口；`gateway-bin` 是生产进程入口。
 - `gateway-bin` 已挂载受限 Harness Runtime、可信模式 Preset、Laravel Grant Authorizer、Session 提交、SSE 重放与取消；Laravel 完成并验收 Grant 签发和内省前，生产接入保持关闭。
-- Laravel 运行时配置、推理策略、元数据用量和 Grant 内省客户端已经实现；业务 Capability 客户端仍未接通。
+- Laravel 运行时配置、推理策略、元数据用量、Grant 内省和只读生成配置客户端已经实现；可变更业务状态的 Capability 客户端仍未接通。
 - 双方通过契约与集成验收前，计费、生成提交和画布写入保持禁用。
 - Gateway 重放仅存在于当前进程且最多保留 512 个事件；尚未接通根据持久化 Harness Session 日志进行的重启恢复。

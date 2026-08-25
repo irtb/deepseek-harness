@@ -9,6 +9,7 @@
     "DateTime": { "type": "string", "format": "date-time" },
     "AgentMode": { "enum": ["canvas", "image", "video"] },
     "AssetKind": { "enum": ["text", "image", "video", "audio"] },
+    "GenerationKind": { "enum": ["image", "video"] },
     "InferenceModel": { "enum": ["deepseek-v4-flash", "deepseek-v4-pro"] },
     "AgentSessionCapability": { "enum": ["agent.session.submit", "agent.session.events.read", "agent.session.cancel"] },
     "AgentCapability": { "type": "string", "minLength": 1, "maxLength": 255 },
@@ -90,6 +91,47 @@
         "agentMode": { "$ref": "#/$defs/AgentMode" },
         "allowedCapabilities": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/AgentCapability" }, "uniqueItems": true },
         "inferencePolicy": { "$ref": "#/$defs/InferencePolicy" }
+      }
+    },
+    "GenerationConfigReadRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["grantToken", "sessionId", "kind"],
+      "properties": {
+        "grantToken": { "$ref": "#/$defs/OpaqueId" },
+        "sessionId": { "$ref": "#/$defs/OpaqueId" },
+        "kind": { "$ref": "#/$defs/GenerationKind" }
+      }
+    },
+    "GenerationConfigReadResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "authorizationContextId", "sessionId", "kind", "models", "defaults"],
+      "properties": {
+        "protocolVersion": { "$ref": "#/$defs/ProtocolVersion" },
+        "authorizationContextId": { "$ref": "#/$defs/OpaqueId" },
+        "sessionId": { "$ref": "#/$defs/OpaqueId" },
+        "kind": { "$ref": "#/$defs/GenerationKind" },
+        "models": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "label", "vip"],
+            "properties": {
+              "id": { "$ref": "#/$defs/OpaqueId" },
+              "label": { "type": "string", "minLength": 1 },
+              "shortLabel": { "type": "string", "minLength": 1 },
+              "description": { "type": "string", "minLength": 1 },
+              "credits": { "type": "number", "minimum": 0 },
+              "vip": { "type": "boolean" }
+            }
+          }
+        },
+        "defaults": {
+          "type": "object",
+          "additionalProperties": { "type": ["string", "number", "boolean"] }
+        }
       }
     },
     "CapabilityCatalog": {

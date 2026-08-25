@@ -8,6 +8,8 @@ Phase 0A is keyless and read-only. It boots a mock inference adapter, calls `gen
 
 Phase 0B freezes the Laravel boundary in [`contracts/`](contracts/README.md). Phase 0B.2 loads the encrypted-at-rest Ark credential and provider endpoint mapping from Laravel into process memory. The Canvas-hosted browser obtains a scoped Grant through its existing Sanctum identity; the browser-facing [Gateway protocol](contracts/gateway/README.md) uses Laravel introspection for idempotent Session submission, cancellation, and replayable SSE.
 
+Phase 1 connects `generation_config_read` to Laravel's service-authenticated, Grant-bound read API. The opaque Grant remains only in the live Session binding and is never persisted. This phase still performs no quote, credit, generation, or canvas mutation.
+
 ## Local smoke
 
 ```sh
@@ -48,6 +50,6 @@ The three Presets have distinct persona text. Within one Preset, the prompt and 
 
 - The keyless executable remains a Phase 0A smoke entry; `gateway-bin` is the production process entry.
 - `gateway-bin` mounts the restricted Harness Runtime, trusted mode Presets, Laravel Grant authorizer, Session submission, SSE replay, and cancellation. Production admission remains closed until Laravel implements and accepts Grant issuance and introspection.
-- Laravel runtime configuration, inference policy, metadata usage, and Grant introspection clients are implemented; business capability clients remain disconnected.
+- Laravel runtime configuration, inference policy, metadata usage, Grant introspection, and read-only generation configuration clients are implemented; mutating business capability clients remain disconnected.
 - Billing, generation submission, and canvas mutation stay disabled until both implementations pass contract and integration acceptance.
 - Gateway replay is process-local and bounded to 512 events; restart recovery from the persisted Harness Session log is not yet connected.

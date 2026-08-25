@@ -2,11 +2,19 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
+import type { GenerationConfigReadResponse, GenerationKind } from '../contracts/laravel-v1.ts'
+import type {} from '../generation-config.ts'
 
 const MOCK_IMAGE_MODEL = Object.freeze({
   id: 'shotgo-image-mock',
   label: 'ShotGo Image Mock',
   kind: 'image' as const,
+})
+
+const MOCK_VIDEO_MODEL = Object.freeze({
+  id: 'shotgo-video-mock',
+  label: 'ShotGo Video Mock',
+  kind: 'video' as const,
 })
 
 export const name = 'shotgo-generation-config-read'
@@ -21,8 +29,8 @@ export function apply(ctx: Context): void {
       kind: {
         type: 'string',
         required: true,
-        enum: ['image'],
-        description: 'Asset generation kind to list. Phase 0A supports image only.',
+        enum: ['image', 'video'],
+        description: 'Asset generation kind to list.',
       },
     },
     output: {
@@ -30,7 +38,7 @@ export function apply(ctx: Context): void {
         type: 'object',
         additionalProperties: false,
         properties: {
-          kind: { type: 'string', required: true, const: 'image' },
+          kind: { type: 'string', required: true, enum: ['image', 'video'] },
           models: {
             type: 'array',
             required: true,
@@ -40,7 +48,11 @@ export function apply(ctx: Context): void {
               properties: {
                 id: { type: 'string', required: true },
                 label: { type: 'string', required: true },
-                kind: { type: 'string', required: true, const: 'image' },
+                kind: { type: 'string', required: true, enum: ['image', 'video'] },
+                shortLabel: { type: 'string' },
+                description: { type: 'string' },
+                credits: { type: 'number' },
+                vip: { type: 'boolean' },
               },
             },
           },
@@ -49,9 +61,30 @@ export function apply(ctx: Context): void {
       render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
     },
     isConcurrencySafe: () => true,
-    execute() {
-      return Promise.resolve({ kind: 'image' as const, models: [MOCK_IMAGE_MODEL] })
+    async execute(args, exec) {
+      const reader = ctx.get('shotgoGenerationConfigReader')
+      if (reader !== undefined) {
+        const config = await reader.read(args.kind, exec.signal)
+        return toolResult(config)
+      }
+      return args.kind === 'image'
+        ? { kind: 'image' as const, models: [MOCK_IMAGE_MODEL] }
+        : { kind: 'video' as const, models: [MOCK_VIDEO_MODEL] }
     },
-    presentCall: () => ({ card: 'generic', title: '读取图片模型配置', kind: 'read' }),
+    presentCall: args => ({
+      card: 'generic',
+      title: args.kind === 'image' ? '读取图片模型配置' : '读取视频模型配置',
+      kind: 'read',
+    }),
   }))
+}
+
+function toolResult(config: GenerationConfigReadResponse): {
+  kind: GenerationKind
+  models: Array<GenerationConfigReadResponse['models'][number] & { kind: GenerationKind }>
+} {
+  return {
+    kind: config.kind,
+    models: config.models.map(model => ({ ...model, kind: config.kind })),
+  }
 }
