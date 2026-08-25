@@ -22,6 +22,7 @@ Laravel 为用户、可为空的团队、空间、可为空的项目、Agent 模
 - 推理策略具有短有效期并采用失败关闭；默认模型必须位于允许列表中。
 - 推理用量以 `llmRequestId` 作为 `Idempotency-Key`，只允许标识符、模型、时间、状态和 Token 计数；禁止供应商密钥、提示词、消息、回答和原始响应。
 - 生成配置在 `parameterSchemaVersion: 1` 下返回可见模型、安全选项约束和按生成类型区分的默认值；其中的积分字段属于目录元数据，不构成报价或确认依据。
+- 生成报价使用当前 Capability Grant，不执行任何业务写入，并返回整数积分和短期 opaque Quote Envelope。报价请求不携带变更上下文或幂等 Key；后续生成提交仍必须幂等。
 - 每个写请求携带 `Idempotency-Key`，且必须等于请求体中的 `context.clientRequestId`。
 - 写上下文包含 `sessionId`、`runId`、`actionId` 和 `clientRequestId`。
 - 金额使用十进制字符串和 ISO 4217 币种，禁止使用 JavaScript number 表示金额。

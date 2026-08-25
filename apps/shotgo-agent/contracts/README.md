@@ -22,6 +22,7 @@ Laravel returns a stable `authorizationContextId` for one user, nullable team, s
 - Inference policy is short-lived and fail-closed. Its default model must be present in its allowlist.
 - Inference usage uses `llmRequestId` as `Idempotency-Key` and contains only identifiers, model, timing, status, and token counters. Provider keys, prompts, messages, completions, and raw responses are forbidden.
 - Generation configuration returns visible models, safe option constraints, and kind-specific defaults under `parameterSchemaVersion: 1`. Its credit fields are catalog metadata, not a quote or confirmation basis.
+- Generation quote uses the current Capability Grant, performs no business write, and returns integer credits plus a short-lived opaque Quote Envelope. Quote requests do not use mutation context or an idempotency key; generation submission remains idempotent.
 - Every mutating request carries `Idempotency-Key`, equal to body `context.clientRequestId`.
 - Mutation context contains `sessionId`, `runId`, `actionId`, and `clientRequestId`.
 - Amounts are decimal strings plus ISO 4217 currency; JavaScript numbers are forbidden for money.

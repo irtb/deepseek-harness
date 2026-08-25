@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it } from 'vitest'
 import { SHOTGO_MOCK_MODEL, SHOTGO_MOCK_PROVIDER, ShotGoMockLlmAdapter } from '../src/llm/mock.ts'
 import { HarnessGatewaySessionService } from '../src/gateway-session.ts'
 import { LaravelGenerationConfigClient } from '../src/laravel/generation-config-client.ts'
+import { LaravelGenerationQuoteClient } from '../src/laravel/generation-quote-client.ts'
 import * as generationConfigRead from '../src/tools/generation-config-read.ts'
 import * as runtime from '../src/runtime.ts'
 
@@ -45,6 +46,7 @@ describe('Gateway to Harness session composition', () => {
     await ctx.plugin(runtime)
     const requiredCapabilities: string[] = []
     const configRequests: Array<Record<string, unknown>> = []
+    const quoteRequests: Array<Record<string, unknown>> = []
     const generationConfig = new LaravelGenerationConfigClient({
       baseURL: 'https://api.shotgo.cn',
       serviceToken: 'service-token',
@@ -74,6 +76,33 @@ describe('Gateway to Harness session composition', () => {
         })
       },
     })
+    const generationQuote = new LaravelGenerationQuoteClient({
+      baseURL: 'https://api.shotgo.cn',
+      fetch: async (_url, init) => {
+        if (typeof init?.body !== 'string') throw new Error('expected JSON request body')
+        quoteRequests.push({
+          authorization: new Headers(init.headers).get('Authorization'),
+          body: JSON.parse(init.body) as Record<string, unknown>,
+        })
+        return new Response(JSON.stringify({
+          protocolVersion: '2026-08-25.1',
+          quoteId: 'opaque-quote',
+          quoteVersion: 1,
+          kind: 'image',
+          modelId: 'image-real',
+          credits: 18,
+          breakdown: [{ key: 'image-real', label: 'Image Real', credits: 18 }],
+          canAfford: true,
+          userBalance: 100,
+          expiresAt: '2099-08-25T20:00:00+08:00',
+          normalizedParameters: { kind: 'image', modelId: 'image-real', prompt: 'cat' },
+          requiresConfirmation: true,
+        }), { status: 200, headers: {
+          'Cache-Control': 'no-store, private',
+          'X-ShotGo-Protocol-Version': '2026-08-25.1',
+        } })
+      },
+    })
     const service = new HarnessGatewaySessionService(ctx, {
       authorize: async ({ capabilityGrant, sessionId, requiredCapability }) => {
         if (capabilityGrant !== 'grant-a' || sessionId !== 'gateway-keyless-session') throw new Error('denied')
@@ -82,7 +111,7 @@ describe('Gateway to Harness session composition', () => {
       },
     }, async (agentCtx) => {
       generationConfigRead.apply(agentCtx)
-    }, generationConfig)
+    }, generationConfig, generationQuote)
     cleanup.push(async () => {
       await service.dispose()
       await ctx.fiber.dispose()
@@ -101,6 +130,21 @@ describe('Gateway to Harness session composition', () => {
     const duplicate = await service.submit(input)
     expect(duplicate).toEqual(accepted)
     await expect(service.submit({ ...input, capabilityGrant: 'invalid-grant' })).rejects.toThrow('denied')
+    await expect(ctx.get('shotgoGenerationQuoteReader')?.quote({
+      sessionId: input.sessionId,
+      kind: 'image',
+      modelId: 'image-real',
+      parameters: { prompt: 'cat' },
+    })).resolves.toMatchObject({ quoteId: 'opaque-quote', credits: 18 })
+    expect(quoteRequests).toEqual([{
+      authorization: 'Bearer grant-a',
+      body: {
+        sessionId: input.sessionId,
+        kind: 'image',
+        modelId: 'image-real',
+        parameters: { prompt: 'cat' },
+      },
+    }])
 
     const events = []
     for await (const event of await service.events({

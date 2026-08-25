@@ -88,6 +88,7 @@ describe('ShotGo Phase 0A runtime', () => {
         ],
         "visibleTools": [
           "generation_config_read",
+          "generation_quote",
         ],
       }
     `)

@@ -143,8 +143,8 @@ describe('Laravel Agent Protocol v1', () => {
 
   it('requires idempotency on every business mutation', async () => {
     const openapi = await readJson<OpenApiDocument>('openapi.json')
+    const quote = operation(openapi, '/api/agent/v1/generation-quotes', 'post')
     const operations = [
-      operation(openapi, '/api/agent/v1/generation-quotes', 'post'),
       operation(openapi, '/api/agent/v1/generations', 'post'),
       operation(openapi, '/api/agent/v1/generations/{generationId}/cancel', 'post'),
       operation(openapi, '/api/agent/v1/canvases/{canvasId}/operations', 'post'),
@@ -155,6 +155,9 @@ describe('Laravel Agent Protocol v1', () => {
       expect(operation.parameters).toContainEqual({ $ref: '#/components/parameters/IdempotencyKey' })
       expect(operation.requestBody?.required).toBe(true)
     }
+    expect(quote.security).toContainEqual({ capabilityGrant: [] })
+    expect(quote.parameters ?? []).not.toContainEqual({ $ref: '#/components/parameters/IdempotencyKey' })
+    expect(quote.description).toContain('without charging credits')
   })
 
   it('keeps direct reasoning control-plane traffic distinct from business generation', async () => {

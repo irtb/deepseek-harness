@@ -5,6 +5,7 @@
   "$defs": {
     "ProtocolVersion": { "const": "2026-08-25.1" },
     "OpaqueId": { "type": "string", "minLength": 1, "maxLength": 255 },
+    "OpaqueToken": { "type": "string", "minLength": 1, "maxLength": 8192 },
     "IntegerId": { "type": "integer", "minimum": 1 },
     "DateTime": { "type": "string", "format": "date-time" },
     "AgentMode": { "enum": ["canvas", "image", "video"] },
@@ -52,7 +53,7 @@
       "required": ["protocolVersion", "grantToken", "expiresAt", "sessionId", "userId", "teamId", "spaceId", "projectId", "agentMode", "allowedCapabilities"],
       "properties": {
         "protocolVersion": { "$ref": "#/$defs/ProtocolVersion" },
-        "grantToken": { "$ref": "#/$defs/OpaqueId" },
+        "grantToken": { "$ref": "#/$defs/OpaqueToken" },
         "expiresAt": { "$ref": "#/$defs/DateTime" },
         "sessionId": { "$ref": "#/$defs/OpaqueId" },
         "userId": { "$ref": "#/$defs/IntegerId" },
@@ -68,7 +69,7 @@
       "additionalProperties": false,
       "required": ["grantToken", "sessionId", "requiredCapability"],
       "properties": {
-        "grantToken": { "$ref": "#/$defs/OpaqueId" },
+        "grantToken": { "$ref": "#/$defs/OpaqueToken" },
         "sessionId": { "$ref": "#/$defs/OpaqueId" },
         "requiredCapability": { "$ref": "#/$defs/AgentSessionCapability" }
       }
@@ -291,25 +292,48 @@
     "QuoteRequest": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["context", "kind", "modelId", "parameters"],
+      "required": ["sessionId", "kind", "modelId", "parameters"],
       "properties": {
-        "context": { "$ref": "#/$defs/MutationContext" },
-        "kind": { "$ref": "#/$defs/AssetKind" },
+        "sessionId": { "$ref": "#/$defs/OpaqueId" },
+        "kind": { "$ref": "#/$defs/GenerationKind" },
         "modelId": { "$ref": "#/$defs/OpaqueId" },
-        "parameters": { "type": "object" }
+        "parameters": {
+          "type": "object",
+          "additionalProperties": { "type": ["string", "number", "boolean"] }
+        }
       }
     },
     "QuoteResponse": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["protocolVersion", "quoteId", "quoteVersion", "price", "expiresAt", "normalizedParameters", "requiresConfirmation"],
+      "required": ["protocolVersion", "quoteId", "quoteVersion", "kind", "modelId", "credits", "breakdown", "canAfford", "userBalance", "expiresAt", "normalizedParameters", "requiresConfirmation"],
       "properties": {
         "protocolVersion": { "$ref": "#/$defs/ProtocolVersion" },
-        "quoteId": { "$ref": "#/$defs/OpaqueId" },
-        "quoteVersion": { "type": "integer", "minimum": 1 },
-        "price": { "$ref": "#/$defs/Money" },
+        "quoteId": { "$ref": "#/$defs/OpaqueToken" },
+        "quoteVersion": { "const": 1 },
+        "kind": { "$ref": "#/$defs/GenerationKind" },
+        "modelId": { "$ref": "#/$defs/OpaqueId" },
+        "credits": { "type": "integer", "minimum": 0 },
+        "breakdown": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["key", "label", "credits"],
+            "properties": {
+              "key": { "type": "string", "minLength": 1 },
+              "label": { "type": "string", "minLength": 1 },
+              "credits": { "type": "integer", "minimum": 0 }
+            }
+          }
+        },
+        "canAfford": { "type": "boolean" },
+        "userBalance": { "type": "integer", "minimum": 0 },
         "expiresAt": { "$ref": "#/$defs/DateTime" },
-        "normalizedParameters": { "type": "object" },
+        "normalizedParameters": {
+          "type": "object",
+          "additionalProperties": { "type": ["string", "number", "boolean"] }
+        },
         "requiresConfirmation": { "const": true }
       }
     },

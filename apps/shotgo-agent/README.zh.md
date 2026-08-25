@@ -10,6 +10,8 @@ Phase 0B 在 [`contracts/`](contracts/README.zh.md) 中冻结 Laravel 边界。P
 
 Phase 1 将 `generation_config_read` 接入 Laravel 的“服务身份 + Grant 绑定”只读接口。Tool 返回当前可见的图片或视频模型、安全参数选项与约束以及默认值，供 Agent 识别仍需用户补充的选择。目录中的积分元数据只用于说明，不能代替 Laravel 报价或用户确认。Opaque Grant 只保留在当前活动 Session 的内存绑定中，绝不持久化；本阶段仍不报价、不扣积分、不提交生成任务、不修改画布。
 
+Phase 2 增加只读 `generation_quote` Tool。Gateway 注入当前 Grant 与 Session 绑定，Laravel 重新验证授权上下文，Tool 返回包含规范化参数、准确积分明细、余额和有效期的短期 opaque Quote。报价既不扣积分也不提交任务；Agent 必须展示报价并请求用户明确确认。
+
 ## 本地 Smoke
 
 ```sh
@@ -50,6 +52,6 @@ Phase 0A mock 总是请求只读 `generation_config_read` Tool，然后解释其
 
 - 无密钥 executable 仍是 Phase 0A smoke 入口；`gateway-bin` 是生产进程入口。
 - `gateway-bin` 已挂载受限 Harness Runtime、可信模式 Preset、Laravel Grant Authorizer、Session 提交、SSE 重放与取消；Laravel 完成并验收 Grant 签发和内省前，生产接入保持关闭。
-- Laravel 运行时配置、推理策略、元数据用量、Grant 内省和只读生成配置客户端已经实现；可变更业务状态的 Capability 客户端仍未接通。
+- Laravel 运行时配置、推理策略、元数据用量、Grant 内省、生成配置和只读报价客户端已经实现；可变更业务状态的 Capability 客户端仍未接通。
 - 双方通过契约与集成验收前，计费、生成提交和画布写入保持禁用。
 - Gateway 重放仅存在于当前进程且最多保留 512 个事件；尚未接通根据持久化 Harness Session 日志进行的重启恢复。
