@@ -8,7 +8,7 @@ Use `feature/<scope>`, `fix/<scope>`, `docs/<scope>`, or `chore/<scope>`. Keep o
 
 Before handoff, run the focused typecheck, unit/contract tests, lint, translation and Agent Note checks when applicable, upstream-isolation verification, and `git diff --check`. A skipped, unavailable, flaky, or failing required check blocks handoff.
 
-After all gates pass, report the reviewed source branch or commit, target production branch, configured production remote, and exact check results, then stop for the user's second explicit confirmation. Only after that confirmation may the Agent merge the reviewed source into the named `master` or `release/*` branch and push the resulting commit to the production remote. If the base moves after testing, synchronize the branch, rerun affected checks, and obtain renewed confirmation. After a successful production-branch push, provide the exact server deployment, verification, and rollback commands with the resulting commit SHA; the user executes production deployment manually, and the Agent must not run production pull, build, migration, restart, or deployment commands.
+After all gates pass, preflight the configured remote's branch topology and report the reviewed source branch or commit, integration branch, production branch, production remote, and exact check results, then stop for one second explicit confirmation. That single confirmation authorizes the Agent to merge and push the named integration branch and promote that exact result to the named production branch; do not request another confirmation merely because `master` and `release/*` require separate Git operations. If a named branch is unusable or moves after confirmation, stop without selecting a substitute, synchronize, rerun affected checks, and present a new complete proposal because the confirmed identifiers are no longer current. After a successful production-branch push, provide the exact server deployment, verification, and rollback commands with the resulting commit SHA; the user executes production deployment manually, and the Agent must not run production pull, build, migration, restart, or deployment commands.
 
 ## Database and table changes
 
@@ -21,7 +21,7 @@ Production database execution belongs to the user. After local acceptance, provi
 ## Required handoff evidence
 
 - source branch and base branch;
-- reviewed source commits, target production branch, and production remote;
+- reviewed source commits, integration branch, production branch, and production remote;
 - exact checks and results;
 - the user's second confirmation and the resulting merge/push commit, when authorized;
 - any warning or deferred acceptance item;
