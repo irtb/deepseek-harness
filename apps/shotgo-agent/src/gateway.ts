@@ -43,6 +43,20 @@ function sendJson(response: ServerResponse, statusCode: number, body: unknown): 
   response.end(JSON.stringify(body))
 }
 
+function reportRequestFailure(request: IncomingMessage, url: URL, error: unknown): void {
+  const known = error instanceof GatewaySessionError
+  const message = error instanceof Error ? error.message.slice(0, 512) : 'unknown gateway error'
+  process.stderr.write(`${JSON.stringify({
+    event: 'gateway/request-failed',
+    method: request.method ?? 'UNKNOWN',
+    path: url.pathname,
+    status: known ? error.status : 500,
+    code: known ? error.code : 'INTERNAL_ERROR',
+    errorName: error instanceof Error ? error.name : 'UnknownError',
+    message,
+  })}\n`)
+}
+
 const CORS_ALLOW_HEADERS = 'Authorization, Content-Type, Idempotency-Key, Last-Event-ID'
 const CORS_ALLOW_METHODS = 'GET, POST, DELETE, OPTIONS'
 const CORS_EXPOSE_HEADERS = `${SHOTGO_PROTOCOL_HEADER}, ${SHOTGO_GATEWAY_PROTOCOL_HEADER}`
@@ -258,6 +272,8 @@ export function createGatewayServer(
       sendJson(response, 404, { code: 'NOT_FOUND' })
     })().catch((error: unknown) => {
       if (response.destroyed) return
+      const url = new URL(request.url ?? '/', 'http://shotgo-agent.internal')
+      reportRequestFailure(request, url, error)
       if (response.headersSent) {
         response.destroy(error instanceof Error ? error : undefined)
         return
