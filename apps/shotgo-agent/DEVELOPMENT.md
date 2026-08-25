@@ -6,25 +6,24 @@ Every independently reviewable change uses a new branch. Before creating it, swi
 
 Use `feature/<scope>`, `fix/<scope>`, `docs/<scope>`, or `chore/<scope>`. Keep one concern per branch and keep all ShotGo product changes inside the product boundary documented in `AGENTS.md`.
 
-Before handoff, run the focused typecheck, unit/contract tests, lint, translation and Agent Note checks when applicable, upstream-isolation verification, and `git diff --check`. A skipped, unavailable, flaky, or failing required check blocks handoff.
+Before implementation, map the requested behavior to every shared module, contract, caller, background job, database path, and sibling Agent that could be affected. Keep the diff inside the intended ownership boundary. Before handoff, run focused checks for the requested behavior and regression checks for each identified consumer, plus applicable typecheck, contract tests, lint, translation and Agent Note checks, upstream-isolation verification, and `git diff --check`. A skipped, unavailable, flaky, or failing required check blocks handoff.
 
-After all gates pass, preflight the configured remote's branch topology and report the reviewed source branch or commit, integration branch, production branch, production remote, and exact check results, then stop for one second explicit confirmation. That single confirmation authorizes the Agent to merge and push the named integration branch and promote that exact result to the named production branch; do not request another confirmation merely because `master` and `release/*` require separate Git operations. If a named branch is unusable or moves after confirmation, stop without selecting a substitute, synchronize, rerun affected checks, and present a new complete proposal because the confirmed identifiers are no longer current. After a successful production-branch push, provide the exact server deployment, verification, and rollback commands with the resulting commit SHA; the user executes production deployment manually, and the Agent must not run production pull, build, migration, restart, or deployment commands.
+There is no standing second-confirmation gate. When the user's current request includes merge, push, or deployment, the Agent may complete the named sequence after all required checks pass. A request limited to development, diagnosis, review, or status does not implicitly authorize a production mutation. Preflight remote branches before pushing, preserve the exact tested result during promotion, and stop on remote movement or an unexpected target instead of overwriting or substituting it. Automated deployment is allowed within the current task's scope; record the deployed commit or artifact, affected services, health checks, and rollback result, and never restart or deploy unrelated services.
 
 ## Database and table changes
 
-Database and table mutations require a second explicit user confirmation. First produce the exact migration or SQL, affected database and tables, expected rows or schema changes, validation queries, backup or rollback procedure, and application compatibility impact. Do not execute DDL or mutating DML while presenting this preview.
+Database and table mutations do not require a mandatory second confirmation and are not restricted to manual execution. Before applying them, prominently report the exact migration or SQL, affected schemas and tables, expected row or schema changes, dependent services and code paths, compatibility risks, validation queries, and backup or rollback procedure.
 
-ShotGo databases and required tables must have a local deployment. The user reviews or edits the proposed statements and applies them to the local database. Afterward, the assistant may run read-only verification and application tests against that local state. A failed or incomplete local validation blocks production handoff.
+Validate migrations and data changes against a local database when one is available, including forward migration, affected application behavior, and rollback or compensating recovery. A failed or incomplete required local validation blocks production execution unless the task explicitly establishes a different verified staging path.
 
-Production database execution belongs to the user. After local acceptance, provide the exact reviewed statements or local-to-production copy procedure and verification queries; do not execute production DDL, DML, migrations, imports, or copies. Read-only production inspection also requires the authority already granted for that task and must not be used to bypass the mutation rule.
+The Agent may execute production DDL, DML, migrations, imports, or copies only when the current request authorizes the associated production change and the risk report, backup or rollback path, and required validation are complete. Apply the narrowest operation, verify schema and data invariants immediately, and check every identified dependent service. Never use a database change requested for feature A to rewrite unrelated B or C data.
 
 ## Required handoff evidence
 
 - source branch and base branch;
 - reviewed source commits, integration branch, production branch, and production remote;
 - exact checks and results;
-- the user's second confirmation and the resulting merge/push commit, when authorized;
 - any warning or deferred acceptance item;
-- database or table statement preview, local validation, and production handoff status when applicable;
-- exact manual production deployment, verification, and rollback commands after a production-branch push;
-- confirmation that the Agent did not execute production deployment or a production database mutation.
+- identified affected consumers and their regression results;
+- database risk report, local or staging validation, execution result, and rollback status when applicable;
+- deployed commit or artifact, affected services, health checks, and rollback status when deployment is requested.

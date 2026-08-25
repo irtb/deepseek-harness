@@ -1,5 +1,5 @@
 ---
-description: Enforce isolated branches, confirmed merges, and manual production deployment
+description: Enforce isolated changes, regression safety, and risk-gated releases
 alwaysApply: true
 ---
 
@@ -9,10 +9,9 @@ alwaysApply: true
 - Use `feature/<scope>`, `fix/<scope>`, `docs/<scope>`, or `chore/<scope>` names. Never implement directly on `master` or `release/*`.
 - Keep one development item per branch. Do not mix unrelated cleanup or upstream dependency refreshes into it.
 - Record the required focused checks before implementation. Run them after implementation and keep the exact results in the handoff.
-- After all applicable checks pass, preflight the remote branch topology, report the exact evidence, reviewed source, integration branch, production branch, and remote, then stop for one second explicit confirmation.
-- One confirmation authorizes the complete named Git release sequence: merge and push the integration branch, then promote that exact result and push the production branch. Never request another confirmation merely because the sequence contains multiple Git operations.
-- Use a non-fast-forward integration merge so the item remains auditable. Promotion must preserve the exact tested integration result without rebuilding or substituting another commit.
-- If a named branch cannot be used or a remote branch moves after confirmation, stop without choosing a replacement. Synchronize, rerun affected checks, and present a new complete release proposal; the expired confirmation cannot authorize changed identifiers.
-- A skipped, flaky, unavailable, or failing required check blocks confirmation, merge, and production-branch push.
-- After a successful production-branch push, show the exact server deployment, verification, and rollback commands with the deployed commit SHA. Never execute production pull, build, migration, restart, or deployment commands; the user deploys manually.
-- Database and table mutations retain their separate preview, local-validation, and second-confirmation requirements. The Agent never executes production database mutations.
+- Before implementation, map the requested behavior, shared modules, contracts, callers, jobs, and data paths that could make an A change affect B or C. Keep the diff inside the intended ownership boundary.
+- Run focused tests for the changed behavior plus regression checks for every identified consumer. A skipped, flaky, unavailable, or failing required check blocks merge and release.
+- No standing second-confirmation gate applies. When the user's current request includes merge, push, or deployment, the Agent may complete those steps after required checks pass; a development-only or review-only request does not implicitly authorize production mutation.
+- Preflight remote branches before pushing. Use a non-fast-forward integration merge, promote the exact tested result, and stop on remote movement or an unexpected target instead of overwriting or substituting it.
+- Deployment may be automated when it is within the current request. Record the exact commit or artifact, health checks, affected services, and rollback result; do not restart or deploy unrelated services.
+- Database and table changes do not require a mandatory second confirmation or manual-only execution. Before applying them, prominently report affected schemas, tables, rows, services, compatibility risks, backup, rollback, and validation; test locally when available and execute only within the authorized deployment scope.
