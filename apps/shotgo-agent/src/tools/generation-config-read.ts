@@ -64,7 +64,13 @@ export function apply(ctx: Context): void {
     async execute(args, exec) {
       const reader = ctx.get('shotgoGenerationConfigReader')
       if (reader !== undefined) {
-        const config = await reader.read(args.kind, exec.signal)
+        const sessionId = exec.agent?.session.id
+        if (sessionId === undefined) throw new Error('GENERATION_CONFIG_SESSION_REQUIRED')
+        const config = await reader.read({
+          kind: args.kind,
+          sessionId,
+          signal: exec.signal,
+        })
         return toolResult(config)
       }
       return args.kind === 'image'

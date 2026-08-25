@@ -102,6 +102,7 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
   private readonly requestIds = new Map<string, string>()
   private readonly admissions = new Map<string, Promise<void>>()
   private readonly stopSessionEvents: () => void
+  private readonly stopGenerationConfigReader?: () => void
   private disposed = false
 
   constructor(
@@ -112,8 +113,22 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
       if (presets === undefined) throw new GatewaySessionError('AGENT_PRESETS_UNAVAILABLE', 503)
       await presets.mount(agentCtx, `shotgo-${agentMode}-v1`)
     },
-    private readonly generationConfig?: LaravelGenerationConfigClient,
+    generationConfig?: LaravelGenerationConfigClient,
   ) {
+    if (generationConfig !== undefined) {
+      this.stopGenerationConfigReader = ctx.provide('shotgoGenerationConfigReader', {
+        read: async ({ kind, sessionId, signal }) => {
+          const live = this.sessions.get(sessionId)
+          if (live === undefined) throw new GatewaySessionError('SESSION_NOT_FOUND', 404)
+          return await generationConfig.read({
+            capabilityGrant: live.capabilityGrant.current,
+            sessionId,
+            kind,
+            ...(signal === undefined ? {} : { signal }),
+          })
+        },
+      })
+    }
     this.stopSessionEvents = ctx.on('session/event', (session, event) => {
       const live = this.sessions.get(session.id)
       if (live === undefined || live.activeRunId === undefined) return
@@ -165,12 +180,6 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
           maxTokens: authorization.maxTokens,
         },
         setup: async (agentCtx) => {
-          if (this.generationConfig !== undefined) {
-            agentCtx.provide('shotgoGenerationConfigReader', this.generationConfig.bind({
-              capabilityGrant: () => capabilityGrant.current,
-              sessionId: authorization.sessionId,
-            }))
-          }
           await this.mountAgentPreset(agentCtx, authorization.agentMode)
         },
         ...(input.signal === undefined ? {} : { signal: input.signal }),
@@ -270,6 +279,7 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
       wakeAll(session)
     }
     await Promise.all(live.map(session => session.handle.dispose()))
+    this.stopGenerationConfigReader?.()
     this.sessions.clear()
   }
 

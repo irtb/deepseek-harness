@@ -5,7 +5,6 @@ import {
   type GenerationConfigReadResponse,
   type GenerationKind,
 } from '../contracts/laravel-v1.ts'
-import type { GenerationConfigReader } from '../generation-config.ts'
 
 export interface GenerationConfigClientOptions {
   baseURL: string
@@ -80,7 +79,9 @@ export class LaravelGenerationConfigClient {
     this.fetch = options.fetch ?? globalThis.fetch
   }
 
-  bind(binding: { capabilityGrant: () => string; sessionId: string }): GenerationConfigReader {
+  bind(binding: { capabilityGrant: () => string; sessionId: string }): {
+    read(kind: GenerationKind, signal?: AbortSignal): Promise<GenerationConfigReadResponse>
+  } {
     return {
       read: async (kind, signal) => await this.read({
         capabilityGrant: binding.capabilityGrant(),
