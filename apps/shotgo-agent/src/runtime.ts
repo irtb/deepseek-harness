@@ -19,6 +19,15 @@ import * as generationConfigRead from './tools/generation-config-read.ts'
 
 export const name = 'shotgo-agent-runtime'
 
+export function resolveSessionRoot(environment: NodeJS.ProcessEnv = process.env): string {
+  const configured = environment.SHOTGO_AGENT_SESSION_ROOT?.trim()
+  if (configured !== undefined && configured.length > 0) return configured
+  if (environment.NODE_ENV === 'production') {
+    throw new Error('SHOTGO_AGENT_SESSION_ROOT is required in production')
+  }
+  return './.shotgo-agent-sessions'
+}
+
 /** Compose the restricted runtime; external providers remain request-time gated. */
 export async function apply(ctx: Context): Promise<void> {
   await ctx.plugin(Timer)
@@ -58,7 +67,7 @@ export async function apply(ctx: Context): Promise<void> {
     agents: [],
   })
   await ctx.plugin(JsonlSessionPersistence, {
-    root: process.env.SHOTGO_AGENT_SESSION_ROOT ?? './.shotgo-agent-sessions',
+    root: resolveSessionRoot(),
     compression: 'none',
   })
 }

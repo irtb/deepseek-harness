@@ -4,6 +4,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { execa } from 'execa'
 import { afterEach, describe, expect, it } from 'vitest'
+import { resolveSessionRoot } from '../src/runtime.ts'
 
 const APP_ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 const REPO_ROOT = dirname(dirname(APP_ROOT))
@@ -14,6 +15,16 @@ afterEach(async () => {
 })
 
 describe('ShotGo Phase 0A runtime', () => {
+  it('requires an explicit writable session root in production', () => {
+    expect(resolveSessionRoot({ NODE_ENV: 'development' })).toBe('./.shotgo-agent-sessions')
+    expect(resolveSessionRoot({
+      NODE_ENV: 'production',
+      SHOTGO_AGENT_SESSION_ROOT: '/srv/shotgo/storage/sessions',
+    })).toBe('/srv/shotgo/storage/sessions')
+    expect(() => resolveSessionRoot({ NODE_ENV: 'production' }))
+      .toThrow('SHOTGO_AGENT_SESSION_ROOT is required in production')
+  })
+
   it('records a keyless read-only generation configuration tool round trip', async () => {
     const sessionRoot = await mkdtemp(join(tmpdir(), 'shotgo-agent-snapshot-'))
     temporaryDirectories.push(sessionRoot)
