@@ -1,21 +1,46 @@
 /** Read-only Phase 0A generation-model catalog tool. */
 
 import type { Context } from '@deepseek-ai/cordis'
+import { snapshotJsonValue, type JsonValue } from '@deepseek-ai/dsh-session'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import type { GenerationConfigReadResponse, GenerationKind } from '../contracts/laravel-v1.ts'
+import type {
+  GenerationConfigModel,
+  GenerationConfigReadResponse,
+  GenerationKind,
+} from '../contracts/laravel-v1.ts'
 import type {} from '../generation-config.ts'
 
 const MOCK_IMAGE_MODEL = Object.freeze({
   id: 'shotgo-image-mock',
   label: 'ShotGo Image Mock',
+  vip: false,
   kind: 'image' as const,
 })
 
 const MOCK_VIDEO_MODEL = Object.freeze({
   id: 'shotgo-video-mock',
   label: 'ShotGo Video Mock',
+  vip: false,
   kind: 'video' as const,
 })
+
+interface ToolModel {
+  id: string
+  label: string
+  kind: GenerationKind
+  vip: boolean
+  shortLabel?: string
+  badge?: string
+  duration?: string
+  description?: string
+  credits?: number
+  supportedOptions?: JsonValue
+  optionOverrides?: JsonValue
+  operationOptionConstraints?: JsonValue
+  durationRange?: Record<string, JsonValue>
+  fpsEnabled?: boolean
+  fpsRanges?: Array<Record<string, JsonValue>>
+}
 
 export const name = 'shotgo-generation-config-read'
 export const inject = ['tools']
@@ -39,6 +64,7 @@ export function apply(ctx: Context): void {
         additionalProperties: false,
         properties: {
           kind: { type: 'string', required: true, enum: ['image', 'video'] },
+          parameterSchemaVersion: { type: 'number', required: true, const: 1 },
           models: {
             type: 'array',
             required: true,
@@ -49,13 +75,26 @@ export function apply(ctx: Context): void {
                 id: { type: 'string', required: true },
                 label: { type: 'string', required: true },
                 kind: { type: 'string', required: true, enum: ['image', 'video'] },
+                vip: { type: 'boolean', required: true },
                 shortLabel: { type: 'string' },
+                badge: { type: 'string' },
+                duration: { type: 'string' },
                 description: { type: 'string' },
                 credits: { type: 'number' },
-                vip: { type: 'boolean' },
+                supportedOptions: { type: 'json' },
+                optionOverrides: { type: 'json' },
+                operationOptionConstraints: { type: 'json' },
+                durationRange: { type: 'object', additionalProperties: true },
+                fpsEnabled: { type: 'boolean' },
+                fpsRanges: {
+                  type: 'array',
+                  items: { type: 'object', additionalProperties: true },
+                },
               },
             },
           },
+          parameters: { type: 'object', required: true, additionalProperties: true },
+          defaults: { type: 'object', required: true, additionalProperties: true },
         },
       },
       render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
@@ -74,8 +113,27 @@ export function apply(ctx: Context): void {
         return toolResult(config)
       }
       return args.kind === 'image'
-        ? { kind: 'image' as const, models: [MOCK_IMAGE_MODEL] }
-        : { kind: 'video' as const, models: [MOCK_VIDEO_MODEL] }
+        ? {
+          kind: 'image' as const,
+          parameterSchemaVersion: 1 as const,
+          models: [MOCK_IMAGE_MODEL],
+          parameters: { qualities: [], resolutions: [], aspectRatios: [], multiples: [] },
+          defaults: { modelId: MOCK_IMAGE_MODEL.id },
+        }
+        : {
+          kind: 'video' as const,
+          parameterSchemaVersion: 1 as const,
+          models: [MOCK_VIDEO_MODEL],
+          parameters: {
+            aspectRatios: [],
+            resolutions: [],
+            duration: {},
+            fps: {},
+            audioOptions: [],
+            operationTypes: [],
+          },
+          defaults: { modelId: MOCK_VIDEO_MODEL.id },
+        }
     },
     presentCall: args => ({
       card: 'generic',
@@ -85,12 +143,44 @@ export function apply(ctx: Context): void {
   }))
 }
 
-function toolResult(config: GenerationConfigReadResponse): {
-  kind: GenerationKind
-  models: Array<GenerationConfigReadResponse['models'][number] & { kind: GenerationKind }>
-} {
+function toolResult(config: GenerationConfigReadResponse) {
   return {
     kind: config.kind,
-    models: config.models.map(model => ({ ...model, kind: config.kind })),
+    parameterSchemaVersion: config.parameterSchemaVersion,
+    models: config.models.map(model => toolModel(model, config.kind)),
+    parameters: jsonObject(config.parameters),
+    defaults: jsonObject(config.defaults),
   }
+}
+
+function toolModel(model: GenerationConfigModel, kind: GenerationKind): ToolModel {
+  const result: ToolModel = { id: model.id, label: model.label, kind, vip: model.vip }
+  if (model.shortLabel !== undefined) result.shortLabel = model.shortLabel
+  if (model.badge !== undefined) result.badge = model.badge
+  if (model.duration !== undefined) result.duration = model.duration
+  if (model.description !== undefined) result.description = model.description
+  if (model.credits !== undefined) result.credits = model.credits
+  if (model.supportedOptions !== undefined) result.supportedOptions = jsonValue(model.supportedOptions)
+  if (model.optionOverrides !== undefined) result.optionOverrides = jsonValue(model.optionOverrides)
+  if (model.operationOptionConstraints !== undefined) {
+    result.operationOptionConstraints = jsonValue(model.operationOptionConstraints)
+  }
+  if (model.durationRange !== undefined) result.durationRange = jsonObject(model.durationRange)
+  if (model.fpsEnabled !== undefined) result.fpsEnabled = model.fpsEnabled
+  if (model.fpsRanges !== undefined) result.fpsRanges = model.fpsRanges.map(jsonObject)
+  return result
+}
+
+function jsonObject(value: object): Record<string, JsonValue> {
+  const snapshot = jsonValue(value)
+  if (snapshot === null || typeof snapshot !== 'object' || Array.isArray(snapshot)) {
+    throw new Error('GENERATION_CONFIG_JSON_OBJECT_REQUIRED')
+  }
+  return snapshot
+}
+
+function jsonValue(value: object): JsonValue {
+  const snapshot = snapshotJsonValue(value)
+  if (snapshot === undefined) throw new Error('GENERATION_CONFIG_JSON_VALUE_REQUIRED')
+  return snapshot as JsonValue
 }

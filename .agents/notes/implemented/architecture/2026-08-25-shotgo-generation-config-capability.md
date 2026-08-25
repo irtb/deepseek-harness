@@ -14,7 +14,7 @@ Laravel exposes `POST /api/internal/agent/v1/generation/config` under Agent serv
 
 The Gateway binds the current opaque Grant to the live Harness Agent scope only in memory. A refreshed Grant replaces that binding only after ordinary Session submission introspection returns the same authorization context. The scoped `generation_config_read` tool calls Laravel through a narrow reader service and forwards cancellation. Neither the Grant nor the service token enters a Harness Session event, tool result, runtime configuration file, or business database record.
 
-The keyless entry retains its deterministic fixture as a local smoke fallback. Production `gateway-bin` always installs the Laravel reader. The response projected to the model contains only the requested kind and visible model metadata; Laravel remains the availability authority.
+The keyless entry retains its deterministic fixture as a local smoke fallback. Production `gateway-bin` always installs the Laravel reader. The response projected to the model contains the requested kind, visible model metadata, safe option constraints, and defaults under `parameterSchemaVersion: 1`; it excludes authorization context, Session identity, credentials, provider fields, upstream keys, and pricing rules. Catalog credit metadata describes option differences but never replaces a Laravel quote or user confirmation. Laravel remains the availability and parameter authority.
 
 ## Alternatives considered
 
@@ -28,4 +28,4 @@ The keyless entry retains its deterministic fixture as a local smoke fallback. P
 
 Phase 1 remains read-only: it does not quote, reserve or deduct credits, enqueue generation, store media, or mutate a canvas. Quote and generation submission require separate contracts, confirmation, idempotency, persistence-before-side-effect, and unknown-outcome recovery work.
 
-The Laravel and Agent contract artifacts add the internal read endpoint without changing the existing `2026-08-25.1` wire version because the change is additive and existing request or response shapes remain unchanged. Both implementations fail closed on protocol, Session, kind, cache-policy, or response-shape mismatch.
+The Laravel endpoint adds the parameter catalog to its existing response without changing `2026-08-25.1`; the private deployment publishes Laravel before the Agent that requires `parameterSchemaVersion: 1`, and rollback removes the Agent requirement before reverting Laravel. Both implementations fail closed on protocol, parameter schema, Session, kind, cache policy, unknown fields, invalid defaults, or malformed constraints.

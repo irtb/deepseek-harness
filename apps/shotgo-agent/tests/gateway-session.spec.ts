@@ -53,10 +53,17 @@ describe('Gateway to Harness session composition', () => {
         configRequests.push(JSON.parse(init.body) as Record<string, unknown>)
         return new Response(JSON.stringify({
           protocolVersion: '2026-08-25.1',
+          parameterSchemaVersion: 1,
           authorizationContextId: 'team:1:user:2',
           sessionId: 'gateway-keyless-session',
           kind: 'image',
           models: [{ id: 'image-real', label: 'Image Real', credits: 18, vip: false }],
+          parameters: {
+            qualities: [{ id: 'standard', label: 'Standard' }],
+            resolutions: [{ id: '2K', label: '2K' }],
+            aspectRatios: [{ id: '16:9', label: '16:9' }],
+            multiples: [{ id: '1', label: '1 image' }],
+          },
           defaults: { modelId: 'image-real' },
         }), {
           status: 200,
@@ -114,6 +121,7 @@ describe('Gateway to Harness session composition', () => {
     expect(sessionTypes).toContain('tool/result')
     expect(sessionTypes).toContain('assistant/message')
     expect(JSON.stringify(events)).toContain('image-real')
+    expect(JSON.stringify(events)).toContain('aspectRatios')
     expect(configRequests).toEqual([{
       grantToken: 'grant-a',
       sessionId: 'gateway-keyless-session',

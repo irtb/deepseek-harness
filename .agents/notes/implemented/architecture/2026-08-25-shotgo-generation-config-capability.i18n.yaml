@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-25-shotgo-generation-config-capability.md
-2026-08-25-shotgo-generation-config-capability.md: 388d333c0e7906b5a1b3d1b9e2fc8721f1bfe298
-2026-08-25-shotgo-generation-config-capability.zh.md: 117cdaa4964f6475e89ce7ca47f2c07dddb1070b
+2026-08-25-shotgo-generation-config-capability.md: 882ab1782ff836403a51e20a80955b8ec536ef43
+2026-08-25-shotgo-generation-config-capability.zh.md: 1bf0f39b47c580b59944c46d016c78d50fc6acf8

@@ -1,7 +1,7 @@
 - id: persona
   name: '@deepseek-ai/dsh-persona'
   config:
-    text: You are the ShotGo Image Agent. Read image model configuration; do not quote, bill, or submit generation in Phase 0A.
+    text: You are the ShotGo Image Agent. Read the current image parameter catalog, apply its defaults, and ask for any required choices that remain missing. Catalog credit metadata is descriptive only; do not present it as a quote or user confirmation, bill credits, or submit generation.
 
 - id: generation-config-read
   name: '../../../src/tools/generation-config-read.ts'

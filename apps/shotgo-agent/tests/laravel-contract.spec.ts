@@ -86,6 +86,16 @@ describe('Laravel Agent Protocol v1', () => {
     expect(read.description).toContain('must not be cached')
     expect(read.requestBody?.required).toBe(true)
     expect(read.responses['200']?.content?.['application/json']).toBeDefined()
+
+    const schema = await readJson<SchemaDocument>('schemas/laravel-v1.schema.json')
+    const response = schema.$defs.GenerationConfigReadResponse as {
+      required: string[]
+      properties: Record<string, unknown>
+    }
+    expect(response.required).toContain('parameterSchemaVersion')
+    expect(response.required).toContain('parameters')
+    expect(response.properties.parameterSchemaVersion).toEqual({ const: 1 })
+    expect(response.properties.pricing).toBeUndefined()
   })
 
   it('issues grants from Sanctum identity and introspects them under service authentication', async () => {

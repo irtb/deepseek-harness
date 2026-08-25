@@ -21,6 +21,7 @@ Laravel returns a stable `authorizationContextId` for one user, nullable team, s
 - `GET /api/internal/agent/v1/inference-runtime-config` requires service authentication, returns `Cache-Control: no-store`, and fails closed unless the encrypted credential and both distinct provider endpoint IDs are complete.
 - Inference policy is short-lived and fail-closed. Its default model must be present in its allowlist.
 - Inference usage uses `llmRequestId` as `Idempotency-Key` and contains only identifiers, model, timing, status, and token counters. Provider keys, prompts, messages, completions, and raw responses are forbidden.
+- Generation configuration returns visible models, safe option constraints, and kind-specific defaults under `parameterSchemaVersion: 1`. Its credit fields are catalog metadata, not a quote or confirmation basis.
 - Every mutating request carries `Idempotency-Key`, equal to body `context.clientRequestId`.
 - Mutation context contains `sessionId`, `runId`, `actionId`, and `clientRequestId`.
 - Amounts are decimal strings plus ISO 4217 currency; JavaScript numbers are forbidden for money.

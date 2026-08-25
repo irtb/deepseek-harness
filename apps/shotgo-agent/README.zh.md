@@ -8,7 +8,7 @@ Phase 0A 无需密钥且只读。它启动 mock 推理 Adapter，调用 `generat
 
 Phase 0B 在 [`contracts/`](contracts/README.zh.md) 中冻结 Laravel 边界。Phase 0B.2 把 Laravel 中加密落库的方舟凭据和供应商节点映射加载到进程内存。Canvas 承载的浏览器使用现有 Sanctum 身份取得受限 Grant；面向浏览器的 [Gateway 协议](contracts/gateway/README.zh.md) 通过 Laravel 内省实现幂等 Session 提交、取消和可重放 SSE。
 
-Phase 1 将 `generation_config_read` 接入 Laravel 的“服务身份 + Grant 绑定”只读接口。Opaque Grant 只保留在当前活动 Session 的内存绑定中，绝不持久化。本阶段仍不报价、不扣积分、不提交生成任务、不修改画布。
+Phase 1 将 `generation_config_read` 接入 Laravel 的“服务身份 + Grant 绑定”只读接口。Tool 返回当前可见的图片或视频模型、安全参数选项与约束以及默认值，供 Agent 识别仍需用户补充的选择。目录中的积分元数据只用于说明，不能代替 Laravel 报价或用户确认。Opaque Grant 只保留在当前活动 Session 的内存绑定中，绝不持久化；本阶段仍不报价、不扣积分、不提交生成任务、不修改画布。
 
 ## 本地 Smoke
 
