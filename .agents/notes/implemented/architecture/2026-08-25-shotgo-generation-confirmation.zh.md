@@ -14,6 +14,10 @@ ShotGo 运行时挂载 Harness `ApprovalService`。执行前门禁仅将 `genera
 
 Gateway 重新内省 `agent.session.approval.respond`，验证实时授权上下文与 Session，且仅接受 `allowed-once` 或 `rejected`。相同响应的重试幂等成功；修改已决策结果、过期、跨 Session、通道不可用或取消均安全失败。审批由同一个执行中的工具调用消费，不会作为可重用授权返回给模型。
 
+## 考虑过的替代方案
+
+将对话中的确认文字视为批准不可接受，因为模型可以自行生成或误解该文字。把可复用批准 Token 持久化到 Laravel 也不可接受，因为它可能被后续 Tool 调用重放；因此决策只绑定一个实时 Harness 审批请求。
+
 ## 影响
 
 浏览器必须渲染待决策事件并提交用户决策。在下一阶段提供 Laravel 幂等写接口前，生成提交仍不可用；因此本阶段本身不能扣积分或创建任务。

@@ -188,6 +188,26 @@ export interface GenerationQuoteResponse {
   requiresConfirmation: true
 }
 
+export interface GenerationCreateRequest {
+  context: MutationContext
+  quoteId: string
+  quoteVersion: 1
+}
+
+export interface GenerationCreateResponse {
+  protocolVersion: typeof SHOTGO_PROTOCOL_VERSION
+  generationId: string
+  clientRequestId: string
+  operationId: string
+  state: GenerationState
+  stage: string
+  credits: number
+  userBalance: number
+  replayed: boolean
+  createdAt: string
+  updatedAt: string
+}
+
 export interface InferencePolicy {
   protocolVersion: typeof SHOTGO_PROTOCOL_VERSION
   policyVersion: string

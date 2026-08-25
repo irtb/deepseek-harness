@@ -340,31 +340,18 @@
     "GenerationCreateRequest": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["context", "kind", "modelId", "parameters", "quoteId", "quoteVersion", "confirmedAt"],
+      "required": ["context", "quoteId", "quoteVersion"],
       "properties": {
         "context": { "$ref": "#/$defs/MutationContext" },
-        "kind": { "$ref": "#/$defs/AssetKind" },
-        "modelId": { "$ref": "#/$defs/OpaqueId" },
-        "parameters": { "type": "object" },
-        "quoteId": { "$ref": "#/$defs/OpaqueId" },
-        "quoteVersion": { "type": "integer", "minimum": 1 },
-        "confirmedAt": { "$ref": "#/$defs/DateTime" },
-        "canvasTarget": {
-          "type": "object",
-          "additionalProperties": false,
-          "required": ["canvasId", "expectedRevision"],
-          "properties": {
-            "canvasId": { "$ref": "#/$defs/OpaqueId" },
-            "expectedRevision": { "type": "integer", "minimum": 0 }
-          }
-        }
+        "quoteId": { "$ref": "#/$defs/OpaqueToken" },
+        "quoteVersion": { "const": 1 }
       }
     },
     "GenerationState": { "enum": ["draft", "creating", "queued", "processing", "completed", "failed", "cancelled"] },
     "Generation": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["protocolVersion", "generationId", "clientRequestId", "operationId", "state", "stage", "createdAt", "updatedAt"],
+      "required": ["protocolVersion", "generationId", "clientRequestId", "operationId", "state", "stage", "credits", "userBalance", "replayed", "createdAt", "updatedAt"],
       "properties": {
         "protocolVersion": { "$ref": "#/$defs/ProtocolVersion" },
         "generationId": { "$ref": "#/$defs/OpaqueId" },
@@ -372,6 +359,9 @@
         "operationId": { "$ref": "#/$defs/OpaqueId" },
         "state": { "$ref": "#/$defs/GenerationState" },
         "stage": { "type": "string", "minLength": 1 },
+        "credits": { "type": "integer", "minimum": 0 },
+        "userBalance": { "type": "integer", "minimum": 0 },
+        "replayed": { "type": "boolean" },
         "createdAt": { "$ref": "#/$defs/DateTime" },
         "updatedAt": { "$ref": "#/$defs/DateTime" },
         "assets": { "type": "array", "items": { "type": "object" } },

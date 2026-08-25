@@ -14,6 +14,8 @@ Phase 2 adds the read-only `generation_quote` tool. The Gateway injects the curr
 
 Phase 3 adds the trusted confirmation channel used immediately before `generation_submit`. Harness emits audited `approval.requested` and `approval.resolved` Gateway events, and Canvas answers the pending approval through a Grant-bound, Session-bound endpoint. Only `allowed-once` permits that exact tool call; rejection, cancellation, unavailable UI, stale decisions, and model-authored confirmation text all fail closed.
 
+Phase 4 connects the approved `generation_submit` tool to Laravel. The Gateway derives a stable idempotency key from the Session and opaque quote, sends only trusted mutation context plus the quote, and never accepts user, team, price, or supplier fields from the model. Laravel revalidates the Grant, quote, current model configuration, balance, and frozen account context, reserves the existing request uniqueness key before charging, commits one job, and safely replays an identical retry without a second charge or provider call.
+
 ## Local smoke
 
 ```sh
@@ -54,6 +56,6 @@ The three Presets have distinct persona text. Within one Preset, the prompt and 
 
 - The keyless executable remains a Phase 0A smoke entry; `gateway-bin` is the production process entry.
 - `gateway-bin` mounts the restricted Harness Runtime, trusted mode Presets, Laravel Grant authorizer, Session submission, SSE replay, and cancellation. Production admission remains closed until Laravel implements and accepts Grant issuance and introspection.
-- Laravel runtime configuration, inference policy, metadata usage, Grant introspection, generation configuration, and read-only quote clients are implemented; mutating business capability clients remain disconnected.
-- Billing, generation submission, and canvas mutation stay disabled until both implementations pass contract and integration acceptance.
+- Laravel runtime configuration, inference policy, metadata usage, Grant introspection, generation configuration, read-only quote, trusted confirmation, and idempotent generation submission clients are implemented. Status, cancellation, asset projection, and canvas mutation clients remain disconnected.
+- Generation status, cancellation, assets, and canvas mutation stay disabled until both implementations pass contract and integration acceptance.
 - Gateway replay is process-local and bounded to 512 events; restart recovery from the persisted Harness Session log is not yet connected.

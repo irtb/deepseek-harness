@@ -11,6 +11,7 @@ import { SHOTGO_MOCK_MODEL, SHOTGO_MOCK_PROVIDER, ShotGoMockLlmAdapter } from '.
 import { HarnessGatewaySessionService } from '../src/gateway-session.ts'
 import { LaravelGenerationConfigClient } from '../src/laravel/generation-config-client.ts'
 import { LaravelGenerationQuoteClient } from '../src/laravel/generation-quote-client.ts'
+import { LaravelGenerationSubmitClient } from '../src/laravel/generation-submit-client.ts'
 import * as generationConfigRead from '../src/tools/generation-config-read.ts'
 import * as runtime from '../src/runtime.ts'
 
@@ -126,6 +127,7 @@ describe('Gateway to Harness session composition', () => {
     const requiredCapabilities: string[] = []
     const configRequests: Array<Record<string, unknown>> = []
     const quoteRequests: Array<Record<string, unknown>> = []
+    const submitRequests: Array<Record<string, unknown>> = []
     const generationConfig = new LaravelGenerationConfigClient({
       baseURL: 'https://api.shotgo.cn',
       serviceToken: 'service-token',
@@ -182,6 +184,34 @@ describe('Gateway to Harness session composition', () => {
         } })
       },
     })
+    const generationSubmit = new LaravelGenerationSubmitClient({
+      baseURL: 'https://api.shotgo.cn',
+      fetch: async (_url, init) => {
+        if (typeof init?.body !== 'string') throw new Error('expected JSON request body')
+        const headers = new Headers(init.headers)
+        submitRequests.push({
+          authorization: headers.get('Authorization'),
+          idempotencyKey: headers.get('Idempotency-Key'),
+          body: JSON.parse(init.body) as Record<string, unknown>,
+        })
+        return new Response(JSON.stringify({
+          protocolVersion: '2026-08-25.1',
+          generationId: 'generation-1',
+          clientRequestId: headers.get('Idempotency-Key'),
+          operationId: 'generation-1',
+          state: 'queued',
+          stage: 'queued',
+          credits: 18,
+          userBalance: 82,
+          replayed: false,
+          createdAt: '2026-08-25T20:00:00+08:00',
+          updatedAt: '2026-08-25T20:00:00+08:00',
+        }), { status: 202, headers: {
+          'Cache-Control': 'no-store, private',
+          'X-ShotGo-Protocol-Version': '2026-08-25.1',
+        } })
+      },
+    })
     const service = new HarnessGatewaySessionService(ctx, {
       authorize: async ({ capabilityGrant, sessionId, requiredCapability }) => {
         if (capabilityGrant !== 'grant-a' || sessionId !== 'gateway-keyless-session') throw new Error('denied')
@@ -190,7 +220,7 @@ describe('Gateway to Harness session composition', () => {
       },
     }, async (agentCtx) => {
       generationConfigRead.apply(agentCtx)
-    }, generationConfig, generationQuote)
+    }, generationConfig, generationQuote, generationSubmit)
     cleanup.push(async () => {
       await service.dispose()
       await ctx.fiber.dispose()
@@ -222,6 +252,28 @@ describe('Gateway to Harness session composition', () => {
         kind: 'image',
         modelId: 'image-real',
         parameters: { prompt: 'cat' },
+      },
+    }])
+    await expect(ctx.get('shotgoGenerationSubmitter')?.submit({
+      sessionId: input.sessionId,
+      actionId: 'generation-submit-call',
+      quoteId: 'opaque-quote',
+      quoteVersion: 1,
+    })).resolves.toMatchObject({ generationId: 'generation-1', state: 'queued' })
+    const generatedIdempotencyKey = submitRequests[0]?.idempotencyKey
+    expect(generatedIdempotencyKey).toMatch(/^gen-[a-f0-9]{60}$/)
+    expect(submitRequests).toEqual([{
+      authorization: 'Bearer grant-a',
+      idempotencyKey: generatedIdempotencyKey,
+      body: {
+        context: {
+          sessionId: input.sessionId,
+          runId: accepted.runId,
+          actionId: 'generation-submit-call',
+          clientRequestId: generatedIdempotencyKey,
+        },
+        quoteId: 'opaque-quote',
+        quoteVersion: 1,
       },
     }])
 
