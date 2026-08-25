@@ -348,6 +348,17 @@
       }
     },
     "GenerationState": { "enum": ["draft", "creating", "queued", "processing", "completed", "failed", "cancelled"] },
+    "GenerationAsset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["assetId", "kind", "url", "sizeBytes"],
+      "properties": {
+        "assetId": { "$ref": "#/$defs/OpaqueId" },
+        "kind": { "enum": ["image", "video", "audio"] },
+        "url": { "type": "string", "format": "uri", "pattern": "^https?://" },
+        "sizeBytes": { "type": "integer", "minimum": 0 }
+      }
+    },
     "Generation": {
       "type": "object",
       "additionalProperties": false,
@@ -364,7 +375,7 @@
         "replayed": { "type": "boolean" },
         "createdAt": { "$ref": "#/$defs/DateTime" },
         "updatedAt": { "$ref": "#/$defs/DateTime" },
-        "assets": { "type": "array", "items": { "type": "object" } },
+        "assets": { "type": "array", "items": { "$ref": "#/$defs/GenerationAsset" } },
         "failureCode": { "type": "string" }
       }
     },

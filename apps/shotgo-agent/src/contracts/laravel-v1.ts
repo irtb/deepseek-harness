@@ -194,6 +194,13 @@ export interface GenerationCreateRequest {
   quoteVersion: 1
 }
 
+export type GenerationAsset = Record<string, string | number> & {
+  assetId: string
+  kind: 'image' | 'video' | 'audio'
+  url: string
+  sizeBytes: number
+}
+
 export interface GenerationCreateResponse {
   protocolVersion: typeof SHOTGO_PROTOCOL_VERSION
   generationId: string
@@ -206,6 +213,7 @@ export interface GenerationCreateResponse {
   replayed: boolean
   createdAt: string
   updatedAt: string
+  assets?: GenerationAsset[]
   failureCode?: string
 }
 

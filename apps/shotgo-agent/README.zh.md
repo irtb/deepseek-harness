@@ -18,6 +18,8 @@ Phase 4 将已批准的 `generation_submit` Tool 接入 Laravel。Gateway 根据
 
 Phase 5 增加权威 `generation_status` 与受审批保护的 `generation_cancel`。二者始终绑定创建任务的用户、可空团队、授权上下文和 Session。取消在行锁下解决与完成的竞争：排队任务会在 Worker 认领前退款；处理中任务只在本地停止，由于供应商可能已经计费，不执行不安全退款；已经终态的任务直接返回已有最终状态。
 
+Phase 6 为已完成任务的状态结果增加稳定资产描述。Laravel 只返回用户、可空团队、来源和存储路径均与生成任务匹配的 `user_media_assets` 转存记录。Agent 只能得到不透明资产 ID、媒体类型、公开 HTTP(S) URL 和字节大小；供应商响应、供应商 URL 与私有存储路径继续隐藏。即使用户在 Worker 执行期间切换账户上下文，媒体转存也按生成任务冻结的团队上下文记账。
+
 ## 本地 Smoke
 
 ```sh

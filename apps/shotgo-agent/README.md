@@ -18,6 +18,8 @@ Phase 4 connects the approved `generation_submit` tool to Laravel. The Gateway d
 
 Phase 5 adds authoritative `generation_status` and approval-gated `generation_cancel`. Both remain bound to the creating user, nullable team, authorization context, and Session. Cancellation resolves its race with completion under a row lock: queued work is refunded before the worker can claim it, processing work is stopped locally without an unsafe refund because the supplier may already have charged, and an already terminal task returns its existing final state.
 
+Phase 6 adds stable asset results to completed generation status. Laravel returns only mirrored `user_media_assets` rows whose user, nullable team, source, and stored path match the generation. The Agent receives an opaque asset ID, media kind, public HTTP(S) URL, and byte size; provider responses, provider URLs, and private storage paths remain hidden. Media mirroring records the generation's frozen team context even if the user switches account context while the worker runs.
+
 ## Local smoke
 
 ```sh
