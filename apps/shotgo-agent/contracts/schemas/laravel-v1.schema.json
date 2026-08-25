@@ -12,7 +12,7 @@
     "AssetKind": { "enum": ["text", "image", "video", "audio"] },
     "GenerationKind": { "enum": ["image", "video"] },
     "InferenceModel": { "enum": ["deepseek-v4-flash", "deepseek-v4-pro"] },
-    "AgentSessionCapability": { "enum": ["agent.session.submit", "agent.session.events.read", "agent.session.cancel"] },
+    "AgentSessionCapability": { "enum": ["agent.session.submit", "agent.session.events.read", "agent.session.cancel", "agent.session.approval.respond"] },
     "AgentCapability": { "type": "string", "minLength": 1, "maxLength": 255 },
     "NullableOpaqueId": { "oneOf": [{ "$ref": "#/$defs/OpaqueId" }, { "type": "null" }] },
     "NullableIntegerId": { "oneOf": [{ "$ref": "#/$defs/IntegerId" }, { "type": "null" }] },

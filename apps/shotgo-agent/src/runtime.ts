@@ -11,12 +11,14 @@ import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SessionTitleService from '@deepseek-ai/dsh-session-title'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
+import ApprovalService from '@deepseek-ai/dsh-user-approval'
 import AgentPresets from '@deepseek-ai/dsh-agent-presets'
 import { fileURLToPath } from 'node:url'
 import * as mockLlm from './llm/mock.ts'
 import * as arkLlm from './llm/ark.ts'
 import * as generationConfigRead from './tools/generation-config-read.ts'
 import * as generationQuote from './tools/generation-quote.ts'
+import * as generationConfirmationGate from './generation-confirmation-gate.ts'
 
 export const name = 'shotgo-agent-runtime'
 
@@ -46,6 +48,7 @@ export async function apply(ctx: Context): Promise<void> {
     toolOrder: ['generation_config_read', 'generation_quote', '<unlisted-tools>'],
   })
   await ctx.plugin(ToolRuntime)
+  await ctx.plugin(ApprovalService, { policy: 'ask' })
   await ctx.plugin(AgentRegistry)
   if (ctx.get('loader') !== undefined) {
     await ctx.plugin(AgentPresets, {
@@ -65,6 +68,7 @@ export async function apply(ctx: Context): Promise<void> {
   await ctx.plugin(arkLlm)
   await ctx.plugin(generationConfigRead)
   await ctx.plugin(generationQuote)
+  await ctx.plugin(generationConfirmationGate)
   await ctx.plugin(AgentLoop, {
     agents: [],
   })

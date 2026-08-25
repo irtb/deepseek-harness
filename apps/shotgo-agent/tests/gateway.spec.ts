@@ -116,8 +116,9 @@ describe('production Gateway baseline', () => {
 
   it('accepts one idempotent message and emits replayable SSE frames', async () => {
     const submitted: string[] = []
+    const approvals: string[] = []
     const streamEvent: GatewayStreamEvent = {
-      protocolVersion: '2026-08-24.1',
+      protocolVersion: '2026-08-25.1',
       cursor: 7,
       sessionId: 'session-http',
       runId: 'run-http',
@@ -134,6 +135,9 @@ describe('production Gateway baseline', () => {
       async events(input) {
         expect(input.afterCursor).toBe(6)
         return (async function* () { yield streamEvent })()
+      },
+      async respondToApproval(input) {
+        approvals.push(`${input.capabilityGrant}:${input.sessionId}:${input.approvalId}:${input.outcome}`)
       },
       async cancel() {},
       async dispose() {},
@@ -152,9 +156,9 @@ describe('production Gateway baseline', () => {
       }),
     })
     expect(accepted.status).toBe(202)
-    expect(accepted.headers.get('x-shotgo-gateway-protocol-version')).toBe('2026-08-24.1')
+    expect(accepted.headers.get('x-shotgo-gateway-protocol-version')).toBe('2026-08-25.1')
     expect(await accepted.json()).toEqual({
-      protocolVersion: '2026-08-24.1',
+      protocolVersion: '2026-08-25.1',
       sessionId: 'session-http',
       runId: 'run-http',
       streamUrl: '/api/agent/v1/sessions/session-http/events',
@@ -167,6 +171,19 @@ describe('production Gateway baseline', () => {
     expect(stream.status).toBe(200)
     expect(stream.headers.get('content-type')).toContain('text/event-stream')
     expect(await stream.text()).toBe(`id: 7\nevent: run.completed\ndata: ${JSON.stringify(streamEvent)}\n\n`)
+
+    const approval = await fetch(`${baseUrl}/api/agent/v1/sessions/session-http/approvals/approval-1`, {
+      method: 'POST',
+      headers: { Authorization: 'Bearer opaque-grant', 'Content-Type': 'application/json' },
+      body: JSON.stringify({ outcome: 'allowed-once' }),
+    })
+    expect(approval.status).toBe(200)
+    expect(await approval.json()).toMatchObject({
+      sessionId: 'session-http',
+      approvalId: 'approval-1',
+      outcome: 'allowed-once',
+    })
+    expect(approvals).toEqual(['opaque-grant:session-http:approval-1:allowed-once'])
   })
 
   it('keeps Session APIs closed without traffic acceptance and validates idempotency', async () => {
@@ -178,6 +195,7 @@ describe('production Gateway baseline', () => {
     const sessions: GatewaySessionService = {
       async submit() { throw new Error('must not submit') },
       async events() { return (async function* () {})() },
+      async respondToApproval() {},
       async cancel() {},
       async dispose() {},
     }
@@ -202,6 +220,7 @@ describe('production Gateway baseline', () => {
     const sessions: GatewaySessionService = {
       async submit() { return { runId: 'unused' } },
       async events() { return (async function* () {})() },
+      async respondToApproval() {},
       async cancel() {},
       async dispose() {},
     }

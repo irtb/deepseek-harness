@@ -12,6 +12,8 @@ Phase 1 将 `generation_config_read` 接入 Laravel 的“服务身份 + Grant �
 
 Phase 2 增加只读 `generation_quote` Tool。Gateway 注入当前 Grant 与 Session 绑定，Laravel 重新验证授权上下文，Tool 返回包含规范化参数、准确积分明细、余额和有效期的短期 opaque Quote。报价既不扣积分也不提交任务；Agent 必须展示报价并请求用户明确确认。
 
+Phase 3 增加紧邻 `generation_submit` 执行前的可信确认通道。Harness 通过 Gateway 发出已审计的 `approval.requested` 和 `approval.resolved` 事件，Canvas 通过绑定 Grant 与 Session 的接口回复待决策操作。只有 `allowed-once` 能放行该次精确工具调用；拒绝、取消、UI 不可用、过期决策和模型生成的“确认”文本均安全失败。
+
 ## 本地 Smoke
 
 ```sh

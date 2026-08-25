@@ -12,6 +12,7 @@ export type AgentSessionCapability =
   | 'agent.session.submit'
   | 'agent.session.events.read'
   | 'agent.session.cancel'
+  | 'agent.session.approval.respond'
 export type GenerationState =
   | 'draft'
   | 'creating'
