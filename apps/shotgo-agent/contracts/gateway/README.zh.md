@@ -2,7 +2,9 @@
 
 [English](README.md) | 中文
 
-面向浏览器的 Gateway 协议冻结为 `2026-08-24.1`。[`gateway-v1.openapi.json`](../gateway-v1.openapi.json) 定义消息提交、运行取消和可重放的服务器发送事件（SSE），[`gateway-v1.ts`](../../src/contracts/gateway-v1.ts) 定义对应的运行时类型。该协议与 [Laravel 控制面协议](../README.zh.md) 分开版本管理，因此任一接口升级时无需改变另一接口的版本 Header。
+面向浏览器的 Gateway 协议冻结为 `2026-08-25.1`。[`gateway-v1.openapi.json`](../gateway-v1.openapi.json) 定义消息提交、一次性审批响应、运行取消和可重放的服务器发送事件（SSE），[`gateway-v1.ts`](../../src/contracts/gateway-v1.ts) 定义对应的运行时类型。该协议与 [Laravel 控制面协议](../README.zh.md) 分开版本管理，因此任一接口升级时无需改变另一接口的版本 Header。
+
+`approval.requested` 把 Harness 已审计的待决策操作暴露给归属该 Session 的 Canvas。浏览器通过审批接口回复 `allowed-once` 或 `rejected`。Gateway 重新校验 `agent.session.approval.respond`，将响应绑定到实时授权上下文和 Session，对相同决策的重试幂等成功，并拒绝修改已决策结果或过期决策。模型文本永远不视为用户确认。
 
 ## Session 与授权
 

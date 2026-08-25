@@ -12,7 +12,7 @@ Harness 通过火山方舟直连 Laravel 批准的 `deepseek-v4-flash` 或 `deep
 
 浏览器停留在 `canvas.shotgo.cn`，使用现有 Sanctum Bearer Token 向 Laravel 申请不透明的短期 Capability Grant。Laravel 从已认证主体推导用户和可为空的团队身份，验证请求的空间、项目、Agent 模式与当前推理模型可用性，并且不接受浏览器请求体提供 `userId` 或 `teamId`。个人上下文使用 `teamId: null`，禁止构造伪团队 ID。个人账号继续使用已有的启用推理模型来源，并与团队账号使用相同的 DeepSeek 逻辑模型；团队上下文再叠加现有团队授权过滤。Agent Runtime 通过使用服务身份认证且禁止缓存的端点内省不透明 Grant，不把本地解码出的声明当作权限权威。
 
-Laravel 为用户、可为空的团队、空间、可为空的项目、Agent 模式和 Session 绑定返回稳定的 `authorizationContextId`。Gateway 分别要求消息提交、事件读取和取消能力；刷新后的 Grant 只有在 Laravel 返回相同授权上下文时才能访问已有 Session。
+Laravel 为用户、可为空的团队、空间、可为空的项目、Agent 模式和 Session 绑定返回稳定的 `authorizationContextId`。Gateway 分别要求消息提交、事件读取、审批响应和取消能力；刷新后的 Grant 只有在 Laravel 返回相同授权上下文时才能访问已有 Session。
 
 ## 已冻结约定
 

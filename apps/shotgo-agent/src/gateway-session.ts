@@ -2,7 +2,8 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { AgentHandle } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-presets/types'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
-import { SessionId } from '@deepseek-ai/dsh-session'
+import { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
+import type { ApprovalOutcome, ApprovalRequestId } from '@deepseek-ai/dsh-user-approval'
 import type { AgentMode, AgentSessionCapability } from './contracts/laravel-v1.ts'
 import type { LaravelGenerationConfigClient } from './laravel/generation-config-client.ts'
 import type { LaravelGenerationQuoteClient } from './laravel/generation-quote-client.ts'
@@ -13,6 +14,7 @@ import {
 import { GatewaySessionError } from './gateway-errors.ts'
 import type {
   GatewaySessionAccess,
+  GatewaySessionApprovalResponse,
   GatewaySessionCancel,
   GatewaySessionService,
   GatewaySessionSubmit,
@@ -61,6 +63,17 @@ interface LiveSession {
   disposed: boolean
 }
 
+interface PendingApproval {
+  readonly approvalId: ApprovalRequestId
+  readonly sessionId: string
+  readonly settle: (outcome: ApprovalOutcome) => void
+}
+
+interface ResolvedApproval {
+  readonly sessionId: string
+  readonly outcome: ApprovalOutcome
+}
+
 const MAX_REPLAY_EVENTS = 512
 
 function hasSameAuthorizationContext(live: LiveSession, authorization: AuthorizedGatewaySession): boolean {
@@ -102,7 +115,10 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
   private readonly sessions = new Map<string, LiveSession>()
   private readonly requestIds = new Map<string, string>()
   private readonly admissions = new Map<string, Promise<void>>()
+  private readonly pendingApprovals = new Map<string, PendingApproval>()
+  private readonly resolvedApprovals = new Map<string, ResolvedApproval>()
   private readonly stopSessionEvents: () => void
+  private readonly stopApprovalRequests?: () => void
   private readonly stopGenerationConfigReader?: () => void
   private readonly stopGenerationQuoteReader?: () => void
   private disposed = false
@@ -151,12 +167,55 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
     this.stopSessionEvents = ctx.on('session/event', (session, event) => {
       const live = this.sessions.get(session.id)
       if (live === undefined || live.activeRunId === undefined) return
-      this.append(live, live.activeRunId, 'session.event', {
-        sessionSeq: event.seq,
-        eventType: event.type,
-        event,
-      })
+      if (event.type === 'approval/asked') {
+        this.append(live, live.activeRunId, 'approval.requested', {
+          approvalId: event.data.id,
+          toolName: event.data.toolName,
+          ...event.data.callId === undefined ? {} : { callId: event.data.callId },
+          ...event.data.reason === undefined ? {} : { reason: event.data.reason },
+        })
+      } else if (event.type === 'approval/decided') {
+        this.append(live, live.activeRunId, 'approval.resolved', {
+          approvalId: event.data.id,
+          outcome: event.data.outcome,
+        })
+      } else {
+        this.append(live, live.activeRunId, 'session.event', {
+          sessionSeq: event.seq,
+          eventType: event.type,
+          event,
+        })
+      }
     })
+    if (ctx.get('approval') !== undefined) {
+      this.stopApprovalRequests = ctx.on('approval/request', (request, next) => {
+        if (request.toolName !== 'generation_submit') return next()
+        if (request.signal?.aborted === true) return Promise.resolve<ApprovalOutcome>('cancelled')
+        const live = this.sessions.get(request.agent.session.id)
+        if (live === undefined || live.handle.agent !== request.agent || live.activeRunId === undefined) return next()
+        const approvalId = this.findPendingApprovalId(request.agent.session.events, request.callId)
+        if (approvalId === undefined) return next()
+        return new Promise<ApprovalOutcome>((resolve) => {
+          let settled = false
+          const onAbort = (): void => {
+            settle('cancelled')
+          }
+          const settle = (outcome: ApprovalOutcome): void => {
+            if (settled) return
+            settled = true
+            request.signal?.removeEventListener('abort', onAbort)
+            this.pendingApprovals.delete(approvalId)
+            resolve(outcome)
+          }
+          this.pendingApprovals.set(approvalId, {
+            approvalId,
+            sessionId: live.sessionId,
+            settle,
+          })
+          request.signal?.addEventListener('abort', onAbort, { once: true })
+        })
+      })
+    }
   }
 
   async submit(input: GatewaySessionSubmit): Promise<{ runId: string }> {
@@ -288,6 +347,39 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
     live.handle.agent.cancel({ kind: 'user' })
   }
 
+  async respondToApproval(input: GatewaySessionApprovalResponse): Promise<void> {
+    this.assertOpen()
+    const authorization = await this.authorizer.authorize({
+      capabilityGrant: input.capabilityGrant,
+      sessionId: input.sessionId,
+      requiredCapability: 'agent.session.approval.respond',
+      ...(input.signal === undefined ? {} : { signal: input.signal }),
+    })
+    const live = this.sessions.get(input.sessionId)
+    if (live === undefined) throw new GatewaySessionError('SESSION_NOT_FOUND', 404)
+    if (!hasSameAuthorizationContext(live, authorization)) {
+      throw new GatewaySessionError('SESSION_ACCESS_DENIED', 403)
+    }
+    const pending = this.pendingApprovals.get(input.approvalId)
+    const resolved = this.resolvedApprovals.get(input.approvalId)
+    if (resolved !== undefined) {
+      if (resolved.sessionId === input.sessionId && resolved.outcome === input.outcome) return
+      throw new GatewaySessionError('APPROVAL_ALREADY_RESOLVED', 409)
+    }
+    if (pending === undefined || pending.sessionId !== input.sessionId) {
+      throw new GatewaySessionError('APPROVAL_NOT_PENDING', 409)
+    }
+    this.resolvedApprovals.set(input.approvalId, {
+      sessionId: input.sessionId,
+      outcome: input.outcome,
+    })
+    if (this.resolvedApprovals.size > MAX_REPLAY_EVENTS) {
+      const oldest = this.resolvedApprovals.keys().next().value
+      if (oldest !== undefined) this.resolvedApprovals.delete(oldest)
+    }
+    pending.settle(input.outcome)
+  }
+
   async dispose(): Promise<void> {
     if (this.disposed) return
     this.disposed = true
@@ -298,9 +390,31 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
       wakeAll(session)
     }
     await Promise.all(live.map(session => session.handle.dispose()))
+    for (const pending of [...this.pendingApprovals.values()]) pending.settle('cancelled')
+    this.stopApprovalRequests?.()
     this.stopGenerationConfigReader?.()
     this.stopGenerationQuoteReader?.()
     this.sessions.clear()
+    this.resolvedApprovals.clear()
+  }
+
+  private findPendingApprovalId(
+    events: readonly SessionEvent[],
+    callId: string | undefined,
+  ): ApprovalRequestId | undefined {
+    const decided = new Set<ApprovalRequestId>()
+    for (let index = events.length - 1; index >= 0; index -= 1) {
+      const event = events[index] as SessionEvent
+      if (event.type === 'approval/decided') {
+        decided.add(event.data.id)
+        continue
+      }
+      if (event.type !== 'approval/asked') continue
+      if (decided.has(event.data.id) || this.pendingApprovals.has(event.data.id)) continue
+      if ((event.data.callId ?? null) !== (callId ?? null)) continue
+      return event.data.id
+    }
+    return undefined
   }
 
   private async settle(live: LiveSession, runId: string): Promise<void> {

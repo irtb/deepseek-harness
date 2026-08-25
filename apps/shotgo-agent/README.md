@@ -12,6 +12,8 @@ Phase 1 connects `generation_config_read` to Laravel's service-authenticated, Gr
 
 Phase 2 adds the read-only `generation_quote` tool. The Gateway injects the current Grant and Session binding, Laravel revalidates the authorization context, and the tool returns a short-lived opaque quote with normalized parameters, exact credit breakdown, balance, and expiry. A quote neither charges credits nor submits work; the Agent must show it and request explicit user confirmation.
 
+Phase 3 adds the trusted confirmation channel used immediately before `generation_submit`. Harness emits audited `approval.requested` and `approval.resolved` Gateway events, and Canvas answers the pending approval through a Grant-bound, Session-bound endpoint. Only `allowed-once` permits that exact tool call; rejection, cancellation, unavailable UI, stale decisions, and model-authored confirmation text all fail closed.
+
 ## Local smoke
 
 ```sh

@@ -1,5 +1,8 @@
 import { Context } from '@deepseek-ai/cordis'
-import type { GenerateOptions, LlmResolvedModelInfo, StreamChunk } from '@deepseek-ai/dsh-llm'
+import type { Agent } from '@deepseek-ai/dsh-agent'
+import { CallId, type GenerateOptions, type LlmResolvedModelInfo, type StreamChunk } from '@deepseek-ai/dsh-llm'
+import type { SessionEvent } from '@deepseek-ai/dsh-session'
+import ApprovalService from '@deepseek-ai/dsh-user-approval'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -38,6 +41,82 @@ afterEach(async () => {
 })
 
 describe('Gateway to Harness session composition', () => {
+  it('accepts one Grant-bound browser decision for a pending generation approval', async () => {
+    const ctx = new Context()
+    await ctx.plugin(ApprovalService)
+    const capabilities: string[] = []
+    const service = new HarnessGatewaySessionService(ctx, {
+      authorize: async ({ sessionId, requiredCapability }) => {
+        capabilities.push(requiredCapability)
+        return { ...authorization('approval-context'), sessionId }
+      },
+    }, mountTestPreset)
+    const events: SessionEvent[] = [{ type: 'turn/start' } as SessionEvent]
+    const agent = {
+      session: {
+        id: 'approval-session',
+        events,
+        append(type: string, data: unknown) {
+          const event = { type, data, seq: events.length, time: Date.now() } as SessionEvent
+          events.push(event)
+          return event
+        },
+      },
+    } as unknown as Agent
+    const live = {
+      ...authorization('approval-context'),
+      sessionId: 'approval-session',
+      handle: { agent, dispose: () => Promise.resolve() },
+      events: [],
+      waiters: new Set(),
+      capabilityGrant: { current: 'approval-grant' },
+      nextCursor: 1,
+      activeRunId: 'approval-run',
+      disposed: false,
+    }
+    ;(service as unknown as { sessions: Map<string, unknown> }).sessions.set('approval-session', live)
+    cleanup.push(async () => {
+      await service.dispose()
+      await ctx.fiber.dispose()
+    })
+
+    const decision = ctx.approval.request({
+      agent,
+      toolName: 'generation_submit',
+      callId: CallId('generation-submit-call'),
+      reason: '确认扣除 18 积分',
+    })
+    await Promise.resolve()
+    const asked = events.find(event => event.type === 'approval/asked')
+    if (asked?.type !== 'approval/asked') throw new Error('approval request was not audited')
+
+    await service.respondToApproval({
+      capabilityGrant: 'approval-grant',
+      sessionId: 'approval-session',
+      approvalId: asked.data.id,
+      outcome: 'allowed-once',
+    })
+
+    await expect(decision).resolves.toBe('allowed-once')
+    await expect(service.respondToApproval({
+      capabilityGrant: 'approval-grant',
+      sessionId: 'approval-session',
+      approvalId: asked.data.id,
+      outcome: 'allowed-once',
+    })).resolves.toBeUndefined()
+    await expect(service.respondToApproval({
+      capabilityGrant: 'approval-grant',
+      sessionId: 'approval-session',
+      approvalId: asked.data.id,
+      outcome: 'rejected',
+    })).rejects.toMatchObject({ code: 'APPROVAL_ALREADY_RESOLVED', status: 409 })
+    expect(capabilities).toEqual([
+      'agent.session.approval.respond',
+      'agent.session.approval.respond',
+      'agent.session.approval.respond',
+    ])
+  })
+
   it('streams a keyless Harness turn, replays by cursor, and deduplicates submission', async () => {
     const root = await mkdtemp(join(tmpdir(), 'shotgo-gateway-session-'))
     const previousRoot = process.env.SHOTGO_AGENT_SESSION_ROOT

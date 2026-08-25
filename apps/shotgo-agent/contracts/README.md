@@ -12,7 +12,7 @@ Harness calls the Laravel-approved `deepseek-v4-flash` or `deepseek-v4-pro` reas
 
 The browser remains on `canvas.shotgo.cn` and uses its existing Sanctum bearer token to request an opaque, short-lived Capability Grant from Laravel. Laravel derives the user and nullable team identity from the authenticated principal, validates the requested space, project, Agent mode, and current inference-model availability, and never accepts `userId` or `teamId` from the browser body. A personal context carries `teamId: null`; it never uses a fabricated team identifier. Personal accounts use the existing enabled inference-model source and the same logical DeepSeek models as team accounts; team contexts additionally apply the existing team authorization filter. The Agent Runtime introspects the opaque Grant through a service-authenticated, no-store endpoint and never treats locally decoded claims as authority.
 
-Laravel returns a stable `authorizationContextId` for one user, nullable team, space, nullable project, Agent mode, and Session binding. The Gateway requires a distinct capability for message submission, event reading, and cancellation, and a refreshed Grant can access a live Session only when Laravel returns the same authorization context.
+Laravel returns a stable `authorizationContextId` for one user, nullable team, space, nullable project, Agent mode, and Session binding. The Gateway requires distinct capabilities for message submission, event reading, approval response, and cancellation, and a refreshed Grant can access a live Session only when Laravel returns the same authorization context.
 
 ## Frozen conventions
 

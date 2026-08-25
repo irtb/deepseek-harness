@@ -2,8 +2,8 @@
   "openapi": "3.1.0",
   "info": {
     "title": "ShotGo Agent Gateway Protocol",
-    "version": "2026-08-24.1",
-    "description": "Browser-facing Session submission, cancellation, and replayable SSE delivery for the ShotGo Harness Runtime."
+    "version": "2026-08-25.1",
+    "description": "Browser-facing Session submission, one-shot approval response, cancellation, and replayable SSE delivery for the ShotGo Harness Runtime."
   },
   "servers": [{ "url": "https://agent.shotgo.cn" }],
   "paths": {
@@ -73,6 +73,28 @@
           "default": { "$ref": "#/components/responses/Problem" }
         }
       }
+    },
+    "/api/agent/v1/sessions/{sessionId}/approvals/{approvalId}": {
+      "post": {
+        "operationId": "respondToAgentApproval",
+        "description": "Answer one pending approval. Repeating the same approval id and outcome is idempotent; changing an already resolved outcome is rejected.",
+        "security": [{ "capabilityGrant": [] }],
+        "parameters": [
+          { "$ref": "#/components/parameters/SessionId" },
+          { "name": "approvalId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ApprovalResponse" } } }
+        },
+        "responses": {
+          "200": {
+            "description": "The one-shot decision was accepted",
+            "headers": { "X-ShotGo-Gateway-Protocol-Version": { "$ref": "#/components/headers/ProtocolVersion" } }
+          },
+          "default": { "$ref": "#/components/responses/Problem" }
+        }
+      }
     }
   },
   "components": {
@@ -80,7 +102,7 @@
       "capabilityGrant": { "type": "http", "scheme": "bearer", "bearerFormat": "opaque ShotGo capability grant" }
     },
     "headers": {
-      "ProtocolVersion": { "schema": { "type": "string", "const": "2026-08-24.1" } }
+      "ProtocolVersion": { "schema": { "type": "string", "const": "2026-08-25.1" } }
     },
     "parameters": {
       "SessionId": { "name": "sessionId", "in": "path", "required": true, "schema": { "type": "string", "minLength": 1, "maxLength": 128 } },
@@ -109,11 +131,17 @@
         "additionalProperties": false,
         "required": ["protocolVersion", "sessionId", "runId", "streamUrl"],
         "properties": {
-          "protocolVersion": { "const": "2026-08-24.1" },
+          "protocolVersion": { "const": "2026-08-25.1" },
           "sessionId": { "type": "string" },
           "runId": { "type": "string", "format": "uuid" },
           "streamUrl": { "type": "string" }
         }
+      },
+      "ApprovalResponse": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["outcome"],
+        "properties": { "outcome": { "enum": ["allowed-once", "rejected"] } }
       },
       "Problem": {
         "type": "object",

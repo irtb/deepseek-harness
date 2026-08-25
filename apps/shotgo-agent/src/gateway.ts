@@ -2,6 +2,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import {
   SHOTGO_GATEWAY_PROTOCOL_HEADER,
   SHOTGO_GATEWAY_PROTOCOL_VERSION,
+  type GatewayApprovalResponse,
   type GatewayMessageRequest,
   type GatewayRunAccepted,
 } from './contracts/gateway-v1.ts'
@@ -145,6 +146,25 @@ function cancelPath(pathname: string): { sessionId: string; runId: string } | un
   }
 }
 
+function approvalPath(pathname: string): { sessionId: string; approvalId: string } | undefined {
+  const match = /^\/api\/agent\/v1\/sessions\/([^/]+)\/approvals\/([^/]+)$/.exec(pathname)
+  if (match === null) return undefined
+  try {
+    return { sessionId: decodeURIComponent(match[1] as string), approvalId: decodeURIComponent(match[2] as string) }
+  } catch {
+    throw new GatewaySessionError('SESSION_OR_APPROVAL_ID_INVALID', 400)
+  }
+}
+
+function parseApprovalResponse(value: unknown): GatewayApprovalResponse {
+  if (value === null || typeof value !== 'object') throw new GatewaySessionError('INVALID_APPROVAL_RESPONSE', 422)
+  const input = value as Record<string, unknown>
+  if (Object.keys(input).length !== 1 || (input.outcome !== 'allowed-once' && input.outcome !== 'rejected')) {
+    throw new GatewaySessionError('INVALID_APPROVAL_RESPONSE', 422)
+  }
+  return { outcome: input.outcome }
+}
+
 async function handleSessionRequest(
   request: IncomingMessage,
   response: ServerResponse,
@@ -218,7 +238,28 @@ async function handleSessionRequest(
     return true
   }
 
-  return route !== undefined || cancel !== undefined
+  const approval = approvalPath(url.pathname)
+  if (approval !== undefined && request.method === 'POST') {
+    if (!request.headers['content-type']?.toLowerCase().startsWith('application/json')) {
+      throw new GatewaySessionError('CONTENT_TYPE_UNSUPPORTED', 415)
+    }
+    const body = parseApprovalResponse(await readJsonBody(request))
+    await sessions.respondToApproval({
+      capabilityGrant: bearerToken(request),
+      sessionId: approval.sessionId,
+      approvalId: approval.approvalId,
+      outcome: body.outcome,
+    })
+    sendJson(response, 200, {
+      protocolVersion: SHOTGO_GATEWAY_PROTOCOL_VERSION,
+      sessionId: approval.sessionId,
+      approvalId: approval.approvalId,
+      outcome: body.outcome,
+    })
+    return true
+  }
+
+  return route !== undefined || cancel !== undefined || approval !== undefined
 }
 
 export function createGatewayServer(

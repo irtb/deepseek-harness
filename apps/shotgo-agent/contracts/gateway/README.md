@@ -2,7 +2,9 @@
 
 English | [中文](README.zh.md)
 
-The browser-facing Gateway protocol is frozen at `2026-08-24.1`. [`gateway-v1.openapi.json`](../gateway-v1.openapi.json) defines message submission, run cancellation, and replayable Server-Sent Events (SSE); [`gateway-v1.ts`](../../src/contracts/gateway-v1.ts) owns the matching runtime types. This protocol is separate from the [Laravel control-plane protocol](../README.md), so either interface can version without changing the other's header.
+The browser-facing Gateway protocol is frozen at `2026-08-25.1`. [`gateway-v1.openapi.json`](../gateway-v1.openapi.json) defines message submission, one-shot approval responses, run cancellation, and replayable Server-Sent Events (SSE); [`gateway-v1.ts`](../../src/contracts/gateway-v1.ts) owns the matching runtime types. This protocol is separate from the [Laravel control-plane protocol](../README.md), so either interface can version without changing the other's header.
+
+`approval.requested` exposes the Harness-audited pending decision to the owning Canvas Session. The browser answers it through the approval endpoint with `allowed-once` or `rejected`. The Gateway re-authorizes `agent.session.approval.respond`, binds the response to the live authorization context and Session, accepts an identical retry idempotently, and rejects a changed or stale decision. Model text is never treated as approval.
 
 ## Session and authorization
 
