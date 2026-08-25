@@ -9,6 +9,26 @@ import { HarnessGatewaySessionService } from '../src/gateway-session.ts'
 import * as runtime from '../src/runtime.ts'
 
 const cleanup: Array<() => Promise<void>> = []
+const mountTestPreset = (): Promise<void> => Promise.resolve()
+
+function authorization(
+  authorizationContextId: string,
+  agentMode: 'canvas' | 'image' | 'video' = 'image',
+) {
+  return {
+    authorizationContextId,
+    expiresAt: '2099-01-01T00:00:00.000Z',
+    sessionId: 'test-session',
+    userId: 2,
+    teamId: 1,
+    spaceId: 'space:1',
+    projectId: 'project:1',
+    agentMode,
+    provider: SHOTGO_MOCK_PROVIDER,
+    model: SHOTGO_MOCK_MODEL,
+    maxTokens: 2_048,
+  }
+}
 
 afterEach(async () => {
   await Promise.all(cleanup.splice(0).reverse().map(dispose => dispose()))
@@ -21,18 +41,14 @@ describe('Gateway to Harness session composition', () => {
     process.env.SHOTGO_AGENT_SESSION_ROOT = root
     const ctx = new Context()
     await ctx.plugin(runtime)
+    const requiredCapabilities: string[] = []
     const service = new HarnessGatewaySessionService(ctx, {
-      authorize: async ({ capabilityGrant, sessionId }) => {
+      authorize: async ({ capabilityGrant, sessionId, requiredCapability }) => {
         if (capabilityGrant !== 'grant-a' || sessionId !== 'gateway-keyless-session') throw new Error('denied')
-        return {
-          subjectId: 'team:1:user:2',
-          agentMode: 'image',
-          provider: SHOTGO_MOCK_PROVIDER,
-          model: SHOTGO_MOCK_MODEL,
-          maxTokens: 2_048,
-        }
+        requiredCapabilities.push(requiredCapability)
+        return { ...authorization('team:1:user:2'), sessionId }
       },
-    })
+    }, mountTestPreset)
     cleanup.push(async () => {
       await service.dispose()
       await ctx.fiber.dispose()
@@ -78,23 +94,25 @@ describe('Gateway to Harness session composition', () => {
       afterCursor: events.at(-2)?.cursor ?? 0,
     })) replay.push(event)
     expect(replay).toEqual([events.at(-1)])
+    expect(requiredCapabilities).toEqual([
+      'agent.session.submit',
+      'agent.session.submit',
+      'agent.session.events.read',
+      'agent.session.events.read',
+    ])
   })
 
-  it('keeps one capability subject from reading another subject session', async () => {
+  it('rejects another authorization context and a colliding context with different scope fields', async () => {
     const root = await mkdtemp(join(tmpdir(), 'shotgo-gateway-access-'))
     const previousRoot = process.env.SHOTGO_AGENT_SESSION_ROOT
     process.env.SHOTGO_AGENT_SESSION_ROOT = root
     const ctx = new Context()
     await ctx.plugin(runtime)
     const service = new HarnessGatewaySessionService(ctx, {
-      authorize: async ({ capabilityGrant }) => ({
-        subjectId: capabilityGrant,
-        agentMode: 'image',
-        provider: SHOTGO_MOCK_PROVIDER,
-        model: SHOTGO_MOCK_MODEL,
-        maxTokens: 2_048,
-      }),
-    })
+      authorize: async ({ capabilityGrant, sessionId }) => capabilityGrant === 'same-context-other-project'
+        ? { ...authorization('subject-a'), sessionId, projectId: 'project:2' }
+        : { ...authorization(capabilityGrant), sessionId },
+    }, mountTestPreset)
     cleanup.push(async () => {
       await service.dispose()
       await ctx.fiber.dispose()
@@ -115,6 +133,11 @@ describe('Gateway to Harness session composition', () => {
       afterCursor: 0,
     })
     await expect(attempt).rejects.toMatchObject({ code: 'SESSION_ACCESS_DENIED', status: 403 })
+    await expect(service.events({
+      capabilityGrant: 'same-context-other-project',
+      sessionId: 'private-session',
+      afterCursor: 0,
+    })).rejects.toMatchObject({ code: 'SESSION_ACCESS_DENIED', status: 403 })
   })
 
   it('cancels the active Harness turn and emits a terminal cancellation event', async () => {
@@ -146,14 +169,13 @@ describe('Gateway to Harness session composition', () => {
     await ctx.plugin(runtime)
     ctx.llm.registerAdapter(['cancellable-keyless'], new CancellableAdapter())
     const service = new HarnessGatewaySessionService(ctx, {
-      authorize: async () => ({
-        subjectId: 'subject-cancel',
-        agentMode: 'video',
+      authorize: async ({ sessionId }) => ({
+        ...authorization('subject-cancel', 'video'),
+        sessionId,
         provider: 'cancellable-keyless',
         model: 'cancellable-keyless',
-        maxTokens: 2_048,
       }),
-    })
+    }, mountTestPreset)
     cleanup.push(async () => {
       await service.dispose()
       await ctx.fiber.dispose()

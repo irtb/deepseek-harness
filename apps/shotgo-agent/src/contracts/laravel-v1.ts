@@ -1,4 +1,4 @@
-export const SHOTGO_PROTOCOL_VERSION = '2026-08-24.2' as const
+export const SHOTGO_PROTOCOL_VERSION = '2026-08-25.1' as const
 export const SHOTGO_PROTOCOL_HEADER = 'X-ShotGo-Protocol-Version' as const
 export const IDEMPOTENCY_HEADER = 'Idempotency-Key' as const
 
@@ -7,6 +7,10 @@ export type AssetKind = 'text' | 'image' | 'video' | 'audio'
 export type InferenceModel = 'deepseek-v4-flash' | 'deepseek-v4-pro'
 export type InferenceReasoningEffort = 'off' | 'high' | 'max'
 export type InferenceUsageStatus = 'completed' | 'failed' | 'cancelled'
+export type AgentSessionCapability =
+  | 'agent.session.submit'
+  | 'agent.session.events.read'
+  | 'agent.session.cancel'
 export type GenerationState =
   | 'draft'
   | 'creating'
@@ -26,6 +30,48 @@ export interface MutationContext {
 export interface Money {
   amount: string
   currency: string
+}
+
+export interface AgentGrantCreateRequest {
+  sessionId: string
+  agentMode: AgentMode
+  spaceId?: string | null
+  projectId?: string | null
+}
+
+export interface AgentGrantCreateResponse {
+  protocolVersion: typeof SHOTGO_PROTOCOL_VERSION
+  grantToken: string
+  expiresAt: string
+  sessionId: string
+  userId: number
+  teamId: number | null
+  spaceId: string | null
+  projectId: string | null
+  agentMode: AgentMode
+  allowedCapabilities: string[]
+}
+
+export interface AgentGrantIntrospectionRequest {
+  grantToken: string
+  sessionId: string
+  requiredCapability: AgentSessionCapability
+}
+
+export interface AgentGrantIntrospectionResponse {
+  protocolVersion: typeof SHOTGO_PROTOCOL_VERSION
+  active: true
+  authorizationContextId: string
+  subjectId: string
+  expiresAt: string
+  sessionId: string
+  userId: number
+  teamId: number | null
+  spaceId: string | null
+  projectId: string | null
+  agentMode: AgentMode
+  allowedCapabilities: string[]
+  inferencePolicy: InferencePolicy
 }
 
 export interface InferencePolicy {

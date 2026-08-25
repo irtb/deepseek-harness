@@ -11,6 +11,8 @@ import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
 import SessionTitleService from '@deepseek-ai/dsh-session-title'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
+import AgentPresets from '@deepseek-ai/dsh-agent-presets'
+import { fileURLToPath } from 'node:url'
 import * as mockLlm from './llm/mock.ts'
 import * as arkLlm from './llm/ark.ts'
 import * as generationConfigRead from './tools/generation-config-read.ts'
@@ -35,6 +37,19 @@ export async function apply(ctx: Context): Promise<void> {
   })
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(AgentRegistry)
+  if (ctx.get('loader') !== undefined) {
+    await ctx.plugin(AgentPresets, {
+      default: 'shotgo-image-v1',
+      roots: [{
+        path: fileURLToPath(new URL(
+          process.env.NODE_ENV === 'production' ? './config/agent-presets' : '../config/agent-presets',
+          import.meta.url,
+        )),
+        trust: 'system',
+      }],
+      includeUserRoot: false,
+    })
+  }
   await ctx.plugin(llmRetry)
   await ctx.plugin(mockLlm)
   await ctx.plugin(arkLlm)

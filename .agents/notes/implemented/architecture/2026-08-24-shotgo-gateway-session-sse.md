@@ -12,7 +12,9 @@ The Harness loop can execute a keyless conversation, but a browser needs a stabl
 
 The Agent Gateway exposes a versioned browser protocol separate from the Laravel control-plane protocol. A message submission requires a Capability Grant plus matching `Idempotency-Key` and `clientRequestId`, returns one stable `runId`, and schedules one Harness follow-up. Repeating the same Session and request id returns that run without another turn; a second request while the Session is active fails with `SESSION_BUSY`.
 
-`HarnessGatewaySessionService` is the Host Plane adapter around the public Agent Registry and Session services. Its injected `GatewaySessionAuthorizer` must ask Laravel to validate the opaque Grant, including the requested Session id, and return the authoritative subject, Agent mode, provider, model, and output limit. The adapter binds a live Session to that subject, creates the Agent with the authorized route, records model-visible work in the Harness Session log, and rejects access by another subject. The production entry point leaves Session admission unmounted until Laravel supplies this full authorization result; traffic and readiness remain closed rather than relying on locally decoded claims or the inference-policy allowlist alone.
+`HarnessGatewaySessionService` is the Host Plane adapter around the public Agent Registry and Session services. Its injected `GatewaySessionAuthorizer` asks Laravel to validate the opaque Grant, requested Session id, and operation-specific capability and to return the authoritative authorization context, Agent mode, provider, model, and output limit. The context binds user, nullable team, space, nullable project, mode, and Session, so a live Session rejects another context even for the same user. The production entry point mounts this Authorizer and the trusted Agent Presets; traffic and readiness remain closed when Laravel introspection or inference configuration is unavailable rather than relying on locally decoded claims or the inference-policy allowlist alone.
+
+The Canvas application is the only browser origin admitted by Gateway CORS. Preflight permits bearer authorization plus content, idempotency, and replay headers without enabling cookie credentials; responses expose both protocol-version headers.
 
 The Gateway projects Harness events into replayable SSE frames. Each frame has a monotonic process-local Gateway cursor and retains the original Harness `sessionSeq`; the two counters never substitute for each other. A 512-event in-memory window supports `Last-Event-ID` replay and returns `SSE_CURSOR_EXPIRED` when the requested prefix is unavailable. A run ends with exactly one projected `run.completed`, `run.cancelled`, or `run.failed` event. Cancellation requests abort the active Harness turn, while the terminal event remains authoritative because cancellation can race with completion.
 
@@ -20,7 +22,7 @@ The canonical transcript remains the persisted Harness Session log. The in-memor
 
 ## Verification
 
-The keyless composition test mounts the real ShotGo Runtime, submits a message through `HarnessGatewaySessionService`, observes the tool call, tool result, assistant message, terminal run event, cursor replay, idempotent duplicate response, and cross-subject denial. HTTP tests pin the `202` response, Gateway version header, SSE wire frames, `Last-Event-ID`, traffic-disabled response, and idempotency rejection. The OpenAPI test pins capability authentication on submission, streaming, and cancellation and excludes provider credentials from the browser protocol.
+The keyless composition test mounts the real ShotGo Runtime, submits a message through `HarnessGatewaySessionService`, observes the tool call, tool result, assistant message, terminal run event, cursor replay, idempotent duplicate response, and cross-context denial. HTTP tests pin the `202` response, Gateway version header, SSE wire frames, `Last-Event-ID`, traffic-disabled response, strict Canvas-origin preflight, and idempotency rejection. The OpenAPI test pins capability authentication on submission, streaming, and cancellation and excludes provider credentials from the browser protocol.
 
 ## Alternatives considered
 
@@ -34,4 +36,4 @@ The keyless composition test mounts the real ShotGo Runtime, submits a message t
 
 ## Consequences
 
-Browser transport, Harness execution, replay, and cancellation can evolve behind one product-owned Host Plane interface without changing upstream packages. The protocol gains distinct run and cursor identifiers plus bounded replay state. Production Session traffic remains unavailable until Laravel implements full Grant-to-Session authorization, and process restart recovery remains explicit work rather than an accidental promise.
+Browser transport, Harness execution, replay, and cancellation can evolve behind one product-owned Host Plane interface without changing upstream packages. The protocol gains distinct run and cursor identifiers plus bounded replay state. Production Session traffic depends on Laravel Grant issuance and introspection acceptance, and process restart recovery remains explicit work rather than an accidental promise.

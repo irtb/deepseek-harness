@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "ShotGo Laravel Agent Protocol",
-    "version": "2026-08-24.2",
+    "version": "2026-08-25.1",
     "description": "Frozen Agent Runtime to Laravel control-plane and AIGC capability protocol. Harness calls the approved reasoning provider directly with service-only runtime configuration from Laravel; Laravel remains the policy, budget, audit, and business authority."
   },
   "servers": [{ "url": "https://shotgo.cn" }],
@@ -14,14 +14,28 @@
     { "name": "Events" }
   ],
   "paths": {
-    "/api/internal/agent/v1/grants/exchange": {
+    "/api/agent/v1/grants": {
       "post": {
-        "operationId": "exchangeAgentHandoffTicket",
+        "operationId": "createAgentCapabilityGrant",
         "tags": ["Authentication"],
-        "security": [{ "serviceAuth": [] }],
-        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "./schemas/laravel-v1.schema.json#/$defs/GrantExchangeRequest" } } } },
+        "description": "Issue a short-lived capability grant from the authenticated Canvas user context. User and team identities are derived from Sanctum by Laravel rather than accepted from the request body.",
+        "security": [{ "sanctumAuth": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "./schemas/laravel-v1.schema.json#/$defs/AgentGrantCreateRequest" } } } },
         "responses": {
-          "200": { "description": "Opaque short-lived capability grant", "headers": { "X-ShotGo-Protocol-Version": { "$ref": "#/components/headers/ProtocolVersion" } }, "content": { "application/json": { "schema": { "$ref": "./schemas/laravel-v1.schema.json#/$defs/GrantExchangeResponse" } } } },
+          "200": { "description": "Opaque short-lived capability grant", "headers": { "X-ShotGo-Protocol-Version": { "$ref": "#/components/headers/ProtocolVersion" } }, "content": { "application/json": { "schema": { "$ref": "./schemas/laravel-v1.schema.json#/$defs/AgentGrantCreateResponse" } } } },
+          "default": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
+    "/api/internal/agent/v1/grants/introspect": {
+      "post": {
+        "operationId": "introspectAgentCapabilityGrant",
+        "tags": ["Authentication"],
+        "description": "Validate one opaque grant, requested Session, and required Gateway capability under Agent service authentication. The response is authoritative and must not be cached.",
+        "security": [{ "serviceAuth": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "./schemas/laravel-v1.schema.json#/$defs/AgentGrantIntrospectionRequest" } } } },
+        "responses": {
+          "200": { "description": "Authoritative authorization context, complete capability set, and nested inference policy", "headers": { "X-ShotGo-Protocol-Version": { "$ref": "#/components/headers/ProtocolVersion" } }, "content": { "application/json": { "schema": { "$ref": "./schemas/laravel-v1.schema.json#/$defs/AgentGrantIntrospectionResponse" } } } },
           "default": { "$ref": "#/components/responses/Problem" }
         }
       }
@@ -184,11 +198,12 @@
   },
   "components": {
     "securitySchemes": {
+      "sanctumAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "Laravel Sanctum token" },
       "serviceAuth": { "type": "http", "scheme": "bearer", "bearerFormat": "opaque-service-token" },
       "capabilityGrant": { "type": "http", "scheme": "bearer", "bearerFormat": "opaque-capability-grant" }
     },
     "headers": {
-      "ProtocolVersion": { "required": true, "schema": { "type": "string", "const": "2026-08-24.2" } }
+      "ProtocolVersion": { "required": true, "schema": { "type": "string", "const": "2026-08-25.1" } }
     },
     "parameters": {
       "IdempotencyKey": { "name": "Idempotency-Key", "in": "header", "required": true, "description": "Must equal body context.clientRequestId", "schema": { "type": "string", "minLength": 1 } },

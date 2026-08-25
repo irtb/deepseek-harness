@@ -7,8 +7,9 @@
     "incremental": false,
     "noEmit": false,
     "outDir": "dist",
+    "paths": {},
     "rootDir": "src",
     "sourceMap": true
   },
-  "include": ["src/contracts/laravel-v1.ts", "src/gateway.ts", "src/gateway-bin.ts"]
+  "include": ["src/**/*.ts"]
 }

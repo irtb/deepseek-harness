@@ -1,6 +1,0 @@
-# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
-# side as of the last confirmed-consistent state. Both languages carry equal authority;
-# after editing either side, bring the other along and re-record with:
-#   pnpm run verify-translation-pairing --write .agents/notes/implemented/process/2026-08-25-risk-gated-release-automation.md
-2026-08-25-risk-gated-release-automation.md: fd998d4fb181bdd2927fd7d17ee9c07ebc5926c7
-2026-08-25-risk-gated-release-automation.zh.md: 360474874ec90bbce0925a02883d2649a39d04f0

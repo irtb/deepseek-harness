@@ -6,7 +6,9 @@
 
 ## Session 与授权
 
-每个 Session 请求都以 Bearer Token 携带不透明的 Capability Grant。Harness 创建或读取 Session 前，`GatewaySessionAuthorizer` 必须通过 Laravel 验证 Grant 和请求的 Session id，并返回权威主体、Agent 模式和推理路由。进程内服务将每个活动 Session 绑定到该主体；即使另一个主体知道 Session id，也会被拒绝。只有当 Authorizer 能校验所有必要声明时，生产 Gateway 才挂载 Session 路由；在此之前健康检查保持可用，Session 流量采用失败关闭。
+每个 Session 请求都以 Bearer Token 携带不透明的 Capability Grant。Harness 创建或读取 Session 前，`GatewaySessionAuthorizer` 通过 Laravel 验证 Grant、请求的 Session id 和操作对应能力，并返回权威授权上下文、Agent 模式和推理路由。稳定上下文绑定用户、可为空的团队、空间、可为空的项目、Agent 模式与 Session；即使同一用户知道 Session id，不同上下文也会被拒绝。只有 Authorizer 和可信 Agent Preset 均可用时，生产 Gateway 才挂载 Session 路由；在此之前健康检查保持可用，Session 流量采用失败关闭。
+
+浏览器请求只允许来自配置的 Canvas Origin。Gateway 不使用 Cookie 响应其预检，允许 Authorization、内容、幂等和重放 Header，暴露两个协议版本 Header，并拒绝其他显式 Origin。
 
 `POST /api/agent/v1/sessions/{sessionId}/messages` 接收一条文本消息，并要求 `Idempotency-Key` 等于 `clientRequestId`。重复提交同一组 `{sessionId, clientRequestId}` 时返回原 `runId`，不会再次调度 Harness Turn。每个 Session 同时只允许一个活动 Run；并发提交返回 `SESSION_BUSY`。
 

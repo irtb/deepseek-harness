@@ -15,6 +15,7 @@
     { "path": "../../packages/boot/app-boot" },
     { "path": "../../packages/core/agent" },
     { "path": "../../packages/core/agent-loop" },
+    { "path": "../../packages/preset/agent-presets" },
     { "path": "../../packages/core/session" },
     { "path": "../../packages/core/system-prompt" },
     { "path": "../../packages/core/tools" },

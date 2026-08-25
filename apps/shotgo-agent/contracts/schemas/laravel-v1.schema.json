@@ -3,12 +3,17 @@
   "$id": "https://agent.shotgo.cn/contracts/laravel-v1.schema.json",
   "title": "ShotGo Laravel Agent Protocol v1",
   "$defs": {
-    "ProtocolVersion": { "const": "2026-08-24.2" },
+    "ProtocolVersion": { "const": "2026-08-25.1" },
     "OpaqueId": { "type": "string", "minLength": 1, "maxLength": 255 },
+    "IntegerId": { "type": "integer", "minimum": 1 },
     "DateTime": { "type": "string", "format": "date-time" },
     "AgentMode": { "enum": ["canvas", "image", "video"] },
     "AssetKind": { "enum": ["text", "image", "video", "audio"] },
     "InferenceModel": { "enum": ["deepseek-v4-flash", "deepseek-v4-pro"] },
+    "AgentSessionCapability": { "enum": ["agent.session.submit", "agent.session.events.read", "agent.session.cancel"] },
+    "AgentCapability": { "type": "string", "minLength": 1, "maxLength": 255 },
+    "NullableOpaqueId": { "oneOf": [{ "$ref": "#/$defs/OpaqueId" }, { "type": "null" }] },
+    "NullableIntegerId": { "oneOf": [{ "$ref": "#/$defs/IntegerId" }, { "type": "null" }] },
     "Money": {
       "type": "object",
       "additionalProperties": false,
@@ -29,30 +34,62 @@
         "clientRequestId": { "$ref": "#/$defs/OpaqueId" }
       }
     },
-    "GrantExchangeRequest": {
+    "AgentGrantCreateRequest": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["handoffTicket", "sessionId", "agentMode"],
+      "required": ["sessionId", "agentMode"],
       "properties": {
-        "handoffTicket": { "$ref": "#/$defs/OpaqueId" },
         "sessionId": { "$ref": "#/$defs/OpaqueId" },
+        "spaceId": { "$ref": "#/$defs/NullableOpaqueId" },
+        "projectId": { "$ref": "#/$defs/NullableOpaqueId" },
         "agentMode": { "$ref": "#/$defs/AgentMode" }
       }
     },
-    "GrantExchangeResponse": {
+    "AgentGrantCreateResponse": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["protocolVersion", "grantToken", "expiresAt", "userId", "teamId", "projectId", "agentMode", "allowedCapabilities"],
+      "required": ["protocolVersion", "grantToken", "expiresAt", "sessionId", "userId", "teamId", "spaceId", "projectId", "agentMode", "allowedCapabilities"],
       "properties": {
         "protocolVersion": { "$ref": "#/$defs/ProtocolVersion" },
         "grantToken": { "$ref": "#/$defs/OpaqueId" },
         "expiresAt": { "$ref": "#/$defs/DateTime" },
-        "userId": { "$ref": "#/$defs/OpaqueId" },
-        "teamId": { "$ref": "#/$defs/OpaqueId" },
-        "projectId": { "$ref": "#/$defs/OpaqueId" },
+        "sessionId": { "$ref": "#/$defs/OpaqueId" },
+        "userId": { "$ref": "#/$defs/IntegerId" },
+        "teamId": { "$ref": "#/$defs/NullableIntegerId" },
+        "spaceId": { "$ref": "#/$defs/NullableOpaqueId" },
+        "projectId": { "$ref": "#/$defs/NullableOpaqueId" },
         "agentMode": { "$ref": "#/$defs/AgentMode" },
-        "allowedCapabilities": { "type": "array", "items": { "$ref": "#/$defs/OpaqueId" }, "uniqueItems": true },
-        "budgetLimit": { "$ref": "#/$defs/Money" }
+        "allowedCapabilities": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/AgentCapability" }, "uniqueItems": true }
+      }
+    },
+    "AgentGrantIntrospectionRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["grantToken", "sessionId", "requiredCapability"],
+      "properties": {
+        "grantToken": { "$ref": "#/$defs/OpaqueId" },
+        "sessionId": { "$ref": "#/$defs/OpaqueId" },
+        "requiredCapability": { "$ref": "#/$defs/AgentSessionCapability" }
+      }
+    },
+    "AgentGrantIntrospectionResponse": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["protocolVersion", "active", "authorizationContextId", "subjectId", "expiresAt", "sessionId", "userId", "teamId", "spaceId", "projectId", "agentMode", "allowedCapabilities", "inferencePolicy"],
+      "properties": {
+        "protocolVersion": { "$ref": "#/$defs/ProtocolVersion" },
+        "active": { "const": true },
+        "authorizationContextId": { "$ref": "#/$defs/OpaqueId" },
+        "subjectId": { "$ref": "#/$defs/OpaqueId" },
+        "expiresAt": { "$ref": "#/$defs/DateTime" },
+        "sessionId": { "$ref": "#/$defs/OpaqueId" },
+        "userId": { "$ref": "#/$defs/IntegerId" },
+        "teamId": { "$ref": "#/$defs/NullableIntegerId" },
+        "spaceId": { "$ref": "#/$defs/NullableOpaqueId" },
+        "projectId": { "$ref": "#/$defs/NullableOpaqueId" },
+        "agentMode": { "$ref": "#/$defs/AgentMode" },
+        "allowedCapabilities": { "type": "array", "minItems": 1, "items": { "$ref": "#/$defs/AgentCapability" }, "uniqueItems": true },
+        "inferencePolicy": { "$ref": "#/$defs/InferencePolicy" }
       }
     },
     "CapabilityCatalog": {

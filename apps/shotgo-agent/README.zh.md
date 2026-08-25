@@ -6,7 +6,7 @@ ShotGo 的 Canvas、Image、Video 三类对话式 Agent 所使用的私有 DeepS
 
 Phase 0A 无需密钥且只读。它启动 mock 推理 Adapter，调用 `generation_config_read`，记录完整 Harness Session 回合，并返回确定性回答。它不连接 Laravel、不调用 AIGC 供应商、不扣积分、不提交生成任务，也不修改画布。
 
-Phase 0B 在 [`contracts/`](contracts/README.zh.md) 中冻结 Laravel 边界。Phase 0B.2 把 Laravel 中加密落库的方舟凭据和供应商节点映射加载到进程内存。面向浏览器的 [Gateway 协议](contracts/gateway/README.zh.md) 增加幂等 Session 提交、取消和可重放 SSE；在 Laravel 能授权目标 Session 与 Agent 模式前，生产接入仍保持关闭。
+Phase 0B 在 [`contracts/`](contracts/README.zh.md) 中冻结 Laravel 边界。Phase 0B.2 把 Laravel 中加密落库的方舟凭据和供应商节点映射加载到进程内存。Canvas 承载的浏览器使用现有 Sanctum 身份取得受限 Grant；面向浏览器的 [Gateway 协议](contracts/gateway/README.zh.md) 通过 Laravel 内省实现幂等 Session 提交、取消和可重放 SSE。
 
 ## 本地 Smoke
 
@@ -47,7 +47,7 @@ Phase 0A mock 总是请求只读 `generation_config_read` Tool，然后解释其
 ## Known Limitations and Deferred Work
 
 - 无密钥 executable 仍是 Phase 0A smoke 入口；`gateway-bin` 是生产进程入口。
-- Gateway Server 已实现 Session 提交、SSE 重放与取消，但在 Laravel 提供能校验 Grant 中 Session、项目和 Agent 模式声明的 Authorizer 前，`gateway-bin` 不挂载这些接口。
-- Laravel 运行时配置、推理策略和元数据用量客户端已经实现；交接票据交换与业务 Capability 客户端仍未接通。
+- `gateway-bin` 已挂载受限 Harness Runtime、可信模式 Preset、Laravel Grant Authorizer、Session 提交、SSE 重放与取消；Laravel 完成并验收 Grant 签发和内省前，生产接入保持关闭。
+- Laravel 运行时配置、推理策略、元数据用量和 Grant 内省客户端已经实现；业务 Capability 客户端仍未接通。
 - 双方通过契约与集成验收前，计费、生成提交和画布写入保持禁用。
 - Gateway 重放仅存在于当前进程且最多保留 512 个事件；尚未接通根据持久化 Harness Session 日志进行的重启恢复。

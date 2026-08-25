@@ -2,7 +2,7 @@
 
 Status: implemented
 
-English | [中文](2026-08-25-risk-gated-release-automation.zh.md)
+English | [中文](2026-08-25-shotgo-risk-gated-release-automation.zh.md)
 
 ## Problem
 

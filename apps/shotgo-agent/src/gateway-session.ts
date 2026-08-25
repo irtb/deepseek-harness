@@ -1,8 +1,9 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { AgentHandle } from '@deepseek-ai/dsh-agent'
+import type {} from '@deepseek-ai/dsh-agent-presets/types'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
-import type { AgentMode } from './contracts/laravel-v1.ts'
+import type { AgentMode, AgentSessionCapability } from './contracts/laravel-v1.ts'
 import {
   SHOTGO_GATEWAY_PROTOCOL_VERSION,
   type GatewayStreamEvent,
@@ -16,7 +17,13 @@ import type {
 } from './gateway-transport.ts'
 
 export interface AuthorizedGatewaySession {
-  subjectId: string
+  authorizationContextId: string
+  expiresAt: string
+  sessionId: string
+  userId: number
+  teamId: number | null
+  spaceId: string | null
+  projectId: string | null
   agentMode: AgentMode
   provider: string
   model: string
@@ -27,12 +34,20 @@ export interface GatewaySessionAuthorizer {
   authorize(input: {
     capabilityGrant: string
     sessionId: string
+    requiredCapability: AgentSessionCapability
     signal?: AbortSignal
   }): Promise<AuthorizedGatewaySession>
 }
 
+export type GatewayAgentPresetMounter = (agentCtx: Context, agentMode: AgentMode) => Promise<void>
+
 interface LiveSession {
-  readonly subjectId: string
+  readonly authorizationContextId: string
+  readonly userId: number
+  readonly teamId: number | null
+  readonly spaceId: string | null
+  readonly projectId: string | null
+  readonly sessionId: string
   readonly agentMode: AgentMode
   readonly handle: AgentHandle
   readonly events: GatewayStreamEvent[]
@@ -44,6 +59,16 @@ interface LiveSession {
 }
 
 const MAX_REPLAY_EVENTS = 512
+
+function hasSameAuthorizationContext(live: LiveSession, authorization: AuthorizedGatewaySession): boolean {
+  return live.authorizationContextId === authorization.authorizationContextId
+    && live.userId === authorization.userId
+    && live.teamId === authorization.teamId
+    && live.spaceId === authorization.spaceId
+    && live.projectId === authorization.projectId
+    && live.sessionId === authorization.sessionId
+    && live.agentMode === authorization.agentMode
+}
 
 function abortError(signal: AbortSignal): Error {
   return signal.reason instanceof Error ? signal.reason : new Error('Gateway event stream aborted')
@@ -80,6 +105,11 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
   constructor(
     private readonly ctx: Context,
     private readonly authorizer: GatewaySessionAuthorizer,
+    private readonly mountAgentPreset: GatewayAgentPresetMounter = async (agentCtx, agentMode) => {
+      const presets = ctx.get('agentPresets')
+      if (presets === undefined) throw new GatewaySessionError('AGENT_PRESETS_UNAVAILABLE', 503)
+      await presets.mount(agentCtx, `shotgo-${agentMode}-v1`)
+    },
   ) {
     this.stopSessionEvents = ctx.on('session/event', (session, event) => {
       const live = this.sessions.get(session.id)
@@ -97,6 +127,7 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
     const authorization = await this.authorizer.authorize({
       capabilityGrant: input.capabilityGrant,
       sessionId: input.sessionId,
+      requiredCapability: 'agent.session.submit',
       ...(input.signal === undefined ? {} : { signal: input.signal }),
     })
     return await this.withAdmission(input.sessionId, async () => await this.submitAuthorized(input, authorization))
@@ -107,7 +138,7 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
     authorization: AuthorizedGatewaySession,
   ): Promise<{ runId: string }> {
     let live = this.sessions.get(input.sessionId)
-    if (live !== undefined && live.subjectId !== authorization.subjectId) {
+    if (live !== undefined && !hasSameAuthorizationContext(live, authorization)) {
       throw new GatewaySessionError('SESSION_ACCESS_DENIED', 403)
     }
     const requestKey = JSON.stringify([input.sessionId, input.clientRequestId])
@@ -118,19 +149,26 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
     if (live === undefined) {
       const agents = this.ctx.get('agents')
       if (agents === undefined) throw new GatewaySessionError('HARNESS_RUNTIME_UNAVAILABLE', 503)
+      const presetId = `shotgo-${authorization.agentMode}-v1`
       const handle = await agents.create({
         sessionId: SessionId(input.sessionId),
-        meta: { cwd: process.cwd(), agentPreset: `shotgo-${authorization.agentMode}` },
+        meta: { cwd: process.cwd(), agentPreset: presetId },
         agentOptions: {
           provider: authorization.provider,
           model: authorization.model,
           maxTokens: authorization.maxTokens,
         },
+        setup: agentCtx => this.mountAgentPreset(agentCtx, authorization.agentMode),
         ...(input.signal === undefined ? {} : { signal: input.signal }),
       })
       await handle.agent.whenIdle()
       live = {
-        subjectId: authorization.subjectId,
+        authorizationContextId: authorization.authorizationContextId,
+        userId: authorization.userId,
+        teamId: authorization.teamId,
+        spaceId: authorization.spaceId,
+        projectId: authorization.projectId,
+        sessionId: authorization.sessionId,
         agentMode: authorization.agentMode,
         handle,
         events: [],
@@ -158,11 +196,14 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
     const authorization = await this.authorizer.authorize({
       capabilityGrant: input.capabilityGrant,
       sessionId: input.sessionId,
+      requiredCapability: 'agent.session.events.read',
       ...(input.signal === undefined ? {} : { signal: input.signal }),
     })
     const live = this.sessions.get(input.sessionId)
     if (live === undefined) throw new GatewaySessionError('SESSION_NOT_FOUND', 404)
-    if (live.subjectId !== authorization.subjectId) throw new GatewaySessionError('SESSION_ACCESS_DENIED', 403)
+    if (!hasSameAuthorizationContext(live, authorization)) {
+      throw new GatewaySessionError('SESSION_ACCESS_DENIED', 403)
+    }
     const earliest = live.events[0]?.cursor ?? live.nextCursor
     if (input.afterCursor < earliest - 1) throw new GatewaySessionError('SSE_CURSOR_EXPIRED', 409)
 
@@ -191,11 +232,14 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
     const authorization = await this.authorizer.authorize({
       capabilityGrant: input.capabilityGrant,
       sessionId: input.sessionId,
+      requiredCapability: 'agent.session.cancel',
       ...(input.signal === undefined ? {} : { signal: input.signal }),
     })
     const live = this.sessions.get(input.sessionId)
     if (live === undefined) throw new GatewaySessionError('SESSION_NOT_FOUND', 404)
-    if (live.subjectId !== authorization.subjectId) throw new GatewaySessionError('SESSION_ACCESS_DENIED', 403)
+    if (!hasSameAuthorizationContext(live, authorization)) {
+      throw new GatewaySessionError('SESSION_ACCESS_DENIED', 403)
+    }
     if (live.activeRunId !== input.runId) throw new GatewaySessionError('RUN_NOT_ACTIVE', 409)
     live.cancelledRunId = input.runId
     live.handle.agent.cancel({ kind: 'user' })

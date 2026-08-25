@@ -49,7 +49,8 @@ Laravel encrypts the Ark credential at rest and returns it with the logical-to-p
 - Treat Laravel as the authority for users, teams, projects, permissions, budgets, canvas state, generation state, media, and billing.
 - Never access the ShotGo database directly.
 - Every mutating call carries `sessionId`, `runId`, `actionId`, and `clientRequestId` and is idempotent at Laravel.
-- A short-lived Capability Grant limits user, team, project, agent mode, allowed capabilities, budget, expiry, and `jti`. The Gateway cannot widen it.
+- A short-lived Capability Grant limits user, nullable team, space, nullable project, Agent mode, allowed capabilities, budget, expiry, and `jti`. The Gateway cannot widen it.
+- Canvas obtains the Grant from Laravel through its existing Sanctum identity. Laravel derives user and nullable team identity, validates space and project scope, and exposes only opaque Grants to the browser; Agent Runtime uses service-authenticated introspection and never accepts a handoff ticket or decodes claims as authority.
 - Confirmation is required before cost, deletion, overwrite, or a changed quote. A model statement is not user confirmation.
 - Laravel generation records remain authoritative across browser or Agent Runtime restarts. `ctx.jobs` is session-local control only.
 
@@ -85,4 +86,4 @@ Phase 0B freezes `contracts/openapi.json`, `contracts/schemas/laravel-v1.schema.
 
 ## Current implementation boundary
 
-The Phase 0B.2 wire protocol is frozen at `2026-08-24.2`. It keeps inference streaming in the Agent Runtime and adds service-authenticated runtime configuration beside inference policy and metadata-only usage reporting. Do not change an endpoint, field, lifecycle, authentication flow, error code contract, or event cursor semantics without a new development branch, synchronized contract artifacts, compatibility analysis, and passing contract tests. Business-generation integrations remain fixtures or mocks until a Laravel implementation is available and accepted.
+The Phase 0B.3 wire protocol is frozen at `2026-08-25.1`. It keeps inference streaming in the Agent Runtime, uses Sanctum-authenticated Grant issuance plus service-authenticated introspection, and retains runtime configuration, inference policy, and metadata-only usage reporting. Do not change an endpoint, field, lifecycle, authentication flow, error code contract, or event cursor semantics without a new development branch, synchronized contract artifacts, compatibility analysis, and passing contract tests. Business-generation integrations remain fixtures or mocks until a Laravel implementation is available and accepted.

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-24-shotgo-laravel-protocol-v1.md
-2026-08-24-shotgo-laravel-protocol-v1.md: 784b20e82c07941de227a6ddb8b7ab2541c1926c
-2026-08-24-shotgo-laravel-protocol-v1.zh.md: 7128d1886f6b6bdbc6050215542f6497550779f9
+2026-08-24-shotgo-laravel-protocol-v1.md: 8f1f7e900a714f65eb1ada75d9706726b10b285f
+2026-08-24-shotgo-laravel-protocol-v1.zh.md: 70d8cf5dd2573ef5adaeba46797fc2dcb40a5555

@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-25-shotgo-canvas-hosted-agent-grants.md
+2026-08-25-shotgo-canvas-hosted-agent-grants.md: f07f056c7b74637e87a60e21b49c2e1f18a4f1e8
+2026-08-25-shotgo-canvas-hosted-agent-grants.zh.md: c025d7d0e6818232b6388acdd95ec30f452eb557

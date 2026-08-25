@@ -5,7 +5,7 @@ import {
   type GatewayMessageRequest,
   type GatewayRunAccepted,
 } from './contracts/gateway-v1.ts'
-import { SHOTGO_PROTOCOL_VERSION } from './contracts/laravel-v1.ts'
+import { SHOTGO_PROTOCOL_HEADER, SHOTGO_PROTOCOL_VERSION } from './contracts/laravel-v1.ts'
 import { GatewaySessionError } from './gateway-errors.ts'
 import type { GatewaySessionService } from './gateway-transport.ts'
 
@@ -14,6 +14,7 @@ export interface GatewayConfig {
   port: number
   trafficEnabled: boolean
   deploymentId: string
+  canvasOrigin: string
   laravel?: {
     baseURL: string
     serviceToken: string
@@ -40,6 +41,22 @@ function sendJson(response: ServerResponse, statusCode: number, body: unknown): 
     [SHOTGO_GATEWAY_PROTOCOL_HEADER]: SHOTGO_GATEWAY_PROTOCOL_VERSION,
   })
   response.end(JSON.stringify(body))
+}
+
+const CORS_ALLOW_HEADERS = 'Authorization, Content-Type, Idempotency-Key, Last-Event-ID'
+const CORS_ALLOW_METHODS = 'GET, POST, DELETE, OPTIONS'
+const CORS_EXPOSE_HEADERS = `${SHOTGO_PROTOCOL_HEADER}, ${SHOTGO_GATEWAY_PROTOCOL_HEADER}`
+
+function applySessionCors(request: IncomingMessage, response: ServerResponse, allowedOrigin: string): void {
+  const header = request.headers.origin
+  const origin = typeof header === 'string' ? header : undefined
+  if (origin !== undefined && origin !== allowedOrigin) throw new GatewaySessionError('ORIGIN_NOT_ALLOWED', 403)
+  if (origin === undefined) return
+  response.setHeader('Access-Control-Allow-Origin', allowedOrigin)
+  response.setHeader('Access-Control-Allow-Methods', CORS_ALLOW_METHODS)
+  response.setHeader('Access-Control-Allow-Headers', CORS_ALLOW_HEADERS)
+  response.setHeader('Access-Control-Expose-Headers', CORS_EXPOSE_HEADERS)
+  response.setHeader('Vary', 'Origin')
 }
 
 function bearerToken(request: IncomingMessage): string {
@@ -221,6 +238,12 @@ export function createGatewayServer(
       }
 
       if (url.pathname.startsWith('/api/agent/v1/sessions/')) {
+        applySessionCors(request, response, config.canvasOrigin)
+        if (request.method === 'OPTIONS') {
+          response.writeHead(204, { 'Cache-Control': 'no-store' })
+          response.end()
+          return
+        }
         if (!config.trafficEnabled || sessions === undefined) {
           sendJson(response, 503, { code: 'AGENT_TRAFFIC_DISABLED' })
           return
@@ -257,6 +280,14 @@ export function readGatewayConfig(environment: NodeJS.ProcessEnv): GatewayConfig
   const deploymentId = environment.SHOTGO_DEPLOYMENT_ID?.trim() ?? ''
   if (!deploymentId) throw new Error('SHOTGO_DEPLOYMENT_ID_REQUIRED')
 
+  const canvasOriginUrl = new URL(environment.SHOTGO_CANVAS_ORIGIN?.trim() || 'https://canvas.shotgo.cn')
+  if (canvasOriginUrl.origin !== canvasOriginUrl.toString().replace(/\/$/, '')) {
+    throw new Error('SHOTGO_CANVAS_ORIGIN_INVALID')
+  }
+  if (canvasOriginUrl.protocol !== 'https:' && !['localhost', '127.0.0.1', '::1'].includes(canvasOriginUrl.hostname)) {
+    throw new Error('SHOTGO_CANVAS_ORIGIN_REQUIRES_HTTPS')
+  }
+
   const laravelBaseURL = environment.SHOTGO_LARAVEL_BASE_URL?.trim() ?? ''
   const laravelServiceToken = environment.SHOTGO_LARAVEL_SERVICE_TOKEN?.trim() ?? ''
   if ((laravelBaseURL === '') !== (laravelServiceToken === '')) {
@@ -268,6 +299,7 @@ export function readGatewayConfig(environment: NodeJS.ProcessEnv): GatewayConfig
     port,
     trafficEnabled: environment.SHOTGO_ENABLE_TRAFFIC === 'true',
     deploymentId,
+    canvasOrigin: canvasOriginUrl.origin,
     ...laravelBaseURL === ''
       ? {}
       : { laravel: { baseURL: laravelBaseURL, serviceToken: laravelServiceToken } },

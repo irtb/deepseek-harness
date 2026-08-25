@@ -6,7 +6,9 @@ The browser-facing Gateway protocol is frozen at `2026-08-24.1`. [`gateway-v1.op
 
 ## Session and authorization
 
-Every Session request carries an opaque Capability Grant as a Bearer token. A `GatewaySessionAuthorizer` must validate the grant and requested Session id with Laravel, then return the authoritative subject, Agent mode, and inference route before Harness creates or reads a Session. The in-process service binds each live Session to that returned subject and rejects a different subject even when it knows the Session id. The production Gateway does not mount Session routes until this authorizer can validate all required claims; health remains available while Session traffic fails closed.
+Every Session request carries an opaque Capability Grant as a Bearer token. A `GatewaySessionAuthorizer` validates the Grant, requested Session id, and operation-specific capability with Laravel, then returns the authoritative authorization context, Agent mode, and inference route before Harness creates or reads a Session. The stable context binds user, nullable team, space, nullable project, Agent mode, and Session; the in-process service rejects a different context even when the same user knows the Session id. The production Gateway mounts Session routes only with this authorizer and the trusted Agent Presets; health remains available while Session traffic fails closed.
+
+Browser requests originate only from the configured Canvas origin. The Gateway answers its preflight without cookies, permits the authorization, content, idempotency, and replay headers, exposes both protocol-version headers, and rejects any other supplied Origin.
 
 `POST /api/agent/v1/sessions/{sessionId}/messages` accepts one text message and requires `Idempotency-Key` to equal `clientRequestId`. Repeating the pair `{sessionId, clientRequestId}` returns the original `runId` without scheduling another Harness turn. A Session permits one active run; concurrent submissions return `SESSION_BUSY`.
 

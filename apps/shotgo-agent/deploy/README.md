@@ -27,10 +27,10 @@ Do not run `pnpm install`, GitHub downloads, or a source build as part of the se
 1. Merge a tested feature branch into `master`; promote the exact reviewed commit to `release` without rebuilding from a different checkout.
 2. Build, test, package, and checksum the artifact before connecting to `ve-shotgo`.
 3. Back up any existing Agent files, place the artifact in `/data/projects/agent.shotgo.cn`, create `storage/logs` and `storage/dsh`, and grant only those runtime directories to `www-data`.
-4. Install `/etc/shotgo-agent/shotgo-agent.env` with `SHOTGO_ENABLE_TRAFFIC=false`; keep only the Laravel service token outside the repository. Laravel supplies the encrypted-at-rest Ark credential and provider endpoint IDs through the no-store internal endpoint.
+4. Install `/etc/shotgo-agent/shotgo-agent.env` with `SHOTGO_ENABLE_TRAFFIC=false` and the exact `https://canvas.shotgo.cn` browser origin; keep only the Laravel service token outside the repository. Laravel supplies the encrypted-at-rest Ark credential and provider endpoint IDs and introspects opaque browser Grants through no-store internal endpoints.
 5. Install the Supervisor program, run `supervisorctl reread` and `supervisorctl update`, then verify `healthz=200` and `readyz=503` on loopback. Do not restart other Supervisor programs.
 6. Install the bootstrap Nginx vhost, run `nginx -t`, reload, and issue a certificate for `agent.shotgo.cn`. Only after the certificate exists, install the TLS vhost and revalidate Nginx.
 7. Verify the certificate SAN, HTTP redirect, security headers, public health, Supervisor state, and application logs.
-8. Keep readiness closed until Laravel runtime configuration, Ark direct inference, inference policy/usage control planes, and full session acceptance pass together.
+8. Keep readiness closed until Laravel runtime configuration, Ark direct inference, Sanctum Grant issuance, service-authenticated introspection, inference policy/usage control planes, Canvas-origin preflight, and full session acceptance pass together.
 
 Rollback restores the backed-up Agent artifact and environment, then restarts only `agent-shotgo`. It never changes the API or Canvas project worktrees or their processes.

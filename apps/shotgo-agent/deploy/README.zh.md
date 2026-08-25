@@ -27,10 +27,10 @@
 1. 功能分支测试通过后合并到 `master`，再将完全相同的已评审提交提升到 `release`，不得从其他工作树重新构建。
 2. 连接 `ve-shotgo` 前完成构建、测试、打包和校验和生成。
 3. 备份已有 Agent 文件，将发布包放入 `/data/projects/agent.shotgo.cn`，创建 `storage/logs`、`storage/dsh`，仅把运行目录授权给 `www-data`。
-4. 以 `SHOTGO_ENABLE_TRAFFIC=false` 安装环境文件；仓库之外只保存 Laravel 服务令牌。Laravel 通过禁止缓存的内部端点下发加密落库的方舟凭据和供应商节点 ID。
+4. 以 `SHOTGO_ENABLE_TRAFFIC=false` 和准确的 `https://canvas.shotgo.cn` 浏览器 Origin 安装环境文件；仓库之外只保存 Laravel 服务令牌。Laravel 通过禁止缓存的内部端点下发加密落库的方舟凭据和供应商节点 ID，并内省浏览器携带的不透明 Grant。
 5. 安装 Supervisor 配置，执行 `supervisorctl reread`、`supervisorctl update`，然后在回环地址验证 `healthz=200`、`readyz=503`。禁止重启其他 Supervisor 进程。
 6. 安装 Nginx bootstrap 配置，执行 `nginx -t`、重载并为 `agent.shotgo.cn` 申请证书。证书存在后才能安装 TLS 虚拟主机，并再次校验 Nginx。
 7. 核查证书 SAN、HTTP 跳转、安全 Header、公网健康检查、Supervisor 状态和应用日志。
-8. Laravel 运行时配置、方舟直连推理、推理策略/用量控制面与完整会话联合验收通过前，保持 readiness 关闭。
+8. Laravel 运行时配置、方舟直连推理、Sanctum Grant 签发、服务身份内省、推理策略/用量控制面、Canvas Origin 预检与完整会话联合验收通过前，保持 readiness 关闭。
 
 回滚时恢复已备份的 Agent 发布包和环境文件，并且只重启 `agent-shotgo`；不得修改 API、Canvas 项目工作树或它们的进程。

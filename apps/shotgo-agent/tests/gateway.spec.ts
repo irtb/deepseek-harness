@@ -32,6 +32,7 @@ async function startGateway(
     port: 3010,
     trafficEnabled,
     deploymentId: 'test-sha',
+    canvasOrigin: 'https://canvas.shotgo.cn',
   }, { isInferenceRuntimeReady: () => runtimeReady }, sessions)
   servers.add(server)
   await new Promise<void>((resolve, reject) => {
@@ -49,10 +50,10 @@ describe('production Gateway baseline', () => {
     const readiness = await fetch(`${baseUrl}/readyz`)
 
     expect(health.status).toBe(200)
-    expect(health.headers.get('x-shotgo-protocol-version')).toBe('2026-08-24.2')
+    expect(health.headers.get('x-shotgo-protocol-version')).toBe('2026-08-25.1')
     expect(await health.json()).toEqual({
       service: 'shotgo-agent',
-      protocolVersion: '2026-08-24.2',
+      protocolVersion: '2026-08-25.1',
       deploymentId: 'test-sha',
       status: 'ok',
     })
@@ -84,6 +85,10 @@ describe('production Gateway baseline', () => {
       SHOTGO_DEPLOYMENT_ID: 'sha',
       SHOTGO_LARAVEL_BASE_URL: 'https://api.shotgo.cn',
     })).toThrow('SHOTGO_LARAVEL_RUNTIME_CONFIG_INCOMPLETE')
+    expect(() => readGatewayConfig({
+      SHOTGO_DEPLOYMENT_ID: 'sha',
+      SHOTGO_CANVAS_ORIGIN: 'https://canvas.shotgo.cn/agent',
+    })).toThrow('SHOTGO_CANVAS_ORIGIN_INVALID')
   })
 
   it('keeps deployment templates loopback-only and traffic-disabled', async () => {
@@ -97,6 +102,7 @@ describe('production Gateway baseline', () => {
 
     expect(environment).toContain('SHOTGO_AGENT_HOST=127.0.0.1')
     expect(environment).toContain('SHOTGO_ENABLE_TRAFFIC=false')
+    expect(environment).toContain('SHOTGO_CANVAS_ORIGIN=https://canvas.shotgo.cn')
     expect(nginxBootstrap).toContain('/.well-known/acme-challenge/')
     expect(nginxBootstrap).not.toContain('ssl_certificate')
     expect(nginx).toContain('server 127.0.0.1:3010;')
@@ -190,5 +196,35 @@ describe('production Gateway baseline', () => {
     })
     expect(invalid.status).toBe(422)
     expect(await invalid.json()).toEqual({ code: 'IDEMPOTENCY_KEY_MISMATCH' })
+  })
+
+  it('allows only the configured Canvas origin and answers its preflight', async () => {
+    const sessions: GatewaySessionService = {
+      async submit() { return { runId: 'unused' } },
+      async events() { return (async function* () {})() },
+      async cancel() {},
+      async dispose() {},
+    }
+    const baseUrl = await startGateway(true, true, sessions)
+    const preflight = await fetch(`${baseUrl}/api/agent/v1/sessions/session/messages`, {
+      method: 'OPTIONS',
+      headers: {
+        Origin: 'https://canvas.shotgo.cn',
+        'Access-Control-Request-Method': 'POST',
+        'Access-Control-Request-Headers': 'authorization,content-type,idempotency-key',
+      },
+    })
+    expect(preflight.status).toBe(204)
+    expect(preflight.headers.get('access-control-allow-origin')).toBe('https://canvas.shotgo.cn')
+    expect(preflight.headers.get('access-control-allow-headers')).toContain('Authorization')
+    expect(preflight.headers.get('access-control-expose-headers')).toContain('X-ShotGo-Gateway-Protocol-Version')
+
+    const rejected = await fetch(`${baseUrl}/api/agent/v1/sessions/session/messages`, {
+      method: 'OPTIONS',
+      headers: { Origin: 'https://attacker.example' },
+    })
+    expect(rejected.status).toBe(403)
+    expect(rejected.headers.get('access-control-allow-origin')).toBeNull()
+    expect(await rejected.json()).toEqual({ code: 'ORIGIN_NOT_ALLOWED' })
   })
 })

@@ -6,7 +6,7 @@ Private DeepSeek Harness assembly for ShotGo's Canvas, Image, and Video conversa
 
 Phase 0A is keyless and read-only. It boots a mock inference adapter, calls `generation_config_read`, records the complete Harness Session turn, and returns a deterministic answer. It does not connect to Laravel, call an AIGC supplier, charge credits, submit generation, or mutate a canvas.
 
-Phase 0B freezes the Laravel boundary in [`contracts/`](contracts/README.md). Phase 0B.2 loads the encrypted-at-rest Ark credential and provider endpoint mapping from Laravel into process memory. The browser-facing [Gateway protocol](contracts/gateway/README.md) adds idempotent Session submission, cancellation, and replayable SSE while keeping production admission closed until Laravel can authorize the requested Session and Agent mode.
+Phase 0B freezes the Laravel boundary in [`contracts/`](contracts/README.md). Phase 0B.2 loads the encrypted-at-rest Ark credential and provider endpoint mapping from Laravel into process memory. The Canvas-hosted browser obtains a scoped Grant through its existing Sanctum identity; the browser-facing [Gateway protocol](contracts/gateway/README.md) uses Laravel introspection for idempotent Session submission, cancellation, and replayable SSE.
 
 ## Local smoke
 
@@ -47,7 +47,7 @@ The three Presets have distinct persona text. Within one Preset, the prompt and 
 ## Known Limitations and Deferred Work
 
 - The keyless executable remains a Phase 0A smoke entry; `gateway-bin` is the production process entry.
-- The Gateway server implements Session submission, SSE replay, and cancellation, but `gateway-bin` does not mount them until Laravel supplies an authorizer that validates the Grant's Session, project, and Agent-mode claims.
-- Laravel runtime configuration, inference policy, and metadata usage clients are implemented; handoff exchange and business capability clients remain disconnected.
+- `gateway-bin` mounts the restricted Harness Runtime, trusted mode Presets, Laravel Grant authorizer, Session submission, SSE replay, and cancellation. Production admission remains closed until Laravel implements and accepts Grant issuance and introspection.
+- Laravel runtime configuration, inference policy, metadata usage, and Grant introspection clients are implemented; business capability clients remain disconnected.
 - Billing, generation submission, and canvas mutation stay disabled until both implementations pass contract and integration acceptance.
 - Gateway replay is process-local and bounded to 512 events; restart recovery from the persisted Harness Session log is not yet connected.

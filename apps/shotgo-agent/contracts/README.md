@@ -2,7 +2,7 @@
 
 English | [中文](README.zh.md)
 
-Status: **Phase 0B.2 frozen for implementation** on 2026-08-24. Wire version: `2026-08-24.2`.
+Status: **Phase 0B.3 frozen for implementation** on 2026-08-25. Wire version: `2026-08-25.1`.
 
 This directory is the authority for the Agent Runtime ↔ ShotGo Laravel boundary. `openapi.json` defines HTTP operations; `schemas/laravel-v1.schema.json` defines shared messages; `src/contracts/laravel-v1.ts` mirrors stable runtime types and invariants. Laravel and Agent Runtime changes that affect the wire format must update these artifacts and contract tests together.
 
@@ -10,12 +10,14 @@ This directory is the authority for the Agent Runtime ↔ ShotGo Laravel boundar
 
 Harness calls the Laravel-approved `deepseek-v4-flash` or `deepseek-v4-pro` reasoning model directly through Volcano Ark. Laravel encrypts the provider credential at rest and returns it with both provider endpoint IDs only to the service-authenticated Agent Runtime; the runtime retains the configuration in process memory and never exposes it to a browser, capability grant, session log, or usage report. Before inference the runtime reads an expiring model/budget policy using the user's capability grant, and after inference it reports idempotent metadata-only usage through service authentication. Image, video, audio, and business text generation are not Harness inference calls: model-visible tools submit those operations through Laravel capability endpoints. Laravel remains authoritative for policy, permissions, usage audit, quote expiry, credits, jobs, assets, refunds, and canvas state.
 
-The browser first obtains a single-use handoff ticket from its authenticated Laravel session. Agent Runtime exchanges that ticket using service authentication and receives an opaque, short-lived capability grant. The runtime forwards the grant as a bearer token and never treats locally decoded claims as authority.
+The browser remains on `canvas.shotgo.cn` and uses its existing Sanctum bearer token to request an opaque, short-lived Capability Grant from Laravel. Laravel derives the user and nullable team identity from the authenticated principal, validates the requested space, project, Agent mode, and current inference-model availability, and never accepts `userId` or `teamId` from the browser body. A personal context carries `teamId: null`; it never uses a fabricated team identifier. Personal accounts use the existing enabled inference-model source and the same logical DeepSeek models as team accounts; team contexts additionally apply the existing team authorization filter. The Agent Runtime introspects the opaque Grant through a service-authenticated, no-store endpoint and never treats locally decoded claims as authority.
+
+Laravel returns a stable `authorizationContextId` for one user, nullable team, space, nullable project, Agent mode, and Session binding. The Gateway requires a distinct capability for message submission, event reading, and cancellation, and a refreshed Grant can access a live Session only when Laravel returns the same authorization context.
 
 ## Frozen conventions
 
 - Base path: `/api/agent/v1`; service-authenticated control-plane writes: `/api/internal/agent/v1`.
-- Every response carries `X-ShotGo-Protocol-Version: 2026-08-24.2`.
+- Every response carries `X-ShotGo-Protocol-Version: 2026-08-25.1`.
 - `GET /api/internal/agent/v1/inference-runtime-config` requires service authentication, returns `Cache-Control: no-store`, and fails closed unless the encrypted credential and both distinct provider endpoint IDs are complete.
 - Inference policy is short-lived and fail-closed. Its default model must be present in its allowlist.
 - Inference usage uses `llmRequestId` as `Idempotency-Key` and contains only identifiers, model, timing, status, and token counters. Provider keys, prompts, messages, completions, and raw responses are forbidden.
@@ -34,7 +36,7 @@ Generation states are `draft → creating → queued → processing → complete
 
 ## Endpoint groups
 
-- handoff exchange and capability catalog;
+- Sanctum-authenticated Grant issuance, service-authenticated Grant introspection, and capability catalog;
 - direct-inference policy read and metadata-only usage audit;
 - generation quote, create, status, recovery lookup, and cancel;
 - canvas snapshot and optimistic operation application;

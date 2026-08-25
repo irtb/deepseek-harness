@@ -12,7 +12,9 @@ Harness Loop 已能执行无密钥对话，但浏览器还需要稳定的方式�
 
 Agent Gateway 提供独立于 Laravel 控制面协议的版本化浏览器协议。消息提交必须携带 Capability Grant，以及相互一致的 `Idempotency-Key` 与 `clientRequestId`；接口返回一个稳定 `runId`，并调度一次 Harness Follow-up。重复提交同一 Session 和请求 id 时返回原 Run，不会创建另一个 Turn；Session 活动期间的第二个请求返回 `SESSION_BUSY`。
 
-`HarnessGatewaySessionService` 是围绕公开 Agent Registry 与 Session 服务构建的 Host Plane Adapter。其注入的 `GatewaySessionAuthorizer` 必须请求 Laravel 校验不透明 Grant 和目标 Session id，并返回权威主体、Agent 模式、Provider、Model 与输出上限。Adapter 将活动 Session 绑定到该主体，使用获批路由创建 Agent，把模型可见工作记录到 Harness Session 日志，并拒绝其他主体访问。生产入口在 Laravel 能返回完整授权结果前不挂载 Session 接入；流量与 Readiness 保持关闭，不依赖本地解码的声明，也不把推理策略 Allowlist 误当作完整授权。
+`HarnessGatewaySessionService` 是围绕公开 Agent Registry 与 Session 服务构建的 Host Plane Adapter。其注入的 `GatewaySessionAuthorizer` 请求 Laravel 校验不透明 Grant、目标 Session id 和操作对应能力，并返回权威授权上下文、Agent 模式、Provider、Model 与输出上限。该上下文绑定用户、可为空的团队、空间、可为空的项目、模式与 Session，因此即使是同一用户，活动 Session 也会拒绝其他上下文。生产入口挂载该 Authorizer 与可信 Agent Preset；Laravel 内省或推理配置不可用时，流量与 Readiness 保持关闭，不依赖本地解码的声明，也不把推理策略 Allowlist 误当作完整授权。
+
+Canvas 应用是 Gateway CORS 唯一允许的浏览器 Origin。预检允许 Bearer Authorization 以及内容、幂等和重放 Header，不启用 Cookie 凭据；响应暴露两个协议版本 Header。
 
 Gateway 将 Harness 事件投影为可重放 SSE 帧。每个帧具有进程内单调递增的 Gateway Cursor，同时保留原始 Harness `sessionSeq`；两个计数器永不互相替代。内存保留 512 个事件，通过 `Last-Event-ID` 支持重放；请求的前缀已经不可用时返回 `SSE_CURSOR_EXPIRED`。每个 Run 最终只投影一个 `run.completed`、`run.cancelled` 或 `run.failed` 事件。取消请求中止活动 Harness Turn，但由于取消可能与完成竞争，最终状态仍以终止事件为准。
 
@@ -20,7 +22,7 @@ Gateway 将 Harness 事件投影为可重放 SSE 帧。每个帧具有进程内�
 
 ## 验证
 
-无密钥组合测试挂载真实 ShotGo Runtime，通过 `HarnessGatewaySessionService` 提交消息，并验证 Tool Call、Tool Result、Assistant Message、Run 终止事件、Cursor 重放、重复请求幂等和跨主体拒绝。HTTP 测试固定 `202` 响应、Gateway 版本 Header、SSE Wire 帧、`Last-Event-ID`、流量关闭响应和幂等校验失败。OpenAPI 测试固定提交、流式读取与取消的 Capability 认证，并确保浏览器协议不包含供应商凭据。
+无密钥组合测试挂载真实 ShotGo Runtime，通过 `HarnessGatewaySessionService` 提交消息，并验证 Tool Call、Tool Result、Assistant Message、Run 终止事件、Cursor 重放、重复请求幂等和跨上下文拒绝。HTTP 测试固定 `202` 响应、Gateway 版本 Header、SSE Wire 帧、`Last-Event-ID`、流量关闭响应、严格 Canvas Origin 预检和幂等校验失败。OpenAPI 测试固定提交、流式读取与取消的 Capability 认证，并确保浏览器协议不包含供应商凭据。
 
 ## 曾考虑的替代方案
 
@@ -34,4 +36,4 @@ Gateway 将 Harness 事件投影为可重放 SSE 帧。每个帧具有进程内�
 
 ## 后果
 
-浏览器传输、Harness 执行、重放与取消可以在一个产品自有 Host Plane 接口后演进，无需修改上游 Package。协议增加独立的 Run 与 Cursor 标识，并引入有界重放状态。在 Laravel 实现完整的 Grant-to-Session 授权前，生产 Session 流量保持不可用；进程重启恢复也作为显式后续工作，而不是意外形成的承诺。
+浏览器传输、Harness 执行、重放与取消可以在一个产品自有 Host Plane 接口后演进，无需修改上游 Package。协议增加独立的 Run 与 Cursor 标识，并引入有界重放状态。生产 Session 流量依赖 Laravel Grant 签发和内省验收；进程重启恢复也作为显式后续工作，而不是意外形成的承诺。

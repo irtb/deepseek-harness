@@ -12,7 +12,7 @@ Harness 必须直接调用火山方舟推理端点，避免 Laravel 代理长时
 
 Laravel 是方舟 API Key 以及逻辑模型 `deepseek-v4-flash`、`deepseek-v4-pro` 对应供应商节点 ID 的存储权威。API Key 使用 Laravel 加密模型转换器，供应商节点 ID 作为普通模型配置保存。发布导入器读取工作站部署变量，并通过标准输入写入通用配置；Laravel 应用代码和 Harness 都不识别这些部署变量名。
 
-Wire 版本 `2026-08-24.2` 增加 `GET /api/internal/agent/v1/inference-runtime-config`。该端点只接受 Agent 服务 Bearer Token。成功响应包含 `Cache-Control: no-store`、供应商 Base URL、解密后的 Key、两个不同的供应商节点 ID 和不透明配置版本。数据库配置缺失、禁用、重复、无法解密或不完整时，接口返回可重试的 `INFERENCE_RUNTIME_CONFIG_UNAVAILABLE` Problem，不返回任何部分密钥。
+当前 Laravel Wire 协议包含 `GET /api/internal/agent/v1/inference-runtime-config`。该端点只接受 Agent 服务 Bearer Token。成功响应包含 `Cache-Control: no-store`、供应商 Base URL、解密后的 Key、两个不同的供应商节点 ID 和不透明配置版本。数据库配置缺失、禁用、重复、无法解密或不完整时，接口返回可重试的 `INFERENCE_RUNTIME_CONFIG_UNAVAILABLE` Problem，不返回任何部分密钥。
 
 Agent Runtime 在 HTTP 边界校验响应，只在进程内存保留一份不可变副本，并在任何刷新失败后清除 readiness。`ShotGoArkLlmAdapter` 继续向 Harness 暴露逻辑模型名，同时在方舟请求中发送映射后的供应商节点 ID。凭据和供应商节点 ID 都不会进入浏览器响应、Capability Grant、Harness Session 事件、用量报告、命令参数或应用日志。
 

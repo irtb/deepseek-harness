@@ -34,7 +34,7 @@ interface OpenApiDocument {
 }
 
 interface SchemaDocument {
-  $defs: Record<string, unknown>
+  $defs: Record<string, Record<string, unknown>>
 }
 
 const contractRoot = fileURLToPath(new URL('../contracts/', import.meta.url))
@@ -61,6 +61,7 @@ describe('Laravel Agent Protocol v1', () => {
         '/api/agent/v1/canvases/{canvasId}',
         '/api/agent/v1/canvases/{canvasId}/operations',
         '/api/agent/v1/capabilities',
+        '/api/agent/v1/grants',
         '/api/agent/v1/events',
         '/api/agent/v1/inference-policy',
         '/api/agent/v1/generation-quotes',
@@ -68,11 +69,39 @@ describe('Laravel Agent Protocol v1', () => {
         '/api/agent/v1/generations/by-client-request/{clientRequestId}',
         '/api/agent/v1/generations/{generationId}',
         '/api/agent/v1/generations/{generationId}/cancel',
-        '/api/internal/agent/v1/grants/exchange',
+        '/api/internal/agent/v1/grants/introspect',
         '/api/internal/agent/v1/inference-runtime-config',
         '/api/internal/agent/v1/inference-usage',
       ].sort(),
     )
+  })
+
+  it('issues grants from Sanctum identity and introspects them under service authentication', async () => {
+    const openapi = await readJson<OpenApiDocument>('openapi.json')
+    const create = operation(openapi, '/api/agent/v1/grants', 'post')
+    const introspect = operation(openapi, '/api/internal/agent/v1/grants/introspect', 'post')
+
+    expect(create.security).toContainEqual({ sanctumAuth: [] })
+    expect(create.description).toContain('derived from Sanctum')
+    expect(create.responses['200']?.content?.['application/json']).toBeDefined()
+    expect(introspect.security).toContainEqual({ serviceAuth: [] })
+    expect(introspect.description).toContain('must not be cached')
+    expect(introspect.responses['200']?.content?.['application/json']).toBeDefined()
+    expect(openapi.paths['/api/internal/agent/v1/grants/exchange']).toBeUndefined()
+
+    const schema = await readJson<SchemaDocument>('schemas/laravel-v1.schema.json')
+    const createRequest = schema.$defs.AgentGrantCreateRequest as { properties: Record<string, unknown> }
+    const introspection = schema.$defs.AgentGrantIntrospectionResponse as {
+      properties: Record<string, { $ref?: string }>
+    }
+    expect(createRequest.properties.userId).toBeUndefined()
+    expect(createRequest.properties.teamId).toBeUndefined()
+    expect(createRequest.properties.model).toBeUndefined()
+    expect(introspection.properties.teamId?.$ref).toBe('#/$defs/NullableIntegerId')
+    expect(introspection.properties.inferencePolicy?.$ref).toBe('#/$defs/InferencePolicy')
+    expect(introspection.properties.grantId).toBeUndefined()
+    expect(introspection.properties.provider).toBeUndefined()
+    expect(introspection.properties.model).toBeUndefined()
   })
 
   it('resolves every external schema definition reference', async () => {
