@@ -40,6 +40,19 @@
         }
       }
     },
+    "/api/internal/agent/v1/generation/config": {
+      "post": {
+        "operationId": "readAgentGenerationConfig",
+        "tags": ["Generation"],
+        "description": "Read the Laravel-authoritative generation catalog for one Session and opaque capability grant. The service-authenticated response is read-only and must not be cached.",
+        "security": [{ "serviceAuth": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "./schemas/laravel-v1.schema.json#/$defs/GenerationConfigReadRequest" } } } },
+        "responses": {
+          "200": { "description": "Models visible to the grant subject", "headers": { "X-ShotGo-Protocol-Version": { "$ref": "#/components/headers/ProtocolVersion" } }, "content": { "application/json": { "schema": { "$ref": "./schemas/laravel-v1.schema.json#/$defs/GenerationConfigReadResponse" } } } },
+          "default": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
     "/api/agent/v1/capabilities": {
       "get": {
         "operationId": "readAgentCapabilityCatalog",

@@ -4,6 +4,7 @@ import type {} from '@deepseek-ai/dsh-agent-presets/types'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type { AgentMode, AgentSessionCapability } from './contracts/laravel-v1.ts'
+import type { LaravelGenerationConfigClient } from './laravel/generation-config-client.ts'
 import {
   SHOTGO_GATEWAY_PROTOCOL_VERSION,
   type GatewayStreamEvent,
@@ -52,6 +53,7 @@ interface LiveSession {
   readonly handle: AgentHandle
   readonly events: GatewayStreamEvent[]
   readonly waiters: Set<() => void>
+  readonly capabilityGrant: { current: string }
   nextCursor: number
   activeRunId?: string
   cancelledRunId?: string
@@ -110,6 +112,7 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
       if (presets === undefined) throw new GatewaySessionError('AGENT_PRESETS_UNAVAILABLE', 503)
       await presets.mount(agentCtx, `shotgo-${agentMode}-v1`)
     },
+    private readonly generationConfig?: LaravelGenerationConfigClient,
   ) {
     this.stopSessionEvents = ctx.on('session/event', (session, event) => {
       const live = this.sessions.get(session.id)
@@ -146,10 +149,13 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
     if (existingRunId !== undefined) return { runId: existingRunId }
     if (live?.activeRunId !== undefined) throw new GatewaySessionError('SESSION_BUSY', 409)
 
+    if (live !== undefined) live.capabilityGrant.current = input.capabilityGrant
+
     if (live === undefined) {
       const agents = this.ctx.get('agents')
       if (agents === undefined) throw new GatewaySessionError('HARNESS_RUNTIME_UNAVAILABLE', 503)
       const presetId = `shotgo-${authorization.agentMode}-v1`
+      const capabilityGrant = { current: input.capabilityGrant }
       const handle = await agents.create({
         sessionId: SessionId(input.sessionId),
         meta: { cwd: process.cwd(), agentPreset: presetId },
@@ -158,7 +164,15 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
           model: authorization.model,
           maxTokens: authorization.maxTokens,
         },
-        setup: agentCtx => this.mountAgentPreset(agentCtx, authorization.agentMode),
+        setup: async (agentCtx) => {
+          if (this.generationConfig !== undefined) {
+            agentCtx.provide('shotgoGenerationConfigReader', this.generationConfig.bind({
+              capabilityGrant: () => capabilityGrant.current,
+              sessionId: authorization.sessionId,
+            }))
+          }
+          await this.mountAgentPreset(agentCtx, authorization.agentMode)
+        },
         ...(input.signal === undefined ? {} : { signal: input.signal }),
       })
       await handle.agent.whenIdle()
@@ -173,6 +187,7 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
         handle,
         events: [],
         waiters: new Set(),
+        capabilityGrant,
         nextCursor: 1,
         disposed: false,
       }

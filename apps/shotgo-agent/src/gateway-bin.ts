@@ -6,6 +6,7 @@ import { createGatewayServer, readGatewayConfig } from './gateway.ts'
 import { LaravelCapabilityGrantAuthorizer } from './laravel/capability-grant-authorizer.ts'
 import { InferenceControlPlaneClient } from './laravel/inference-control-plane.ts'
 import { InferenceRuntimeConfigStore } from './laravel/inference-runtime-config.ts'
+import { LaravelGenerationConfigClient } from './laravel/generation-config-client.ts'
 
 const NAME = 'shotgo-agent-gateway'
 const config = readGatewayConfig(process.env)
@@ -39,7 +40,8 @@ try {
   refreshInterval.unref()
 
   const authorizer = new LaravelCapabilityGrantAuthorizer(config.laravel)
-  const sessions = new HarnessGatewaySessionService(runtimeEntry.ctx, authorizer)
+  const generationConfig = new LaravelGenerationConfigClient(config.laravel)
+  const sessions = new HarnessGatewaySessionService(runtimeEntry.ctx, authorizer, undefined, generationConfig)
   const server = createGatewayServer(config, {
     isInferenceRuntimeReady: () => runtimeConfig.isReady(),
   }, sessions)
