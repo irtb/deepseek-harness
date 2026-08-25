@@ -19,6 +19,8 @@ import * as arkLlm from './llm/ark.ts'
 import * as generationConfigRead from './tools/generation-config-read.ts'
 import * as generationQuote from './tools/generation-quote.ts'
 import * as generationSubmit from './tools/generation-submit.ts'
+import * as generationStatus from './tools/generation-status.ts'
+import * as generationCancel from './tools/generation-cancel.ts'
 import * as generationConfirmationGate from './generation-confirmation-gate.ts'
 
 export const name = 'shotgo-agent-runtime'
@@ -46,7 +48,7 @@ export async function apply(ctx: Context): Promise<void> {
     includeHarnessIdentity: false,
     includeRuntimeContext: false,
     persona: 'You are the ShotGo Image Agent. Use only the tools mounted for this session.',
-    toolOrder: ['generation_config_read', 'generation_quote', 'generation_submit', '<unlisted-tools>'],
+    toolOrder: ['generation_config_read', 'generation_quote', 'generation_submit', 'generation_status', 'generation_cancel', '<unlisted-tools>'],
   })
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(ApprovalService, { policy: 'ask' })
@@ -70,6 +72,8 @@ export async function apply(ctx: Context): Promise<void> {
   await ctx.plugin(generationConfigRead)
   await ctx.plugin(generationQuote)
   await ctx.plugin(generationSubmit)
+  await ctx.plugin(generationStatus)
+  await ctx.plugin(generationCancel)
   await ctx.plugin(generationConfirmationGate)
   await ctx.plugin(AgentLoop, {
     agents: [],

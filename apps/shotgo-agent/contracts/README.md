@@ -24,6 +24,7 @@ Laravel returns a stable `authorizationContextId` for one user, nullable team, s
 - Generation configuration returns visible models, safe option constraints, and kind-specific defaults under `parameterSchemaVersion: 1`. Its credit fields are catalog metadata, not a quote or confirmation basis.
 - Generation quote uses the current Capability Grant, performs no business write, and returns integer credits plus a short-lived opaque Quote Envelope. Quote requests do not use mutation context or an idempotency key; generation submission remains idempotent.
 - Generation create sends only trusted mutation context, `quoteId`, and `quoteVersion`. Laravel revalidates the quote and account context, reserves `(user_id, client_request_id)` before charging, dispatches only after commit, and returns `replayed: true` for an identical retry; reuse with a different request returns `IDEMPOTENCY_CONFLICT`.
+- Generation status and recovery lookup are read-only and require the same user, nullable team, authorization context, and Session that created the request. Cancellation uses a deterministic mutation key and one-shot UI approval; queued cancellation refunds, processing cancellation does not assume an upstream refund, and terminal state wins a completion race.
 - Every mutating request carries `Idempotency-Key`, equal to body `context.clientRequestId`.
 - Mutation context contains `sessionId`, `runId`, `actionId`, and `clientRequestId`.
 - Amounts are decimal strings plus ISO 4217 currency; JavaScript numbers are forbidden for money.
@@ -45,4 +46,4 @@ Generation states are `draft → creating → queued → processing → complete
 - canvas snapshot and optimistic operation application;
 - replayable Agent event stream.
 
-Grant, inference, generation configuration, quote, confirmation, and idempotent generation-create slices now have implementations on both sides. Status, cancellation, asset projection, and canvas writes remain acceptance contracts rather than completed capability paths. The removal of `/api/internal/agent/v1/inference/stream` is intentionally incompatible with wire version `2026-08-24`.
+Grant, inference, generation configuration, quote, confirmation, idempotent generation create, status, recovery lookup, and cancellation now have implementations on both sides. Asset projection and canvas writes remain acceptance contracts rather than completed capability paths. The removal of `/api/internal/agent/v1/inference/stream` is intentionally incompatible with wire version `2026-08-24`.

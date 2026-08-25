@@ -16,6 +16,8 @@ Phase 3 增加紧邻 `generation_submit` 执行前的可信确认通道。Harnes
 
 Phase 4 将已批准的 `generation_submit` Tool 接入 Laravel。Gateway 根据 Session 与 opaque Quote 派生稳定幂等 Key，只发送可信写上下文与报价，不接受模型提供用户、团队、价格或供应商字段。Laravel 重新验证 Grant、报价、当前模型配置、余额和冻结的账户上下文，在扣费前先占用现有请求唯一键，只提交一个任务；完全相同的重试安全重放，不会重复扣费或重复调用供应商。
 
+Phase 5 增加权威 `generation_status` 与受审批保护的 `generation_cancel`。二者始终绑定创建任务的用户、可空团队、授权上下文和 Session。取消在行锁下解决与完成的竞争：排队任务会在 Worker 认领前退款；处理中任务只在本地停止，由于供应商可能已经计费，不执行不安全退款；已经终态的任务直接返回已有最终状态。
+
 ## 本地 Smoke
 
 ```sh
@@ -56,6 +58,6 @@ Phase 0A mock 总是请求只读 `generation_config_read` Tool，然后解释其
 
 - 无密钥 executable 仍是 Phase 0A smoke 入口；`gateway-bin` 是生产进程入口。
 - `gateway-bin` 已挂载受限 Harness Runtime、可信模式 Preset、Laravel Grant Authorizer、Session 提交、SSE 重放与取消；Laravel 完成并验收 Grant 签发和内省前，生产接入保持关闭。
-- Laravel 运行时配置、推理策略、元数据用量、Grant 内省、生成配置、只读报价、可信确认和幂等生成提交客户端已经实现；状态、取消、资产投影和画布写入客户端仍未接通。
-- 双方通过契约与集成验收前，生成状态、取消、资产和画布写入保持禁用。
+- Laravel 运行时配置、推理策略、元数据用量、Grant 内省、生成配置、只读报价、可信确认、幂等生成提交、状态、恢复查询和取消客户端已经实现；资产投影和画布写入客户端仍未接通。
+- 双方通过契约与集成验收前，资产投影和画布写入保持禁用。
 - Gateway 重放仅存在于当前进程且最多保留 512 个事件；尚未接通根据持久化 Harness Session 日志进行的重启恢复。

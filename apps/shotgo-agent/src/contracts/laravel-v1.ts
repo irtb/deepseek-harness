@@ -206,6 +206,13 @@ export interface GenerationCreateResponse {
   replayed: boolean
   createdAt: string
   updatedAt: string
+  failureCode?: string
+}
+
+export type GenerationResponse = GenerationCreateResponse
+
+export interface GenerationCancelRequest {
+  context: MutationContext
 }
 
 export interface InferencePolicy {

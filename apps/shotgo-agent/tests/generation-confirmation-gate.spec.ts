@@ -113,4 +113,33 @@ describe('generation confirmation gate', () => {
     expect(result.isError).toBe(false)
     expect(prompted).not.toHaveBeenCalled()
   })
+
+  it('requires one-shot approval before cancellation', async () => {
+    const ctx = await mounted()
+    const execute = vi.fn(() => Promise.resolve('cancelled'))
+    ctx.tools.register(defineTool({
+      name: 'generation_cancel',
+      description: 'test cancellation',
+      parameters: {},
+      output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] },
+      execute,
+    }))
+    let reason = ''
+    ctx.on('approval/request', (request) => {
+      reason = request.reason ?? ''
+      return Promise.resolve<ApprovalOutcome>('allowed-once')
+    })
+
+    const result = await ctx.tools.execute({
+      agent: activeAgent(),
+      callId: CallId('cancel-call'),
+      name: 'generation_cancel',
+      arguments: { generationId: '42' },
+      signal: new AbortController().signal,
+    })
+
+    expect(result.isError).toBe(false)
+    expect(execute).toHaveBeenCalledOnce()
+    expect(reason).toContain('42')
+  })
 })

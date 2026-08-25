@@ -9,6 +9,7 @@ import type { AgentMode, AgentSessionCapability } from './contracts/laravel-v1.t
 import type { LaravelGenerationConfigClient } from './laravel/generation-config-client.ts'
 import type { LaravelGenerationQuoteClient } from './laravel/generation-quote-client.ts'
 import type { LaravelGenerationSubmitClient } from './laravel/generation-submit-client.ts'
+import type { LaravelGenerationLifecycleClient } from './laravel/generation-lifecycle-client.ts'
 import {
   SHOTGO_GATEWAY_PROTOCOL_VERSION,
   type GatewayStreamEvent,
@@ -124,6 +125,7 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
   private readonly stopGenerationConfigReader?: () => void
   private readonly stopGenerationQuoteReader?: () => void
   private readonly stopGenerationSubmitter?: () => void
+  private readonly stopGenerationLifecycle?: () => void
   private disposed = false
 
   constructor(
@@ -137,6 +139,7 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
     generationConfig?: LaravelGenerationConfigClient,
     generationQuote?: LaravelGenerationQuoteClient,
     generationSubmit?: LaravelGenerationSubmitClient,
+    generationLifecycle?: LaravelGenerationLifecycleClient,
   ) {
     if (generationConfig !== undefined) {
       this.stopGenerationConfigReader = ctx.provide('shotgoGenerationConfigReader', {
@@ -193,6 +196,43 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
         },
       })
     }
+    if (generationLifecycle !== undefined) {
+      this.stopGenerationLifecycle = ctx.provide('shotgoGenerationLifecycle', {
+        read: async ({ sessionId, generationId, signal }) => {
+          const live = this.sessions.get(sessionId)
+          if (live === undefined) throw new GatewaySessionError('SESSION_NOT_FOUND', 404)
+          return await generationLifecycle.read({
+            capabilityGrant: live.capabilityGrant.current,
+            generationId,
+            ...(signal === undefined ? {} : { signal }),
+          })
+        },
+        recover: async ({ sessionId, clientRequestId, signal }) => {
+          const live = this.sessions.get(sessionId)
+          if (live === undefined) throw new GatewaySessionError('SESSION_NOT_FOUND', 404)
+          return await generationLifecycle.recover({
+            capabilityGrant: live.capabilityGrant.current,
+            clientRequestId,
+            ...(signal === undefined ? {} : { signal }),
+          })
+        },
+        cancel: async ({ sessionId, actionId, generationId, signal }) => {
+          const live = this.sessions.get(sessionId)
+          if (live === undefined) throw new GatewaySessionError('SESSION_NOT_FOUND', 404)
+          if (live.activeRunId === undefined) throw new GatewaySessionError('RUN_NOT_ACTIVE', 409)
+          const clientRequestId = `cancel-${createHash('sha256')
+            .update(`${sessionId}\0${generationId}`)
+            .digest('hex')
+            .slice(0, 57)}`
+          return await generationLifecycle.cancel({
+            capabilityGrant: live.capabilityGrant.current,
+            generationId,
+            context: { sessionId, runId: live.activeRunId, actionId, clientRequestId },
+            ...(signal === undefined ? {} : { signal }),
+          })
+        },
+      })
+    }
     this.stopSessionEvents = ctx.on('session/event', (session, event) => {
       const live = this.sessions.get(session.id)
       if (live === undefined || live.activeRunId === undefined) return
@@ -218,7 +258,7 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
     })
     if (ctx.get('approval') !== undefined) {
       this.stopApprovalRequests = ctx.on('approval/request', (request, next) => {
-        if (request.toolName !== 'generation_submit') return next()
+        if (!['generation_submit', 'generation_cancel'].includes(request.toolName)) return next()
         if (request.signal?.aborted === true) return Promise.resolve<ApprovalOutcome>('cancelled')
         const live = this.sessions.get(request.agent.session.id)
         if (live === undefined || live.handle.agent !== request.agent || live.activeRunId === undefined) return next()
@@ -424,6 +464,7 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
     this.stopGenerationConfigReader?.()
     this.stopGenerationQuoteReader?.()
     this.stopGenerationSubmitter?.()
+    this.stopGenerationLifecycle?.()
     this.sessions.clear()
     this.resolvedApprovals.clear()
   }

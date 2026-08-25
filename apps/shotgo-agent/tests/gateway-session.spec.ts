@@ -12,6 +12,7 @@ import { HarnessGatewaySessionService } from '../src/gateway-session.ts'
 import { LaravelGenerationConfigClient } from '../src/laravel/generation-config-client.ts'
 import { LaravelGenerationQuoteClient } from '../src/laravel/generation-quote-client.ts'
 import { LaravelGenerationSubmitClient } from '../src/laravel/generation-submit-client.ts'
+import { LaravelGenerationLifecycleClient } from '../src/laravel/generation-lifecycle-client.ts'
 import * as generationConfigRead from '../src/tools/generation-config-read.ts'
 import * as runtime from '../src/runtime.ts'
 
@@ -128,6 +129,7 @@ describe('Gateway to Harness session composition', () => {
     const configRequests: Array<Record<string, unknown>> = []
     const quoteRequests: Array<Record<string, unknown>> = []
     const submitRequests: Array<Record<string, unknown>> = []
+    const lifecycleRequests: Array<Record<string, unknown>> = []
     const generationConfig = new LaravelGenerationConfigClient({
       baseURL: 'https://api.shotgo.cn',
       serviceToken: 'service-token',
@@ -212,6 +214,32 @@ describe('Gateway to Harness session composition', () => {
         } })
       },
     })
+    const generationLifecycle = new LaravelGenerationLifecycleClient({
+      baseURL: 'https://api.shotgo.cn',
+      fetch: async (url, init) => {
+        const headers = new Headers(init?.headers)
+        lifecycleRequests.push({
+          url: url instanceof URL ? url.href : typeof url === 'string' ? url : url.url,
+          method: init?.method,
+          authorization: headers.get('Authorization'),
+          idempotencyKey: headers.get('Idempotency-Key'),
+          body: typeof init?.body === 'string' ? JSON.parse(init.body) as Record<string, unknown> : null,
+        })
+        return new Response(JSON.stringify({
+          protocolVersion: '2026-08-25.1',
+          generationId: 'generation-1',
+          clientRequestId: 'generation-request',
+          operationId: 'generation-1',
+          state: init?.method === 'POST' ? 'cancelled' : 'processing',
+          stage: init?.method === 'POST' ? 'cancelled' : 'processing',
+          credits: 18,
+          userBalance: 82,
+          replayed: false,
+          createdAt: '2026-08-25T20:00:00+08:00',
+          updatedAt: '2026-08-25T20:01:00+08:00',
+        }), { status: 200, headers: { 'X-ShotGo-Protocol-Version': '2026-08-25.1' } })
+      },
+    })
     const service = new HarnessGatewaySessionService(ctx, {
       authorize: async ({ capabilityGrant, sessionId, requiredCapability }) => {
         if (capabilityGrant !== 'grant-a' || sessionId !== 'gateway-keyless-session') throw new Error('denied')
@@ -220,7 +248,7 @@ describe('Gateway to Harness session composition', () => {
       },
     }, async (agentCtx) => {
       generationConfigRead.apply(agentCtx)
-    }, generationConfig, generationQuote, generationSubmit)
+    }, generationConfig, generationQuote, generationSubmit, generationLifecycle)
     cleanup.push(async () => {
       await service.dispose()
       await ctx.fiber.dispose()
@@ -274,6 +302,37 @@ describe('Gateway to Harness session composition', () => {
         },
         quoteId: 'opaque-quote',
         quoteVersion: 1,
+      },
+    }])
+    await expect(ctx.get('shotgoGenerationLifecycle')?.read({
+      sessionId: input.sessionId,
+      generationId: 'generation-1',
+    })).resolves.toMatchObject({ state: 'processing' })
+    await expect(ctx.get('shotgoGenerationLifecycle')?.cancel({
+      sessionId: input.sessionId,
+      actionId: 'generation-cancel-call',
+      generationId: 'generation-1',
+    })).resolves.toMatchObject({ state: 'cancelled' })
+    const cancellationKey = lifecycleRequests[1]?.idempotencyKey
+    expect(cancellationKey).toMatch(/^cancel-[a-f0-9]{57}$/)
+    expect(lifecycleRequests).toEqual([{
+      url: 'https://api.shotgo.cn/api/agent/v1/generations/generation-1',
+      method: 'GET',
+      authorization: 'Bearer grant-a',
+      idempotencyKey: null,
+      body: null,
+    }, {
+      url: 'https://api.shotgo.cn/api/agent/v1/generations/generation-1/cancel',
+      method: 'POST',
+      authorization: 'Bearer grant-a',
+      idempotencyKey: cancellationKey,
+      body: {
+        context: {
+          sessionId: input.sessionId,
+          runId: accepted.runId,
+          actionId: 'generation-cancel-call',
+          clientRequestId: cancellationKey,
+        },
       },
     }])
 

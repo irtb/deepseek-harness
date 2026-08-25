@@ -87,8 +87,10 @@ describe('ShotGo Phase 0A runtime', () => {
           "turn/end",
         ],
         "visibleTools": [
+          "generation_cancel",
           "generation_config_read",
           "generation_quote",
+          "generation_status",
           "generation_submit",
         ],
       }

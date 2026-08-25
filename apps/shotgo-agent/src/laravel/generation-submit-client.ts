@@ -6,8 +6,8 @@ import {
   SHOTGO_PROTOCOL_VERSION,
   type GenerationCreateRequest,
   type GenerationCreateResponse,
-  type GenerationState,
 } from '../contracts/laravel-v1.ts'
+import { isGenerationResponse } from './generation-response.ts'
 
 export interface GenerationSubmitClientOptions {
   baseURL: string
@@ -17,27 +17,6 @@ export interface GenerationSubmitClientOptions {
 export interface BoundGenerationSubmitRequest extends GenerationCreateRequest {
   capabilityGrant: string
   signal?: AbortSignal
-}
-
-const STATES: readonly GenerationState[] = [
-  'draft', 'creating', 'queued', 'processing', 'completed', 'failed', 'cancelled',
-]
-
-function isResponse(value: unknown): value is GenerationCreateResponse {
-  if (value === null || typeof value !== 'object') return false
-  const item = value as Partial<GenerationCreateResponse>
-  return item.protocolVersion === SHOTGO_PROTOCOL_VERSION
-    && typeof item.generationId === 'string'
-    && typeof item.clientRequestId === 'string'
-    && typeof item.operationId === 'string'
-    && typeof item.state === 'string'
-    && STATES.includes(item.state)
-    && typeof item.stage === 'string'
-    && Number.isSafeInteger(item.credits)
-    && Number.isSafeInteger(item.userBalance)
-    && typeof item.replayed === 'boolean'
-    && typeof item.createdAt === 'string'
-    && typeof item.updatedAt === 'string'
 }
 
 export class LaravelGenerationSubmitClient {
@@ -76,7 +55,7 @@ export class LaravelGenerationSubmitClient {
       if (isProtocolProblem(value)) throw new Error(value.code)
       throw new Error(`GENERATION_SUBMIT_HTTP_${response.status}`)
     }
-    if (response.headers.get(SHOTGO_PROTOCOL_HEADER) !== SHOTGO_PROTOCOL_VERSION || !isResponse(value)) {
+    if (response.headers.get(SHOTGO_PROTOCOL_HEADER) !== SHOTGO_PROTOCOL_VERSION || !isGenerationResponse(value)) {
       throw new Error('GENERATION_SUBMIT_PROTOCOL_INVALID')
     }
     return value
