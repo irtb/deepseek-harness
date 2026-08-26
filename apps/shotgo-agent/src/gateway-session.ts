@@ -93,7 +93,7 @@ function abortError(signal: AbortSignal): Error {
   return signal.reason instanceof Error ? signal.reason : new Error('Gateway event stream aborted')
 }
 
-function waitForEvent(session: LiveSession, signal?: AbortSignal): Promise<void> {
+function waitForEvent(session: LiveSession, afterCursor: number, signal?: AbortSignal): Promise<void> {
   if (signal?.aborted === true) return Promise.reject(abortError(signal))
   return new Promise<void>((resolve, reject) => {
     const wake = (): void => {
@@ -107,6 +107,10 @@ function waitForEvent(session: LiveSession, signal?: AbortSignal): Promise<void>
     }
     session.waiters.add(wake)
     signal?.addEventListener('abort', abort, { once: true })
+    // Close the gap between the caller's availability scan and waiter
+    // registration. Without this recheck an event appended in that window has
+    // no waiter to wake, leaving an otherwise live SSE stream blocked forever.
+    if (session.events.some(event => event.cursor > afterCursor)) wake()
   })
 }
 
@@ -237,14 +241,14 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
       const live = this.sessions.get(session.id)
       if (live === undefined || live.activeRunId === undefined) return
       if (event.type === 'approval/asked') {
-        this.append(live, live.activeRunId, 'approval.requested', {
+        this.appendApprovalEventOnce(live, live.activeRunId, 'approval.requested', {
           approvalId: event.data.id,
           toolName: event.data.toolName,
           ...event.data.callId === undefined ? {} : { callId: event.data.callId },
           ...event.data.reason === undefined ? {} : { reason: event.data.reason },
         })
       } else if (event.type === 'approval/decided') {
-        this.append(live, live.activeRunId, 'approval.resolved', {
+        this.appendApprovalEventOnce(live, live.activeRunId, 'approval.resolved', {
           approvalId: event.data.id,
           outcome: event.data.outcome,
         })
@@ -264,6 +268,18 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
         if (live === undefined || live.handle.agent !== request.agent || live.activeRunId === undefined) return next()
         const approvalId = this.findPendingApprovalId(request.agent.session.events, request.callId)
         if (approvalId === undefined) return next()
+        const runId = live.activeRunId
+        // approval/asked and approval/decided are log-only audit records. Some
+        // runtime compositions persist them without publishing them on the
+        // parent session/event firehose, so the owning approval answerer is the
+        // authoritative live UI seam. Keep the session/event listener above as
+        // a compatible fallback and deduplicate both paths by approval id.
+        this.appendApprovalEventOnce(live, runId, 'approval.requested', {
+          approvalId,
+          toolName: request.toolName,
+          ...request.callId === undefined ? {} : { callId: request.callId },
+          ...request.reason === undefined ? {} : { reason: request.reason },
+        })
         return new Promise<ApprovalOutcome>((resolve) => {
           let settled = false
           const onAbort = (): void => {
@@ -275,6 +291,18 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
             request.signal?.removeEventListener('abort', onAbort)
             this.pendingApprovals.delete(approvalId)
             resolve(outcome)
+            setImmediate(() => {
+              if (this.disposed || live.disposed) return
+              const decided = request.agent.session.events.findLast(
+                (event): event is Extract<SessionEvent, { type: 'approval/decided' }> =>
+                  event.type === 'approval/decided' && event.data.id === approvalId,
+              )
+              if (decided === undefined) return
+              this.appendApprovalEventOnce(live, runId, 'approval.resolved', {
+                approvalId,
+                outcome: decided.data.outcome,
+              })
+            })
           }
           this.pendingApprovals.set(approvalId, {
             approvalId,
@@ -394,7 +422,7 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
         yield event
         if (event.type === 'run.completed' || event.type === 'run.cancelled' || event.type === 'run.failed') return
       }
-      await waitForEvent(live, signal)
+      await waitForEvent(live, cursor, signal)
     }
   }
 
@@ -524,6 +552,18 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
     }))
     if (live.events.length > MAX_REPLAY_EVENTS) live.events.splice(0, live.events.length - MAX_REPLAY_EVENTS)
     wakeAll(live)
+  }
+
+  private appendApprovalEventOnce(
+    live: LiveSession,
+    runId: string,
+    type: 'approval.requested' | 'approval.resolved',
+    payload: Record<string, unknown> & { approvalId: ApprovalRequestId },
+  ): void {
+    const duplicate = live.events.some(event =>
+      event.type === type && event.payload['approvalId'] === payload.approvalId,
+    )
+    if (!duplicate) this.append(live, runId, type, payload)
   }
 
   private assertOpen(): void {
