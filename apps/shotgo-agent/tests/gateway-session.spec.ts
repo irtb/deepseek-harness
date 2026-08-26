@@ -93,7 +93,10 @@ describe('Gateway to Harness session composition', () => {
     })).rejects.toMatchObject({ code: 'SESSION_ACCESS_DENIED', status: 403 })
   })
 
-  it('accepts one Grant-bound browser decision for a pending generation approval', async () => {
+  it.each([
+    ['generation_submit', '确认扣除 18 积分'],
+    ['canvas_ops_apply', '确认新增 2 个节点和 1 条连接'],
+  ])('accepts one Grant-bound browser decision for a pending %s approval', async (toolName, reason) => {
     const ctx = new Context()
     await ctx.plugin(ApprovalService)
     const capabilities: string[] = []
@@ -134,9 +137,9 @@ describe('Gateway to Harness session composition', () => {
 
     const decision = ctx.approval.request({
       agent,
-      toolName: 'generation_submit',
-      callId: CallId('generation-submit-call'),
-      reason: '确认扣除 18 积分',
+      toolName,
+      callId: CallId(`${toolName}-call`),
+      reason,
     })
     await Promise.resolve()
     const asked = events.find(event => event.type === 'approval/asked')
@@ -155,9 +158,9 @@ describe('Gateway to Harness session composition', () => {
         runId: 'approval-run',
         payload: {
           approvalId: asked.data.id,
-          toolName: 'generation_submit',
-          callId: 'generation-submit-call',
-          reason: '确认扣除 18 积分',
+          toolName,
+          callId: `${toolName}-call`,
+          reason,
         },
       },
     })
