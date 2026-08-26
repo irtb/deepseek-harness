@@ -113,7 +113,7 @@ describe('Gateway to Harness session composition', () => {
     })
 
     await service.respondToApproval({
-      capabilityGrant: 'approval-grant',
+      capabilityGrant: 'approval-grant-refreshed',
       sessionId: 'approval-session',
       approvalId: asked.data.id,
       outcome: 'allowed-once',
@@ -142,6 +142,7 @@ describe('Gateway to Harness session composition', () => {
       approvalId: asked.data.id,
       outcome: 'rejected',
     })).rejects.toMatchObject({ code: 'APPROVAL_ALREADY_RESOLVED', status: 409 })
+    expect(live.capabilityGrant.current).toBe('approval-grant-refreshed')
     expect(capabilities).toEqual([
       'agent.session.events.read',
       'agent.session.approval.respond',
