@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { SHOTGO_MOCK_MODEL, SHOTGO_MOCK_PROVIDER, ShotGoMockLlmAdapter } from '../src/llm/mock.ts'
-import { HarnessGatewaySessionService } from '../src/gateway-session.ts'
+import { HarnessGatewaySessionService, shouldForwardSessionEvent } from '../src/gateway-session.ts'
 import { LaravelGenerationConfigClient } from '../src/laravel/generation-config-client.ts'
 import { LaravelGenerationQuoteClient } from '../src/laravel/generation-quote-client.ts'
 import { LaravelGenerationSubmitClient } from '../src/laravel/generation-submit-client.ts'
@@ -43,6 +43,40 @@ afterEach(async () => {
 })
 
 describe('Gateway to Harness session composition', () => {
+  it('does not let low-level tool argument chunks evict UI approvals from the replay window', () => {
+    const toolChunk = {
+      type: 'tool-call-chunks',
+      data: { id: 'call-1', name: 'generation_submit', args: ['encrypted-fragment'] },
+    } as unknown as SessionEvent
+    const reasoningChunk = {
+      type: 'assistant/chunk',
+      data: { chunk: { type: 'reasoning-delta', text: 'private reasoning' } },
+    } as unknown as SessionEvent
+    const textChunk = {
+      type: 'assistant/chunk',
+      data: { chunk: { type: 'text-delta', text: '可见回复' } },
+    } as unknown as SessionEvent
+    const toolCall = {
+      type: 'tool/call',
+      data: { callId: 'call-1', name: 'generation_submit', arguments: '{}' },
+    } as unknown as SessionEvent
+    const assistantMessage = {
+      type: 'assistant/message',
+      data: { message: { role: 'assistant', content: [] } },
+    } as unknown as SessionEvent
+    const toolResult = {
+      type: 'tool/result',
+      data: { message: { source: { kind: 'tool', callId: 'call-1' }, content: [] } },
+    } as unknown as SessionEvent
+
+    expect(shouldForwardSessionEvent(toolChunk)).toBe(false)
+    expect(shouldForwardSessionEvent(reasoningChunk)).toBe(false)
+    expect(shouldForwardSessionEvent(textChunk)).toBe(true)
+    expect(shouldForwardSessionEvent(assistantMessage)).toBe(true)
+    expect(shouldForwardSessionEvent(toolCall)).toBe(true)
+    expect(shouldForwardSessionEvent(toolResult)).toBe(true)
+  })
+
   it('cold-resumes a bound session with a new stream epoch and rejects a changed authorization scope', async () => {
     const root = await mkdtemp(join(tmpdir(), 'shotgo-gateway-recovery-'))
     const previousRoot = process.env.SHOTGO_AGENT_SESSION_ROOT
