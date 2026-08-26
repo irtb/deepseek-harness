@@ -22,6 +22,8 @@
 
 服务器切换期间不得现场执行 `pnpm install`、GitHub 下载或源码构建。本地或 CI 对已评审提交完成构建与测试后，执行 `pnpm --filter @shotgo/agent-runtime run build:release`，生成 `.artifacts/shotgo-agent-<git-sha>.tar.gz` 及 SHA-256 文件；发布包包含 Gateway 产物和生产依赖闭包，再通过现有 SSH 通道传输。将通过校验和验证的 Node 发行包安装到 `/opt`，并让 `/opt/node-current` 指向已验收版本；新二进制的版本和校验和验证通过前不得替换该链接。这样发布结果不会依赖易受 GFW 影响的海外仓库可用性。
 
+发布构建会把每个 preset 的工具引用从 TypeScript 源码路径改写为已编译的 `dist/tools/*.js` 模块。任何 preset 仍引用 `src/`、缺少必需的编译后生成工具，或 Canvas、Image、Video 任一 preset 缺少生成工具时，打包都必须关闭式失败。仅通过 `/healthz`、但无法挂载真实 Agent 会话的发布包不得上线。
+
 ## 安全顺序
 
 1. 功能分支测试通过后合并到 `master`，再将完全相同的已评审提交提升到 `release`，不得从其他工作树重新构建。

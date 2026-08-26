@@ -22,6 +22,8 @@ Verified on 2026-08-24: the Beijing Volcano ECS runs Ubuntu 24.04, Nginx 1.24, C
 
 Do not run `pnpm install`, GitHub downloads, or a source build as part of the server cutover. Build and test the reviewed commit locally or in CI with `pnpm --filter @shotgo/agent-runtime run build:release`. The command creates `.artifacts/shotgo-agent-<git-sha>.tar.gz` plus its SHA-256 file and includes the Gateway output and production dependency closure for transfer over the existing SSH path. Install a checksum-verified Node distribution under `/opt` and point `/opt/node-current` at the accepted version; do not replace it until the new binary passes its version and checksum checks. This keeps releases repeatable without coupling availability to GFW-sensitive registries.
 
+The release build rewrites every preset tool reference from TypeScript source paths to compiled `dist/tools/*.js` modules. Packaging fails closed if any preset still references `src/`, if a required compiled generation tool is absent, or if any Canvas/Image/Video preset omits one of the generation tools. A package that only passes `/healthz` but cannot mount a real Agent session is not releasable.
+
 ## Safe order
 
 1. Merge a tested feature branch into `master`; promote the exact reviewed commit to `release` without rebuilding from a different checkout.

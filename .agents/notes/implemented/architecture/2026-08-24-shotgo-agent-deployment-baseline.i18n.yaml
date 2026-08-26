@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-24-shotgo-agent-deployment-baseline.md
-2026-08-24-shotgo-agent-deployment-baseline.md: 45050eed29c0d415fcb56f003a84cdb884b32444
-2026-08-24-shotgo-agent-deployment-baseline.zh.md: 0d5306acbafeb9d3cb1be79cc21d64a6f88f1214
+2026-08-24-shotgo-agent-deployment-baseline.md: 69a2319e6176e6612def6be2cf192c1b3aebd20d
+2026-08-24-shotgo-agent-deployment-baseline.zh.md: ec945fd5afe0629b074d8ee92479ab1b3b9c44d3
