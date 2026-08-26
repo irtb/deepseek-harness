@@ -33,7 +33,7 @@ export interface GatewaySessionApprovalResponse {
 
 /** Host adapter used by the HTTP Gateway without importing a Harness implementation. */
 export interface GatewaySessionService {
-  submit(input: GatewaySessionSubmit): Promise<{ runId: string }>
+  submit(input: GatewaySessionSubmit): Promise<{ runId: string; streamEpoch: string }>
   events(input: GatewaySessionAccess): Promise<AsyncIterable<GatewayStreamEvent>>
   respondToApproval(input: GatewaySessionApprovalResponse): Promise<void>
   cancel(input: GatewaySessionCancel): Promise<void>

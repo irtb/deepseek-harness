@@ -52,6 +52,7 @@ export interface GatewayRunAccepted {
   protocolVersion: ShotGoGatewayProtocolVersion
   sessionId: string
   runId: string
+  streamEpoch: string
   streamUrl: string
 }
 
@@ -62,6 +63,7 @@ export interface GatewayApprovalResponse {
 export interface GatewayStreamEvent {
   protocolVersion: typeof SHOTGO_GATEWAY_PROTOCOL_VERSION
   cursor: number
+  streamEpoch: string
   sessionId: string
   runId: string
   agentMode: AgentMode

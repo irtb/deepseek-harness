@@ -120,6 +120,7 @@ describe('production Gateway baseline', () => {
     const streamEvent: GatewayStreamEvent = {
       protocolVersion: '2026-08-26.2',
       cursor: 7,
+      streamEpoch: 'epoch-http',
       sessionId: 'session-http',
       runId: 'run-http',
       agentMode: 'image',
@@ -135,7 +136,7 @@ describe('production Gateway baseline', () => {
           text: input.text,
           generationContext: input.generationContext,
         })
-        return { runId: 'run-http' }
+        return { runId: 'run-http', streamEpoch: 'epoch-http' }
       },
       async events(input) {
         expect(input.afterCursor).toBe(6)
@@ -177,6 +178,7 @@ describe('production Gateway baseline', () => {
       protocolVersion: '2026-08-26.2',
       sessionId: 'session-http',
       runId: 'run-http',
+      streamEpoch: 'epoch-http',
       streamUrl: '/api/agent/v1/sessions/session-http/events',
     })
     expect(submitted).toEqual([{
@@ -416,7 +418,7 @@ describe('production Gateway baseline', () => {
 
   it('allows only the configured Canvas origin and answers its preflight', async () => {
     const sessions: GatewaySessionService = {
-      async submit() { return { runId: 'unused' } },
+      async submit() { return { runId: 'unused', streamEpoch: 'epoch-unused' } },
       async events() { return (async function* () {})() },
       async respondToApproval() {},
       async cancel() {},

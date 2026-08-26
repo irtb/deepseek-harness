@@ -1,5 +1,5 @@
 import { Context } from '@deepseek-ai/cordis'
-import type { Agent } from '@deepseek-ai/dsh-agent'
+import type { Agent, AgentHandle } from '@deepseek-ai/dsh-agent'
 import { CallId, type GenerateOptions, type LlmResolvedModelInfo, type StreamChunk } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import ApprovalService from '@deepseek-ai/dsh-user-approval'
@@ -43,6 +43,56 @@ afterEach(async () => {
 })
 
 describe('Gateway to Harness session composition', () => {
+  it('cold-resumes a bound session with a new stream epoch and rejects a changed authorization scope', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'shotgo-gateway-recovery-'))
+    const previousRoot = process.env.SHOTGO_AGENT_SESSION_ROOT
+    process.env.SHOTGO_AGENT_SESSION_ROOT = root
+    const ctx = new Context()
+    await ctx.plugin(runtime)
+    const authorize = async ({ capabilityGrant, sessionId }: { capabilityGrant: string; sessionId: string }) => ({
+      ...authorization('recovery-context'),
+      sessionId,
+      projectId: capabilityGrant === 'other-scope' ? 'project:other' : 'project:1',
+    })
+    const first = new HarnessGatewaySessionService(ctx, { authorize }, mountTestPreset)
+    const initial = await first.submit({
+      capabilityGrant: 'grant-a',
+      sessionId: 'recovery-session',
+      clientRequestId: 'recovery-request-1',
+      text: 'first turn',
+    })
+    for await (const _event of await first.events({
+      capabilityGrant: 'grant-a',
+      sessionId: 'recovery-session',
+      afterCursor: 0,
+    })) { /* drain the completed turn */ }
+    await first.dispose()
+
+    const resumed = new HarnessGatewaySessionService(ctx, { authorize }, mountTestPreset)
+    cleanup.push(async () => {
+      await resumed.dispose()
+      await ctx.fiber.dispose()
+      if (previousRoot === undefined) delete process.env.SHOTGO_AGENT_SESSION_ROOT
+      else process.env.SHOTGO_AGENT_SESSION_ROOT = previousRoot
+      await rm(root, { recursive: true, force: true })
+    })
+    const next = await resumed.submit({
+      capabilityGrant: 'grant-a',
+      sessionId: 'recovery-session',
+      clientRequestId: 'recovery-request-2',
+      text: 'second turn',
+    })
+    expect(next.streamEpoch).not.toBe(initial.streamEpoch)
+    const live = (resumed as unknown as { sessions: Map<string, { handle: AgentHandle }> })
+      .sessions.get('recovery-session')
+    expect(live?.handle.agent.session.events.filter(event => event.type === 'user/message')).toHaveLength(2)
+    await expect(resumed.events({
+      capabilityGrant: 'other-scope',
+      sessionId: 'recovery-session',
+      afterCursor: 0,
+    })).rejects.toMatchObject({ code: 'SESSION_ACCESS_DENIED', status: 403 })
+  })
+
   it('accepts one Grant-bound browser decision for a pending generation approval', async () => {
     const ctx = new Context()
     await ctx.plugin(ApprovalService)

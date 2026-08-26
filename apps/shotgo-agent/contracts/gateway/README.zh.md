@@ -20,8 +20,8 @@
 
 ## SSE 重放与取消
 
-`GET /api/agent/v1/sessions/{sessionId}/events` 按顺序发送事件帧。SSE `id` 是 Gateway Session 内单调递增的 Cursor，不等同于 Harness `sessionSeq`、Laravel 项目事件序列、画布版本或业务幂等键。`Last-Event-ID` 从客户端最后处理的 Cursor 之后恢复。进程内重放窗口保留 512 个事件；Cursor 早于窗口时返回 `SSE_CURSOR_EXPIRED`，不会静默跳过数据。
+`GET /api/agent/v1/sessions/{sessionId}/events` 按顺序发送事件帧。每个受理 Run 和事件都携带当前 Session 在线实例化的随机 `streamEpoch`。SSE `id` 是该 epoch 内单调递增的 Cursor，不等同于 Harness `sessionSeq`、Laravel 项目事件序列、画布版本或业务幂等键。新受理 Run 报告不同 epoch 时，Canvas 会重置 cursor。`Last-Event-ID` 在同一 epoch 内从客户端最后处理的 Cursor 之后恢复。进程内重放窗口保留 512 个事件；Cursor 早于窗口时返回 `SSE_CURSOR_EXPIRED`，不会静默跳过数据。
 
 每个 Harness Session 事件封装为 `session.event`，并保留原始 `sessionSeq`。`run.completed`、`run.cancelled` 或 `run.failed` 之一结束当前 Run 的事件流。`DELETE /api/agent/v1/sessions/{sessionId}/runs/{runId}` 只请求取消；其 `202` 响应不是最终结果，因为取消可能与完成竞争。Harness Run 的终态以 SSE 终止帧为准；Tool 已提交的业务生成仍以 Laravel 状态为准。
 
-Session 持久化保存权威的 Harness 日志。Gateway 重放仅是进程内投递状态；生产恢复适配器必须在跨进程重启后依据持久化 Session 事件重建 Cursor 投影，才能开放 Readiness。
+Session 持久化保存权威的 Harness 日志。日志旁的带版本、模型不可见绑定会记录授权作用域、Agent 模式、preset 和 runtime 版本，但不保存 Grant 或凭据。新的 Laravel 授权与绑定完全一致后，Gateway 会通过 `agents.resume()` 冷恢复并开启新的 stream epoch。中断的推理与审批会被关闭而不是继续，下一条用户消息开始新的 Run。Gateway 重放仍是单个 epoch 内的进程内投递状态。

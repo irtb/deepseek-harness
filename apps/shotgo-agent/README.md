@@ -22,6 +22,8 @@ Phase 6 adds stable asset results to completed generation status. Laravel return
 
 Phase 4A uses Gateway protocol `2026-08-26.2` for structured generation intent. Image contexts may include up to nine unique ordered `parameters.referenceAssets`, each containing only a positive `mediaLibraryItemId`; video references, raw URLs, paths, names, bytes, and additional fields are rejected. The Gateway records the UI selection in the Harness Session and replaces model-supplied quote options with it while preserving the Agent's final prompt. Laravel resolves media ownership and execution paths and remains authoritative for validation, pricing, charging, refunds, and idempotency; the model-facing quote tool exposes no reference field. Rolling deployment is Agent, API, then Canvas: explicit Gateway `2026-08-26.1` scalar clients and undeclared `2026-08-25.1` legacy clients remain supported, while Laravel requests declare `2026-08-26.1` and accept `2026-08-25.1` responses during the bounded transition.
 
+Phase 4B cold-resumes a persisted Session only after a fresh Laravel Grant exactly matches the model-invisible Gateway recovery binding for user, team, space, project, mode, preset, and runtime version. The binding is stored atomically beside the Harness log and never contains a Grant or credential. Every live materialization has a new `streamEpoch`, so Canvas resets a stale process-local cursor after restart. Interrupted inference and approvals are closed rather than resumed; the next user message starts a new Run.
+
 ## Local smoke
 
 ```sh
@@ -64,4 +66,4 @@ The three Presets have distinct persona text. Within one Preset, the prompt and 
 - `gateway-bin` mounts the restricted Harness Runtime, trusted mode Presets, Laravel Grant authorizer, Session submission, SSE replay, and cancellation. Production admission remains closed until Laravel implements and accepts Grant issuance and introspection.
 - Laravel runtime configuration, inference policy, metadata usage, Grant introspection, generation configuration, read-only quote, trusted confirmation, idempotent generation submission, status, recovery lookup, and cancellation clients are implemented. Asset projection and canvas mutation clients remain disconnected.
 - Asset projection and canvas mutation stay disabled until both implementations pass contract and integration acceptance.
-- Gateway replay is process-local and bounded to 512 events; restart recovery from the persisted Harness Session log is not yet connected.
+- Gateway SSE replay remains process-local and bounded to 512 events. Cold recovery restores completed Harness history for the next Run, but does not provide cross-device Session discovery, multi-instance coordination, or unfinished-Run replay.

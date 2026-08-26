@@ -22,6 +22,8 @@ Phase 6 为已完成任务的状态结果增加稳定资产描述。Laravel 只�
 
 Phase 4A 使用 Gateway 协议 `2026-08-26.2` 传递结构化生成意图。图片上下文可以包含最多九个有序且不重复的 `parameters.referenceAssets`，每项只含正整数 `mediaLibraryItemId`；视频引用、原始 URL、路径、名称、字节和额外字段均被拒绝。Gateway 把 UI 选择写入 Harness Session，并用该选择替换模型提供的报价选项，同时保留 Agent 整理后的最终提示词。Laravel 解析素材归属与执行路径，并继续独占校验、定价、扣分、退款和幂等；模型可见的报价 Tool 不暴露引用字段。滚动发布顺序为 Agent、API、Canvas：明确声明 Gateway `2026-08-26.1` 的标量客户端与未声明版本的 `2026-08-25.1` 旧客户端保持兼容；Laravel 请求声明 `2026-08-26.1`，并在受限过渡期接受 `2026-08-25.1` 响应。
 
+Phase 4B 只会在新 Laravel Grant 与模型不可见的 Gateway 恢复绑定中的用户、团队、空间、项目、模式、preset 和 runtime 版本完全一致时冷恢复持久 Session。绑定原子写入 Harness 日志旁，绝不包含 Grant 或凭据。每次在线实例化都有新的 `streamEpoch`，Canvas 因此会在重启后重置陈旧的进程内 cursor。中断的推理与审批会被关闭而不是恢复，下一条用户消息开始新的 Run。
+
 ## 本地 Smoke
 
 ```sh
@@ -64,4 +66,4 @@ Phase 0A mock 总是请求只读 `generation_config_read` Tool，然后解释其
 - `gateway-bin` 已挂载受限 Harness Runtime、可信模式 Preset、Laravel Grant Authorizer、Session 提交、SSE 重放与取消；Laravel 完成并验收 Grant 签发和内省前，生产接入保持关闭。
 - Laravel 运行时配置、推理策略、元数据用量、Grant 内省、生成配置、只读报价、可信确认、幂等生成提交、状态、恢复查询和取消客户端已经实现；资产投影和画布写入客户端仍未接通。
 - 双方通过契约与集成验收前，资产投影和画布写入保持禁用。
-- Gateway 重放仅存在于当前进程且最多保留 512 个事件；尚未接通根据持久化 Harness Session 日志进行的重启恢复。
+- Gateway SSE 重放仍只存在于当前进程且最多保留 512 个事件。冷恢复会为下一轮恢复已完成的 Harness 历史，但不提供跨设备 Session 发现、多实例协调或未完成 Run 重放。

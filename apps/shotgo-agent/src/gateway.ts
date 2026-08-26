@@ -305,6 +305,7 @@ async function handleSessionRequest(
       protocolVersion: gatewayProtocolVersion,
       sessionId: route.sessionId,
       runId: result.runId,
+      streamEpoch: result.streamEpoch,
       streamUrl: `/api/agent/v1/sessions/${encodeURIComponent(route.sessionId)}/events`,
     }
     sendJson(response, 202, accepted, gatewayProtocolVersion)

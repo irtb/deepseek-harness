@@ -194,11 +194,12 @@
       "RunAccepted": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["protocolVersion", "sessionId", "runId", "streamUrl"],
+        "required": ["protocolVersion", "sessionId", "runId", "streamEpoch", "streamUrl"],
         "properties": {
           "protocolVersion": { "enum": ["2026-08-26.2", "2026-08-26.1", "2026-08-25.1"] },
           "sessionId": { "type": "string" },
           "runId": { "type": "string", "format": "uuid" },
+          "streamEpoch": { "type": "string", "format": "uuid" },
           "streamUrl": { "type": "string" }
         }
       },

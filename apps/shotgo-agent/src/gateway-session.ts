@@ -1,5 +1,5 @@
 import type { Context } from '@deepseek-ai/cordis'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import type { AgentHandle } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-presets/types'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
@@ -16,6 +16,13 @@ import {
   type GatewayStreamEvent,
 } from './contracts/gateway-v1.ts'
 import { GatewaySessionError } from './gateway-errors.ts'
+import {
+  GatewayRecoveryStore,
+  SHOTGO_GATEWAY_RECOVERY_VERSION,
+  SHOTGO_GATEWAY_RUNTIME_VERSION,
+  type GatewayRecoveryBinding,
+} from './gateway-recovery-store.ts'
+import { resolveSessionRoot } from './runtime.ts'
 import type {
   GatewaySessionAccess,
   GatewaySessionApprovalResponse,
@@ -61,6 +68,7 @@ interface LiveSession {
   readonly events: GatewayStreamEvent[]
   readonly waiters: Set<() => void>
   readonly capabilityGrant: { current: string }
+  readonly streamEpoch: string
   nextCursor: number
   activeRunId?: string
   activeGenerationContext?: GatewayGenerationContext
@@ -155,6 +163,7 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
     generationQuote?: LaravelGenerationQuoteClient,
     generationSubmit?: LaravelGenerationSubmitClient,
     generationLifecycle?: LaravelGenerationLifecycleClient,
+    private readonly recoveryStore = new GatewayRecoveryStore(`${resolveSessionRoot()}/.gateway`),
   ) {
     if (generationConfig !== undefined) {
       this.stopGenerationConfigReader = ctx.provide('shotgoGenerationConfigReader', {
@@ -336,7 +345,7 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
     }
   }
 
-  async submit(input: GatewaySessionSubmit): Promise<{ runId: string }> {
+  async submit(input: GatewaySessionSubmit): Promise<{ runId: string; streamEpoch: string }> {
     this.assertOpen()
     const authorization = await this.authorizer.authorize({
       capabilityGrant: input.capabilityGrant,
@@ -350,8 +359,11 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
   private async submitAuthorized(
     input: GatewaySessionSubmit,
     authorization: AuthorizedGatewaySession,
-  ): Promise<{ runId: string }> {
+  ): Promise<{ runId: string; streamEpoch: string }> {
     let live = this.sessions.get(input.sessionId)
+    if (live === undefined) {
+      live = await this.resumeAuthorized(input.capabilityGrant, authorization, input.signal)
+    }
     if (live !== undefined && !hasSameAuthorizationContext(live, authorization)) {
       throw new GatewaySessionError('SESSION_ACCESS_DENIED', 403)
     }
@@ -364,7 +376,8 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
       if (existingRequest.fingerprint !== requestFingerprint) {
         throw new GatewaySessionError('IDEMPOTENCY_CONFLICT', 409)
       }
-      return { runId: existingRequest.runId }
+      if (live === undefined) throw new GatewaySessionError('SESSION_NOT_FOUND', 404)
+      return { runId: existingRequest.runId, streamEpoch: live.streamEpoch }
     }
     if (live?.activeRunId !== undefined) throw new GatewaySessionError('SESSION_BUSY', 409)
     if (input.generationContext !== undefined && input.generationContext.kind !== authorization.agentMode) {
@@ -392,6 +405,25 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
         ...(input.signal === undefined ? {} : { signal: input.signal }),
       })
       await handle.agent.whenIdle()
+      const binding: GatewayRecoveryBinding = {
+        version: SHOTGO_GATEWAY_RECOVERY_VERSION,
+        runtimeVersion: SHOTGO_GATEWAY_RUNTIME_VERSION,
+        sessionId: authorization.sessionId,
+        authorizationContextId: authorization.authorizationContextId,
+        userId: authorization.userId,
+        teamId: authorization.teamId,
+        spaceId: authorization.spaceId,
+        projectId: authorization.projectId,
+        agentMode: authorization.agentMode,
+        presetId,
+        createdAt: new Date().toISOString(),
+      }
+      try {
+        await this.recoveryStore.write(binding)
+      } catch (error) {
+        await handle.dispose()
+        throw new GatewaySessionError('SESSION_RECOVERY_BINDING_WRITE_FAILED', 503, error instanceof Error ? error.message : undefined)
+      }
       live = {
         authorizationContextId: authorization.authorizationContextId,
         userId: authorization.userId,
@@ -404,6 +436,7 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
         events: [],
         waiters: new Set(),
         capabilityGrant,
+        streamEpoch: randomUUID(),
         nextCursor: 1,
         disposed: false,
       }
@@ -424,7 +457,67 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
       source: { kind: 'user' },
     }))
     void this.settle(live, runId)
-    return { runId }
+    return { runId, streamEpoch: live.streamEpoch }
+  }
+
+  private async resumeAuthorized(
+    capabilityGrant: string,
+    authorization: AuthorizedGatewaySession,
+    signal?: AbortSignal,
+  ): Promise<LiveSession | undefined> {
+    let binding: GatewayRecoveryBinding | undefined
+    try {
+      binding = await this.recoveryStore.read(authorization.sessionId)
+    } catch {
+      throw new GatewaySessionError('SESSION_RECOVERY_BINDING_INVALID', 409)
+    }
+    if (binding === undefined) return undefined
+    if (
+      binding.runtimeVersion !== SHOTGO_GATEWAY_RUNTIME_VERSION
+      || binding.presetId !== `shotgo-${authorization.agentMode}-v1`
+      || binding.authorizationContextId !== authorization.authorizationContextId
+      || binding.userId !== authorization.userId
+      || binding.teamId !== authorization.teamId
+      || binding.spaceId !== authorization.spaceId
+      || binding.projectId !== authorization.projectId
+      || binding.agentMode !== authorization.agentMode
+    ) throw new GatewaySessionError('SESSION_ACCESS_DENIED', 403)
+    const agents = this.ctx.get('agents')
+    if (agents === undefined) throw new GatewaySessionError('HARNESS_RUNTIME_UNAVAILABLE', 503)
+    let handle: AgentHandle
+    try {
+      handle = await agents.resume({
+        resumeSessionId: SessionId(authorization.sessionId),
+        agentOptions: {
+          provider: authorization.provider,
+          model: authorization.model,
+          maxTokens: authorization.maxTokens,
+        },
+        setup: async agentCtx => await this.mountAgentPreset(agentCtx, authorization.agentMode),
+        ...(signal === undefined ? {} : { signal }),
+      })
+    } catch (error) {
+      throw new GatewaySessionError('SESSION_RECOVERY_FAILED', 409, error instanceof Error ? error.message : undefined)
+    }
+    await handle.agent.whenIdle()
+    const live: LiveSession = {
+      authorizationContextId: authorization.authorizationContextId,
+      userId: authorization.userId,
+      teamId: authorization.teamId,
+      spaceId: authorization.spaceId,
+      projectId: authorization.projectId,
+      sessionId: authorization.sessionId,
+      agentMode: authorization.agentMode,
+      handle,
+      events: [],
+      waiters: new Set(),
+      capabilityGrant: { current: capabilityGrant },
+      streamEpoch: randomUUID(),
+      nextCursor: 1,
+      disposed: false,
+    }
+    this.sessions.set(authorization.sessionId, live)
+    return live
   }
 
   async events(input: GatewaySessionAccess): Promise<AsyncIterable<GatewayStreamEvent>> {
@@ -435,7 +528,10 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
       requiredCapability: 'agent.session.events.read',
       ...(input.signal === undefined ? {} : { signal: input.signal }),
     })
-    const live = this.sessions.get(input.sessionId)
+    const live = await this.withAdmission(input.sessionId, async () =>
+      this.sessions.get(input.sessionId)
+      ?? await this.resumeAuthorized(input.capabilityGrant, authorization, input.signal),
+    )
     if (live === undefined) throw new GatewaySessionError('SESSION_NOT_FOUND', 404)
     if (!hasSameAuthorizationContext(live, authorization)) {
       throw new GatewaySessionError('SESSION_ACCESS_DENIED', 403)
@@ -471,7 +567,10 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
       requiredCapability: 'agent.session.cancel',
       ...(input.signal === undefined ? {} : { signal: input.signal }),
     })
-    const live = this.sessions.get(input.sessionId)
+    const live = await this.withAdmission(input.sessionId, async () =>
+      this.sessions.get(input.sessionId)
+      ?? await this.resumeAuthorized(input.capabilityGrant, authorization, input.signal),
+    )
     if (live === undefined) throw new GatewaySessionError('SESSION_NOT_FOUND', 404)
     if (!hasSameAuthorizationContext(live, authorization)) {
       throw new GatewaySessionError('SESSION_ACCESS_DENIED', 403)
@@ -489,7 +588,10 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
       requiredCapability: 'agent.session.approval.respond',
       ...(input.signal === undefined ? {} : { signal: input.signal }),
     })
-    const live = this.sessions.get(input.sessionId)
+    const live = await this.withAdmission(input.sessionId, async () =>
+      this.sessions.get(input.sessionId)
+      ?? await this.resumeAuthorized(input.capabilityGrant, authorization, input.signal),
+    )
     if (live === undefined) throw new GatewaySessionError('SESSION_NOT_FOUND', 404)
     if (!hasSameAuthorizationContext(live, authorization)) {
       throw new GatewaySessionError('SESSION_ACCESS_DENIED', 403)
@@ -588,6 +690,7 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
     live.events.push(Object.freeze({
       protocolVersion: SHOTGO_GATEWAY_PROTOCOL_VERSION,
       cursor: live.nextCursor++,
+      streamEpoch: live.streamEpoch,
       sessionId: live.handle.agent.session.id,
       runId,
       agentMode: live.agentMode,
