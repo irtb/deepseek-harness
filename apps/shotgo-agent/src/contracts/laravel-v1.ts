@@ -131,7 +131,6 @@ export interface ImageGenerationParameters {
   qualities: GenerationOption[]
   resolutions: GenerationOption[]
   aspectRatios: GenerationOption[]
-  multiples: GenerationOption[]
 }
 
 export interface VideoGenerationParameters {

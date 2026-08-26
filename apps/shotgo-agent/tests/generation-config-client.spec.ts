@@ -18,7 +18,6 @@ function config(overrides: Record<string, unknown> = {}): Record<string, unknown
       qualities: [{ id: 'standard', label: 'Standard', credits: 0 }],
       resolutions: [{ id: '2K', label: '2K', credits: 2 }],
       aspectRatios: [{ id: '16:9', label: '16:9' }],
-      multiples: [{ id: '1', label: '1 image' }],
     },
     defaults: { modelId: 'image-v1' },
     ...overrides,
@@ -100,12 +99,11 @@ describe('Laravel generation config client', () => {
         { id: 'image-v1', label: 'Duplicate', vip: false },
       ] }),
       config({ models: [{ id: 'image-v1', label: 'Image V1', vip: false, fpsEnabled: true }] }),
-      config({ parameters: { qualities: [], resolutions: [], aspectRatios: [], multiples: [], pricing: {} } }),
+      config({ parameters: { qualities: [], resolutions: [], aspectRatios: [], pricing: {} } }),
       config({ parameters: {
         qualities: [{ id: 'same', label: 'One' }, { id: 'same', label: 'Two' }],
         resolutions: [],
         aspectRatios: [],
-        multiples: [],
       } }),
       config({
         models: [{

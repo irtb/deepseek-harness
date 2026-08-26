@@ -238,13 +238,19 @@ describe('production Gateway baseline', () => {
           schemaVersion: 1,
           kind: 'image',
           modelId: 'image-real',
-          parameters: { aspectRatioId: '16:9' },
+          parameters: { aspectRatioId: '16:9', multipleId: '2' },
         },
       }),
     })
     expect(previous.status).toBe(202)
     expect(previous.headers.get('x-shotgo-gateway-protocol-version')).toBe('2026-08-26.1')
     expect(await previous.json()).toMatchObject({ protocolVersion: '2026-08-26.1' })
+    expect(submitted[1]?.generationContext).toEqual({
+      schemaVersion: 1,
+      kind: 'image',
+      modelId: 'image-real',
+      parameters: { aspectRatioId: '16:9' },
+    })
 
     const legacy = await fetch(`${baseUrl}/api/agent/v1/sessions/session-legacy/messages`, {
       method: 'POST',

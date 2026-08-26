@@ -117,7 +117,7 @@ export function apply(ctx: Context): void {
           kind: 'image' as const,
           parameterSchemaVersion: 1 as const,
           models: [MOCK_IMAGE_MODEL],
-          parameters: { qualities: [], resolutions: [], aspectRatios: [], multiples: [] },
+          parameters: { qualities: [], resolutions: [], aspectRatios: [] },
           defaults: { modelId: MOCK_IMAGE_MODEL.id },
         }
         : {

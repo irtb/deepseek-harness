@@ -159,13 +159,13 @@ function isDefaults(
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return false
   const defaults = value as Record<string, unknown>
   const allowed = kind === 'image'
-    ? ['modelId', 'qualityId', 'resolutionId', 'aspectRatioId', 'multipleId']
+    ? ['modelId', 'qualityId', 'resolutionId', 'aspectRatioId']
     : ['modelId', 'aspectRatioId', 'resolutionId', 'duration', 'audio']
   if (!hasOnlyKeys(defaults, allowed)) return false
   if (defaults.modelId !== undefined
     && (!nonEmptyString(defaults.modelId) || !models.some(model => model.id === defaults.modelId))) return false
   const optionKeys = kind === 'image'
-    ? { qualityId: 'qualities', resolutionId: 'resolutions', aspectRatioId: 'aspectRatios', multipleId: 'multiples' }
+    ? { qualityId: 'qualities', resolutionId: 'resolutions', aspectRatioId: 'aspectRatios' }
     : { aspectRatioId: 'aspectRatios', resolutionId: 'resolutions' }
   for (const [defaultKey, parameterKey] of Object.entries(optionKeys)) {
     const defaultValue = defaults[defaultKey]
@@ -192,11 +192,10 @@ function isParameters(value: unknown, kind: GenerationKind): boolean {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return false
   const parameters = value as Record<string, unknown>
   if (kind === 'image') {
-    return hasOnlyKeys(parameters, ['qualities', 'resolutions', 'aspectRatios', 'multiples'])
+    return hasOnlyKeys(parameters, ['qualities', 'resolutions', 'aspectRatios'])
       && isOptions(parameters.qualities)
       && isOptions(parameters.resolutions)
       && isOptions(parameters.aspectRatios)
-      && isOptions(parameters.multiples)
   }
   return hasOnlyKeys(parameters, [
     'aspectRatios', 'resolutions', 'duration', 'fps', 'audioOptions', 'operationTypes',

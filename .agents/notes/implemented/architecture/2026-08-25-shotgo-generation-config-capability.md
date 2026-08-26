@@ -16,6 +16,8 @@ The Gateway binds the current opaque Grant to the live Harness Agent scope only 
 
 The keyless entry retains its deterministic fixture as a local smoke fallback. Production `gateway-bin` always installs the Laravel reader. The response projected to the model contains the requested kind, visible model metadata, safe option constraints, and defaults under `parameterSchemaVersion: 1`; it excludes authorization context, Session identity, credentials, provider fields, upstream keys, and pricing rules. Catalog credit metadata describes option differences but never replaces a Laravel quote or user confirmation. Laravel remains the availability and parameter authority.
 
+Ordinary image Agent requests represent exactly one generated image. Their projected catalog, Gateway context, and `generation_quote` schema exclude Laravel's `multiples` / `multipleId` fields because those fields belong to the existing `image.hd_enhance` operation and do not represent an ordinary generation count. The Gateway accepts that field only from an older browser envelope and removes it before entering the Session. A future image count requires its own count-aware quote, idempotent child-task, partial-failure refund, and multi-asset persistence contract.
+
 ## Alternatives considered
 
 **Reuse the browser Sanctum endpoint from Harness.** Rejected because it would require forwarding an account-wide browser credential to the independent Agent Runtime and would bypass the Session-scoped Grant boundary.
@@ -29,3 +31,5 @@ The keyless entry retains its deterministic fixture as a local smoke fallback. P
 Phase 1 remains read-only: it does not quote, reserve or deduct credits, enqueue generation, store media, or mutate a canvas. Quote and generation submission require separate contracts, confirmation, idempotency, persistence-before-side-effect, and unknown-outcome recovery work.
 
 The Laravel endpoint adds the parameter catalog to its existing response without changing `2026-08-25.1`; the private deployment publishes Laravel before the Agent that requires `parameterSchemaVersion: 1`, and rollback removes the Agent requirement before reverting Laravel. Both implementations fail closed on protocol, parameter schema, Session, kind, cache policy, unknown fields, invalid defaults, or malformed constraints.
+
+This Agent-only projection does not change the shared Canvas generation configuration or the `image.hd_enhance` multiplier behavior.

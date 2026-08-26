@@ -157,7 +157,8 @@ function parseMessage(value: unknown, gatewayProtocolVersion: ShotGoGatewayProto
   }
 }
 
-const IMAGE_PARAMETER_KEYS = ['qualityId', 'resolutionId', 'aspectRatioId', 'multipleId'] as const
+const IMAGE_PARAMETER_KEYS = ['qualityId', 'resolutionId', 'aspectRatioId'] as const
+const LEGACY_IMAGE_PARAMETER_KEYS = [...IMAGE_PARAMETER_KEYS, 'multipleId'] as const
 const VIDEO_PARAMETER_KEYS = ['resolutionId', 'aspectRatioId', 'duration', 'fps', 'audio', 'operationType'] as const
 
 function parseGenerationContext(
@@ -181,12 +182,14 @@ function parseGenerationContext(
   ) throw new GatewaySessionError('GENERATION_CONTEXT_INVALID', 422)
   const parameters = context.parameters as Record<string, unknown>
   const allowed = context.kind === 'image' && gatewayProtocolVersion === SHOTGO_GATEWAY_PROTOCOL_VERSION
-    ? [...IMAGE_PARAMETER_KEYS, 'referenceAssets']
-    : context.kind === 'image' ? IMAGE_PARAMETER_KEYS : VIDEO_PARAMETER_KEYS
+    ? [...LEGACY_IMAGE_PARAMETER_KEYS, 'referenceAssets']
+    : context.kind === 'image' ? LEGACY_IMAGE_PARAMETER_KEYS : VIDEO_PARAMETER_KEYS
   if (!hasOnlyKeys(parameters, allowed)) throw new GatewaySessionError('GENERATION_CONTEXT_INVALID', 422)
+  const normalizedParameters: Record<string, unknown> = {}
   for (const [key, item] of Object.entries(parameters)) {
+    if (key === 'multipleId') continue
     if (key === 'referenceAssets') {
-      parameters[key] = parseReferenceAssets(item)
+      normalizedParameters[key] = parseReferenceAssets(item)
     } else if (key === 'duration' || key === 'fps') {
       if (typeof item !== 'number' || !Number.isSafeInteger(item) || item <= 0 || item > 10_000) {
         throw new GatewaySessionError('GENERATION_CONTEXT_INVALID', 422)
@@ -195,13 +198,16 @@ function parseGenerationContext(
       if (typeof item !== 'boolean') throw new GatewaySessionError('GENERATION_CONTEXT_INVALID', 422)
     } else if (typeof item !== 'string' || item.length === 0 || item.length > 128) {
       throw new GatewaySessionError('GENERATION_CONTEXT_INVALID', 422)
+    } else {
+      normalizedParameters[key] = item
     }
+    if (key === 'duration' || key === 'fps' || key === 'audio') normalizedParameters[key] = item
   }
   return {
     schemaVersion: 1,
     kind: context.kind,
     modelId: context.modelId,
-    parameters,
+    parameters: normalizedParameters,
   }
 }
 
