@@ -91,6 +91,26 @@ describe('Gateway to Harness session composition', () => {
     await Promise.resolve()
     const asked = events.find(event => event.type === 'approval/asked')
     if (asked?.type !== 'approval/asked') throw new Error('approval request was not audited')
+    await new Promise<void>(resolve => setImmediate(resolve))
+    expect(live.events).toContainEqual(expect.objectContaining({ type: 'approval.requested' }))
+    const stream = (await service.events({
+      capabilityGrant: 'approval-grant',
+      sessionId: 'approval-session',
+      afterCursor: 0,
+    }))[Symbol.asyncIterator]()
+    await expect(stream.next()).resolves.toMatchObject({
+      done: false,
+      value: {
+        type: 'approval.requested',
+        runId: 'approval-run',
+        payload: {
+          approvalId: asked.data.id,
+          toolName: 'generation_submit',
+          callId: 'generation-submit-call',
+          reason: '确认扣除 18 积分',
+        },
+      },
+    })
 
     await service.respondToApproval({
       capabilityGrant: 'approval-grant',
@@ -100,6 +120,16 @@ describe('Gateway to Harness session composition', () => {
     })
 
     await expect(decision).resolves.toBe('allowed-once')
+    await new Promise<void>(resolve => setImmediate(resolve))
+    expect(live.events).toContainEqual(expect.objectContaining({ type: 'approval.resolved' }))
+    await expect(stream.next()).resolves.toMatchObject({
+      done: false,
+      value: {
+        type: 'approval.resolved',
+        runId: 'approval-run',
+        payload: { approvalId: asked.data.id, outcome: 'allowed-once' },
+      },
+    })
     await expect(service.respondToApproval({
       capabilityGrant: 'approval-grant',
       sessionId: 'approval-session',
@@ -113,6 +143,7 @@ describe('Gateway to Harness session composition', () => {
       outcome: 'rejected',
     })).rejects.toMatchObject({ code: 'APPROVAL_ALREADY_RESOLVED', status: 409 })
     expect(capabilities).toEqual([
+      'agent.session.events.read',
       'agent.session.approval.respond',
       'agent.session.approval.respond',
       'agent.session.approval.respond',
