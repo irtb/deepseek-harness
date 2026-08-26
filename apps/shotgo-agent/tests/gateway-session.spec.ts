@@ -298,7 +298,11 @@ describe('Gateway to Harness session composition', () => {
         schemaVersion: 1 as const,
         kind: 'image' as const,
         modelId: 'image-real',
-        parameters: { aspectRatioId: '16:9', resolutionId: '2K' },
+        parameters: {
+          aspectRatioId: '16:9',
+          resolutionId: '2K',
+          referenceAssets: [{ mediaLibraryItemId: 41 }, { mediaLibraryItemId: 42 }],
+        },
       },
     }
     const accepted = await service.submit(input)
@@ -313,7 +317,11 @@ describe('Gateway to Harness session composition', () => {
       sessionId: input.sessionId,
       kind: 'image',
       modelId: 'image-real',
-      parameters: { prompt: 'cat', qualityId: 'model-injected' },
+      parameters: {
+        prompt: 'cat',
+        qualityId: 'model-injected',
+        referenceAssets: [{ mediaLibraryItemId: 999 }],
+      },
     })).resolves.toMatchObject({ quoteId: 'opaque-quote', credits: 18 })
     expect(quoteRequests).toEqual([{
       authorization: 'Bearer grant-a',
@@ -325,6 +333,7 @@ describe('Gateway to Harness session composition', () => {
           prompt: 'cat',
           aspectRatioId: '16:9',
           resolutionId: '2K',
+          referenceAssets: [{ mediaLibraryItemId: 41 }, { mediaLibraryItemId: 42 }],
         },
       },
     }])

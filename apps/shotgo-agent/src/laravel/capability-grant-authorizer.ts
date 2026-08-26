@@ -1,6 +1,7 @@
 import {
   SHOTGO_PROTOCOL_HEADER,
   SHOTGO_PROTOCOL_VERSION,
+  isSupportedShotGoProtocolVersion,
   type AgentGrantIntrospectionResponse,
   type AgentMode,
   type AgentSessionCapability,
@@ -49,7 +50,7 @@ function isInferencePolicy(value: unknown): value is InferencePolicy {
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return false
   const candidate = value as Record<string, unknown>
   const allowedModels = candidate.allowedModels
-  return candidate.protocolVersion === SHOTGO_PROTOCOL_VERSION
+  return isSupportedShotGoProtocolVersion(candidate.protocolVersion)
     && nonEmptyString(candidate.policyVersion)
     && candidate.provider === 'volcengine-ark'
     && Array.isArray(allowedModels)
@@ -70,7 +71,7 @@ function isIntrospection(value: unknown): value is AgentGrantIntrospectionRespon
   if (value === null || typeof value !== 'object' || Array.isArray(value)) return false
   const candidate = value as Record<string, unknown>
   const allowed = candidate.allowedCapabilities
-  return candidate.protocolVersion === SHOTGO_PROTOCOL_VERSION
+  return isSupportedShotGoProtocolVersion(candidate.protocolVersion)
     && candidate.active === true
     && nonEmptyString(candidate.authorizationContextId)
     && nonEmptyString(candidate.subjectId)
@@ -141,7 +142,7 @@ export class LaravelCapabilityGrantAuthorizer implements GatewaySessionAuthorize
     } catch {
       throw new GatewaySessionError('CAPABILITY_INTROSPECTION_UNAVAILABLE', 503)
     }
-    if (response.headers.get(SHOTGO_PROTOCOL_HEADER) !== SHOTGO_PROTOCOL_VERSION) {
+    if (!isSupportedShotGoProtocolVersion(response.headers.get(SHOTGO_PROTOCOL_HEADER))) {
       throw new GatewaySessionError('LARAVEL_PROTOCOL_VERSION_MISMATCH', 503)
     }
     if (!response.ok) throw new GatewaySessionError('CAPABILITY_GRANT_REJECTED', rejectedStatus(response.status))

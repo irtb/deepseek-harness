@@ -3,8 +3,10 @@ import { fileURLToPath } from 'node:url'
 import { describe, expect, it } from 'vitest'
 import {
   SHOTGO_PROTOCOL_VERSION,
+  SHOTGO_PREVIOUS_PROTOCOL_VERSION,
   assertMutationHeaders,
   canTransitionGeneration,
+  isSupportedShotGoProtocolVersion,
   isProtocolProblem,
   type MutationContext,
 } from '../src/contracts/laravel-v1.ts'
@@ -75,6 +77,31 @@ describe('Laravel Agent Protocol v1', () => {
         '/api/internal/agent/v1/inference-usage',
       ].sort(),
     )
+  })
+
+  it('declares the current Laravel request version and the bounded rolling response window', () => {
+    expect(SHOTGO_PROTOCOL_VERSION).toBe('2026-08-26.1')
+    expect(SHOTGO_PREVIOUS_PROTOCOL_VERSION).toBe('2026-08-25.1')
+    expect(isSupportedShotGoProtocolVersion(SHOTGO_PROTOCOL_VERSION)).toBe(true)
+    expect(isSupportedShotGoProtocolVersion(SHOTGO_PREVIOUS_PROTOCOL_VERSION)).toBe(true)
+    expect(isSupportedShotGoProtocolVersion('2026-08-24.1')).toBe(false)
+  })
+
+  it('carries only ordered media-library IDs through quote parameters', async () => {
+    const schema = await readJson<SchemaDocument>('schemas/laravel-v1.schema.json')
+    expect(schema.$defs.ReferenceAssets).toMatchObject({
+      type: 'array',
+      maxItems: 9,
+      uniqueItems: true,
+      items: {
+        additionalProperties: false,
+        required: ['mediaLibraryItemId'],
+        properties: { mediaLibraryItemId: { type: 'integer', minimum: 1 } },
+      },
+    })
+    expect(JSON.stringify(schema.$defs.QuoteRequest)).toContain('referenceAssets')
+    expect(JSON.stringify(schema.$defs.QuoteResponse)).toContain('referenceAssets')
+    expect(JSON.stringify(schema.$defs.ReferenceAssets)).not.toMatch(/path|url|name/i)
   })
 
   it('reads generation configuration only through service auth plus a bound grant', async () => {

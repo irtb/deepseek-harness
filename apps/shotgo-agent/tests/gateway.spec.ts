@@ -50,10 +50,10 @@ describe('production Gateway baseline', () => {
     const readiness = await fetch(`${baseUrl}/readyz`)
 
     expect(health.status).toBe(200)
-    expect(health.headers.get('x-shotgo-protocol-version')).toBe('2026-08-25.1')
+    expect(health.headers.get('x-shotgo-protocol-version')).toBe('2026-08-26.1')
     expect(await health.json()).toEqual({
       service: 'shotgo-agent',
-      protocolVersion: '2026-08-25.1',
+      protocolVersion: '2026-08-26.1',
       deploymentId: 'test-sha',
       status: 'ok',
     })
@@ -118,7 +118,7 @@ describe('production Gateway baseline', () => {
     const submitted: Array<Record<string, unknown>> = []
     const approvals: string[] = []
     const streamEvent: GatewayStreamEvent = {
-      protocolVersion: '2026-08-26.1',
+      protocolVersion: '2026-08-26.2',
       cursor: 7,
       sessionId: 'session-http',
       runId: 'run-http',
@@ -154,7 +154,7 @@ describe('production Gateway baseline', () => {
         Authorization: 'Bearer opaque-grant',
         'Content-Type': 'application/json',
         'Idempotency-Key': 'client-request-http',
-        'X-ShotGo-Gateway-Protocol-Version': '2026-08-26.1',
+        'X-ShotGo-Gateway-Protocol-Version': '2026-08-26.2',
       },
       body: JSON.stringify({
         clientRequestId: 'client-request-http',
@@ -163,14 +163,18 @@ describe('production Gateway baseline', () => {
           schemaVersion: 1,
           kind: 'image',
           modelId: 'image-real',
-          parameters: { aspectRatioId: '16:9', resolutionId: '2K' },
+          parameters: {
+            aspectRatioId: '16:9',
+            resolutionId: '2K',
+            referenceAssets: [{ mediaLibraryItemId: 41 }, { mediaLibraryItemId: 42 }],
+          },
         },
       }),
     })
     expect(accepted.status).toBe(202)
-    expect(accepted.headers.get('x-shotgo-gateway-protocol-version')).toBe('2026-08-26.1')
+    expect(accepted.headers.get('x-shotgo-gateway-protocol-version')).toBe('2026-08-26.2')
     expect(await accepted.json()).toEqual({
-      protocolVersion: '2026-08-26.1',
+      protocolVersion: '2026-08-26.2',
       sessionId: 'session-http',
       runId: 'run-http',
       streamUrl: '/api/agent/v1/sessions/session-http/events',
@@ -183,7 +187,11 @@ describe('production Gateway baseline', () => {
         schemaVersion: 1,
         kind: 'image',
         modelId: 'image-real',
-        parameters: { aspectRatioId: '16:9', resolutionId: '2K' },
+        parameters: {
+          aspectRatioId: '16:9',
+          resolutionId: '2K',
+          referenceAssets: [{ mediaLibraryItemId: 41 }, { mediaLibraryItemId: 42 }],
+        },
       },
     }])
 
@@ -191,7 +199,7 @@ describe('production Gateway baseline', () => {
       headers: {
         Authorization: 'Bearer opaque-grant',
         'Last-Event-ID': '6',
-        'X-ShotGo-Gateway-Protocol-Version': '2026-08-26.1',
+        'X-ShotGo-Gateway-Protocol-Version': '2026-08-26.2',
       },
     })
     expect(stream.status).toBe(200)
@@ -203,7 +211,7 @@ describe('production Gateway baseline', () => {
       headers: {
         Authorization: 'Bearer opaque-grant',
         'Content-Type': 'application/json',
-        'X-ShotGo-Gateway-Protocol-Version': '2026-08-26.1',
+        'X-ShotGo-Gateway-Protocol-Version': '2026-08-26.2',
       },
       body: JSON.stringify({ outcome: 'allowed-once' }),
     })
@@ -214,6 +222,29 @@ describe('production Gateway baseline', () => {
       outcome: 'allowed-once',
     })
     expect(approvals).toEqual(['opaque-grant:session-http:approval-1:allowed-once'])
+
+    const previous = await fetch(`${baseUrl}/api/agent/v1/sessions/session-previous/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer opaque-grant',
+        'Content-Type': 'application/json',
+        'Idempotency-Key': 'previous-request-http',
+        'X-ShotGo-Gateway-Protocol-Version': '2026-08-26.1',
+      },
+      body: JSON.stringify({
+        clientRequestId: 'previous-request-http',
+        message: { type: 'text', text: '上一版页面请求' },
+        generationContext: {
+          schemaVersion: 1,
+          kind: 'image',
+          modelId: 'image-real',
+          parameters: { aspectRatioId: '16:9' },
+        },
+      }),
+    })
+    expect(previous.status).toBe(202)
+    expect(previous.headers.get('x-shotgo-gateway-protocol-version')).toBe('2026-08-26.1')
+    expect(await previous.json()).toMatchObject({ protocolVersion: '2026-08-26.1' })
 
     const legacy = await fetch(`${baseUrl}/api/agent/v1/sessions/session-legacy/messages`, {
       method: 'POST',
@@ -293,6 +324,57 @@ describe('production Gateway baseline', () => {
     })
     expect(injected.status).toBe(422)
     expect(await injected.json()).toEqual({ code: 'GENERATION_CONTEXT_INVALID' })
+
+    const invalidReferenceParameters = [
+      { referenceAssets: [{ mediaLibraryItemId: 0 }] },
+      { referenceAssets: [{ mediaLibraryItemId: 1.5 }] },
+      { referenceAssets: [{ mediaLibraryItemId: 1, url: 'https://evil.example/image.png' }] },
+      { referenceAssets: [{ mediaLibraryItemId: 1, path: 'private/reference.png' }] },
+      { referenceAssets: [{ mediaLibraryItemId: 1 }, { mediaLibraryItemId: 1 }] },
+      { referenceAssets: Array.from({ length: 10 }, (_, index) => ({ mediaLibraryItemId: index + 1 })) },
+    ]
+    for (const [index, parameters] of invalidReferenceParameters.entries()) {
+      const response = await fetch(`${enabled}/api/agent/v1/sessions/session/messages`, {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer opaque-grant',
+          'Content-Type': 'application/json',
+          'Idempotency-Key': `invalid-reference-${index}`,
+          'X-ShotGo-Gateway-Protocol-Version': '2026-08-26.2',
+        },
+        body: JSON.stringify({
+          clientRequestId: `invalid-reference-${index}`,
+          message: { type: 'text', text: 'hello' },
+          generationContext: { schemaVersion: 1, kind: 'image', modelId: 'image-real', parameters },
+        }),
+      })
+      expect(response.status).toBe(422)
+      expect(await response.json()).toEqual({ code: 'GENERATION_CONTEXT_INVALID' })
+    }
+
+    for (const [version, kind] of [['2026-08-26.1', 'image'], ['2026-08-26.2', 'video']] as const) {
+      const response = await fetch(`${enabled}/api/agent/v1/sessions/session/messages`, {
+        method: 'POST',
+        headers: {
+          Authorization: 'Bearer opaque-grant',
+          'Content-Type': 'application/json',
+          'Idempotency-Key': `reference-not-allowed-${kind}`,
+          'X-ShotGo-Gateway-Protocol-Version': version,
+        },
+        body: JSON.stringify({
+          clientRequestId: `reference-not-allowed-${kind}`,
+          message: { type: 'text', text: 'hello' },
+          generationContext: {
+            schemaVersion: 1,
+            kind,
+            modelId: `${kind}-real`,
+            parameters: { referenceAssets: [{ mediaLibraryItemId: 1 }] },
+          },
+        }),
+      })
+      expect(response.status).toBe(422)
+      expect(await response.json()).toEqual({ code: 'GENERATION_CONTEXT_INVALID' })
+    }
 
     const unknownMessageField = await fetch(`${enabled}/api/agent/v1/sessions/session/messages`, {
       method: 'POST',

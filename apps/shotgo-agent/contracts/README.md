@@ -2,7 +2,7 @@
 
 English | [中文](README.zh.md)
 
-Status: **Phase 0B.3 frozen for implementation** on 2026-08-25. Wire version: `2026-08-25.1`.
+Status: **Phase 0B.3 frozen for implementation**. Current wire version: `2026-08-26.1`.
 
 This directory is the authority for the Agent Runtime ↔ ShotGo Laravel boundary. `openapi.json` defines HTTP operations; `schemas/laravel-v1.schema.json` defines shared messages; `src/contracts/laravel-v1.ts` mirrors stable runtime types and invariants. Laravel and Agent Runtime changes that affect the wire format must update these artifacts and contract tests together.
 
@@ -19,12 +19,12 @@ Laravel returns a stable `authorizationContextId` for one user, nullable team, s
 ## Frozen conventions
 
 - Base path: `/api/agent/v1`; service-authenticated control-plane writes: `/api/internal/agent/v1`.
-- Every response carries `X-ShotGo-Protocol-Version: 2026-08-25.1`.
+- Requests declare `X-ShotGo-Protocol-Version: 2026-08-26.1`. During the bounded rolling window, Agent clients accept response headers and bodies declaring `2026-08-26.1` or `2026-08-25.1`; the previous response version is removed only after API and Agent releases can be rolled back together without serving the older API.
 - `GET /api/internal/agent/v1/inference-runtime-config` requires service authentication, returns `Cache-Control: no-store`, and fails closed unless the encrypted credential and both distinct provider endpoint IDs are complete.
 - Inference policy is short-lived and fail-closed. Its default model must be present in its allowlist.
 - Inference usage uses `llmRequestId` as `Idempotency-Key` and contains only identifiers, model, timing, status, and token counters. Provider keys, prompts, messages, completions, and raw responses are forbidden.
 - Generation configuration returns visible models, safe option constraints, and kind-specific defaults under `parameterSchemaVersion: 1`. Its credit fields are catalog metadata, not a quote or confirmation basis.
-- Generation quote uses the current Capability Grant, performs no business write, and returns integer credits plus a short-lived opaque Quote Envelope. Quote requests do not use mutation context or an idempotency key; generation submission remains idempotent.
+- Generation quote uses the current Capability Grant, performs no business write, and returns integer credits plus a short-lived opaque Quote Envelope. Image quote parameters may include up to nine unique ordered `referenceAssets`, each containing only a positive `mediaLibraryItemId`; Laravel resolves ownership-scoped paths inside its encrypted execution envelope and never returns those paths to the Agent. Quote requests do not use mutation context or an idempotency key; generation submission remains idempotent.
 - Generation create sends only trusted mutation context, `quoteId`, and `quoteVersion`. Laravel revalidates the quote and account context, reserves `(user_id, client_request_id)` before charging, dispatches only after commit, and returns `replayed: true` for an identical retry; reuse with a different request returns `IDEMPOTENCY_CONFLICT`.
 - Generation status and recovery lookup are read-only and require the same user, nullable team, authorization context, and Session that created the request. Cancellation uses a deterministic mutation key and one-shot UI approval; queued cancellation refunds, processing cancellation does not assume an upstream refund, and terminal state wins a completion race.
 - Every mutating request carries `Idempotency-Key`, equal to body `context.clientRequestId`.
