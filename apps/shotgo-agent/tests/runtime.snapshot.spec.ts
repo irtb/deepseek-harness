@@ -87,6 +87,8 @@ describe('ShotGo Phase 0A runtime', () => {
           "turn/end",
         ],
         "visibleTools": [
+          "canvas_context_read",
+          "canvas_plan_preview",
           "generation_cancel",
           "generation_config_read",
           "generation_quote",

@@ -62,6 +62,7 @@ describe('Laravel Agent Protocol v1', () => {
       [
         '/api/agent/v1/canvases/{canvasId}',
         '/api/agent/v1/canvases/{canvasId}/operations',
+        '/api/agent/v1/canvas-context',
         '/api/agent/v1/capabilities',
         '/api/agent/v1/grants',
         '/api/agent/v1/events',
@@ -77,6 +78,16 @@ describe('Laravel Agent Protocol v1', () => {
         '/api/internal/agent/v1/inference-usage',
       ].sort(),
     )
+  })
+
+  it('reads only the Grant-bound compact Canvas snapshot without mutation headers', async () => {
+    const openapi = await readJson<OpenApiDocument>('openapi.json')
+    const read = operation(openapi, '/api/agent/v1/canvas-context', 'post')
+    expect(read.security).toContainEqual({ capabilityGrant: [] })
+    expect(read.description).toContain('only the Canvas project bound')
+    expect(read.description).toContain('read-only')
+    expect(read.parameters ?? []).not.toContainEqual({ $ref: '#/components/parameters/IdempotencyKey' })
+    expect(read.responses['200']?.content?.['application/json']).toBeDefined()
   })
 
   it('declares the current Laravel request version and the bounded rolling response window', () => {

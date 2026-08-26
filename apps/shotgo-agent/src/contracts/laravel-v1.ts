@@ -21,6 +21,32 @@ export type AgentSessionCapability =
   | 'agent.session.events.read'
   | 'agent.session.cancel'
   | 'agent.session.approval.respond'
+
+export interface CanvasContextResponse {
+  protocolVersion: ShotGoProtocolVersion
+  snapshotVersion: 1
+  authorizationContextId: string
+  sessionId: string
+  spaceId: string
+  projectId: string
+  projectName: string
+  revision: string
+  updatedAt: string | null
+  counts: { nodes: number; connections: number }
+  truncated: { nodes: boolean; connections: boolean }
+  nodes: Array<{
+    nodeKey: string
+    type: string
+    toolKey: string | null
+    name: string
+    status: string | null
+    parentKey: string | null
+    locked: boolean
+  }>
+  connections: Array<{ connectionKey: string; sourceKey: string; targetKey: string }>
+  locks: Array<{ nodeKey: string; lockedByCurrentUser: boolean }>
+  availableCapabilities: string[]
+}
 export type GenerationState =
   | 'draft'
   | 'creating'

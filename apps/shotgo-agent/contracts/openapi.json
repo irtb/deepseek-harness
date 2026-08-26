@@ -14,6 +14,19 @@
     { "name": "Events" }
   ],
   "paths": {
+    "/api/agent/v1/canvas-context": {
+      "post": {
+        "operationId": "readBoundCanvasContext",
+        "tags": ["Canvas"],
+        "description": "Read a bounded, compact snapshot of only the Canvas project bound to the opaque capability grant. This endpoint is read-only, performs no Canvas mutation, and must not be cached.",
+        "security": [{ "capabilityGrant": [] }],
+        "requestBody": { "required": true, "content": { "application/json": { "schema": { "$ref": "./schemas/laravel-v1.schema.json#/$defs/CanvasContextReadRequest" } } } },
+        "responses": {
+          "200": { "description": "Grant-bound compact Canvas snapshot", "headers": { "X-ShotGo-Protocol-Version": { "$ref": "#/components/headers/ProtocolVersion" } }, "content": { "application/json": { "schema": { "$ref": "./schemas/laravel-v1.schema.json#/$defs/CanvasContextReadResponse" } } } },
+          "default": { "$ref": "#/components/responses/Problem" }
+        }
+      }
+    },
     "/api/agent/v1/grants": {
       "post": {
         "operationId": "createAgentCapabilityGrant",
