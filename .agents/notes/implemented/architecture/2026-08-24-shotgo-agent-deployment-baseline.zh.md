@@ -12,6 +12,8 @@ Status: implemented
 
 在 ShotGo 产品边界内增加独立部署基线。Gateway 只监听回环地址，将存活与就绪检查分离，要求不可变部署 ID，并且只有显式启用流量时才开放 readiness。提供版本化环境、systemd 与 Nginx 模板，分别使用独立服务账户、发布软链接、端口、证书和日志文件。
 
+离线发布包也必须在 Agent preset 边界关闭式失败。构建过程会把 Canvas、Image、Video preset 中的所有 TypeScript 工具路径改写为已编译的 `dist/tools/*.js` 模块，要求完整的生成工具集合，并在生成压缩包前拒绝任何残留的 `src/` 引用。健康检查不能替代该会话挂载闭包校验。
+
 首次部署仅验证契约，不开放 Agent Session 路由，也不连接 Laravel、推理、计费、生成或画布写入。现有 PHP、Redis、Supervisor、Laravel 仓库、Worker 和 Reverb 均不在修改范围内。HTTPS 安装必须依次完成备份、`nginx -t`、独立证书和 reload。
 
 ## Consequences

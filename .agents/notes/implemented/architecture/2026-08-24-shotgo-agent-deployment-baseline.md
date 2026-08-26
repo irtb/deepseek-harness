@@ -12,6 +12,8 @@ The `agent.shotgo.cn` DNS record now targets the shared `ve-shotgo` production s
 
 Add a standalone deployment baseline inside the ShotGo product boundary. The Gateway binds only to loopback, exposes liveness separately from readiness, requires an immutable deployment ID, and keeps readiness closed unless traffic is explicitly enabled. Provide versioned environment, systemd, and Nginx templates that use a dedicated service account, release symlink, port, certificate, and log files.
 
+The offline release package is also fail-closed at the Agent preset boundary. The build rewrites every TypeScript tool path in the Canvas, Image, and Video presets to its compiled `dist/tools/*.js` module, requires the complete generation tool set, and rejects any remaining `src/` reference before the archive is created. Health checks do not substitute for this session-mount closure check.
+
 The initial deployment is contract-only. It does not expose Agent Session routes or connect Laravel, inference, billing, generation, or canvas mutation. Existing PHP, Redis, Supervisor, Laravel repositories, workers, and Reverb are out of scope. HTTPS installation follows a backup, `nginx -t`, separate certificate, and reload sequence.
 
 ## Consequences
