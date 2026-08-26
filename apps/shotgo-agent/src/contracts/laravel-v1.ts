@@ -1,6 +1,14 @@
-export const SHOTGO_PROTOCOL_VERSION = '2026-08-25.1' as const
+export const SHOTGO_PROTOCOL_VERSION = '2026-08-26.1' as const
+export const SHOTGO_PREVIOUS_PROTOCOL_VERSION = '2026-08-25.1' as const
+export type ShotGoProtocolVersion =
+  | typeof SHOTGO_PROTOCOL_VERSION
+  | typeof SHOTGO_PREVIOUS_PROTOCOL_VERSION
 export const SHOTGO_PROTOCOL_HEADER = 'X-ShotGo-Protocol-Version' as const
 export const IDEMPOTENCY_HEADER = 'Idempotency-Key' as const
+
+export function isSupportedShotGoProtocolVersion(value: unknown): value is ShotGoProtocolVersion {
+  return value === SHOTGO_PROTOCOL_VERSION || value === SHOTGO_PREVIOUS_PROTOCOL_VERSION
+}
 
 export type AgentMode = 'canvas' | 'image' | 'video'
 export type AssetKind = 'text' | 'image' | 'video' | 'audio'
@@ -42,7 +50,7 @@ export interface AgentGrantCreateRequest {
 }
 
 export interface AgentGrantCreateResponse {
-  protocolVersion: typeof SHOTGO_PROTOCOL_VERSION
+  protocolVersion: ShotGoProtocolVersion
   grantToken: string
   expiresAt: string
   sessionId: string
@@ -61,7 +69,7 @@ export interface AgentGrantIntrospectionRequest {
 }
 
 export interface AgentGrantIntrospectionResponse {
-  protocolVersion: typeof SHOTGO_PROTOCOL_VERSION
+  protocolVersion: ShotGoProtocolVersion
   active: true
   authorizationContextId: string
   subjectId: string
@@ -136,7 +144,7 @@ export interface VideoGenerationParameters {
 }
 
 interface GenerationConfigReadResponseBase {
-  protocolVersion: typeof SHOTGO_PROTOCOL_VERSION
+  protocolVersion: ShotGoProtocolVersion
   parameterSchemaVersion: 1
   authorizationContextId: string
   sessionId: string
@@ -158,7 +166,14 @@ export type GenerationConfigReadResponse =
   | ImageGenerationConfigReadResponse
   | VideoGenerationConfigReadResponse
 
-export type GenerationQuoteParameters = Record<string, string | number | boolean>
+export interface GenerationReferenceAsset {
+  mediaLibraryItemId: number
+}
+
+export type GenerationQuoteParameters = Record<
+  string,
+  string | number | boolean | GenerationReferenceAsset[]
+>
 
 export interface GenerationQuoteRequest {
   sessionId: string
@@ -174,7 +189,7 @@ export interface GenerationQuoteBreakdownItem {
 }
 
 export interface GenerationQuoteResponse {
-  protocolVersion: typeof SHOTGO_PROTOCOL_VERSION
+  protocolVersion: ShotGoProtocolVersion
   quoteId: string
   quoteVersion: 1
   kind: GenerationKind
@@ -202,7 +217,7 @@ export type GenerationAsset = Record<string, string | number> & {
 }
 
 export interface GenerationCreateResponse {
-  protocolVersion: typeof SHOTGO_PROTOCOL_VERSION
+  protocolVersion: ShotGoProtocolVersion
   generationId: string
   clientRequestId: string
   operationId: string
@@ -224,7 +239,7 @@ export interface GenerationCancelRequest {
 }
 
 export interface InferencePolicy {
-  protocolVersion: typeof SHOTGO_PROTOCOL_VERSION
+  protocolVersion: ShotGoProtocolVersion
   policyVersion: string
   provider: 'volcengine-ark'
   allowedModels: InferenceModel[]
@@ -236,7 +251,7 @@ export interface InferencePolicy {
 }
 
 export interface InferenceRuntimeConfig {
-  protocolVersion: typeof SHOTGO_PROTOCOL_VERSION
+  protocolVersion: ShotGoProtocolVersion
   configurationVersion: string
   provider: 'volcengine-ark'
   baseURL: string
@@ -282,7 +297,7 @@ export interface ProtocolProblem {
 }
 
 export interface AgentEvent<TPayload = Record<string, unknown>> {
-  protocolVersion: typeof SHOTGO_PROTOCOL_VERSION
+  protocolVersion: ShotGoProtocolVersion
   eventId: string
   projectId: string
   sequence: number

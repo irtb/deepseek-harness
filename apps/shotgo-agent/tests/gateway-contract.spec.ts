@@ -10,6 +10,10 @@ interface OpenApiOperation {
 interface OpenApiDocument {
   info: { version: string }
   paths: Record<string, Record<string, OpenApiOperation>>
+  components: {
+    parameters: Record<string, { required?: boolean; schema?: { enum?: string[] } }>
+    schemas: Record<string, Record<string, unknown>>
+  }
 }
 
 describe('Agent Gateway protocol', () => {
@@ -34,5 +38,14 @@ describe('Agent Gateway protocol', () => {
     expect(serialized).toContain('Last-Event-ID')
     expect(serialized).toContain('Idempotency-Key')
     expect(serialized).not.toMatch(/apiKey|ARK_API_KEY|serviceToken/)
+
+    expect(document.components.parameters.GatewayProtocolVersion).toMatchObject({
+      required: false,
+      schema: { enum: ['2026-08-26.2', '2026-08-26.1', '2026-08-25.1'] },
+    })
+    const imageContext = document.components.schemas.ImageGenerationContext
+    expect(JSON.stringify(imageContext)).toContain('referenceAssets')
+    expect(JSON.stringify(imageContext)).toContain('mediaLibraryItemId')
+    expect(JSON.stringify(document.components.schemas.VideoGenerationContext)).not.toContain('referenceAssets')
   })
 })

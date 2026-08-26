@@ -1,6 +1,7 @@
 import {
   SHOTGO_PROTOCOL_HEADER,
   SHOTGO_PROTOCOL_VERSION,
+  isSupportedShotGoProtocolVersion,
   type GenerationFpsRange,
   type GenerationConfigModel,
   type GenerationOption,
@@ -217,7 +218,7 @@ function isGenerationConfig(value: unknown): value is GenerationConfigReadRespon
     'protocolVersion', 'parameterSchemaVersion', 'authorizationContextId', 'sessionId',
     'kind', 'models', 'parameters', 'defaults',
   ])
-    && config.protocolVersion === SHOTGO_PROTOCOL_VERSION
+    && isSupportedShotGoProtocolVersion(config.protocolVersion)
     && config.parameterSchemaVersion === 1
     && nonEmptyString(config.authorizationContextId)
     && nonEmptyString(config.sessionId)
@@ -281,7 +282,7 @@ export class LaravelGenerationConfigClient {
       cache: 'no-store',
       ...(input.signal === undefined ? {} : { signal: input.signal }),
     })
-    if (response.headers.get(SHOTGO_PROTOCOL_HEADER) !== SHOTGO_PROTOCOL_VERSION) {
+    if (!isSupportedShotGoProtocolVersion(response.headers.get(SHOTGO_PROTOCOL_HEADER))) {
       throw new Error('LARAVEL_PROTOCOL_VERSION_MISMATCH')
     }
     if (!response.ok) throw new Error(`GENERATION_CONFIG_READ_REJECTED:${response.status}`)

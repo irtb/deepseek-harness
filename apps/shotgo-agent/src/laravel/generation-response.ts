@@ -1,5 +1,5 @@
 import {
-  SHOTGO_PROTOCOL_VERSION,
+  isSupportedShotGoProtocolVersion,
   type GenerationResponse,
   type GenerationState,
 } from '../contracts/laravel-v1.ts'
@@ -12,7 +12,7 @@ export function isGenerationResponse(value: unknown): value is GenerationRespons
   if (value === null || typeof value !== 'object') return false
   const item = value as Partial<GenerationResponse>
   const rawAssets = (value as Record<string, unknown>).assets
-  return item.protocolVersion === SHOTGO_PROTOCOL_VERSION
+  return isSupportedShotGoProtocolVersion(item.protocolVersion)
     && typeof item.generationId === 'string'
     && typeof item.clientRequestId === 'string'
     && typeof item.operationId === 'string'

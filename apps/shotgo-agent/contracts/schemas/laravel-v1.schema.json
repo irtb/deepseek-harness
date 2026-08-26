@@ -3,7 +3,7 @@
   "$id": "https://agent.shotgo.cn/contracts/laravel-v1.schema.json",
   "title": "ShotGo Laravel Agent Protocol v1",
   "$defs": {
-    "ProtocolVersion": { "const": "2026-08-25.1" },
+    "ProtocolVersion": { "const": "2026-08-26.1" },
     "OpaqueId": { "type": "string", "minLength": 1, "maxLength": 255 },
     "OpaqueToken": { "type": "string", "minLength": 1, "maxLength": 8192 },
     "IntegerId": { "type": "integer", "minimum": 1 },
@@ -299,6 +299,7 @@
         "modelId": { "$ref": "#/$defs/OpaqueId" },
         "parameters": {
           "type": "object",
+          "properties": { "referenceAssets": { "$ref": "#/$defs/ReferenceAssets" } },
           "additionalProperties": { "type": ["string", "number", "boolean"] }
         }
       }
@@ -332,6 +333,7 @@
         "expiresAt": { "$ref": "#/$defs/DateTime" },
         "normalizedParameters": {
           "type": "object",
+          "properties": { "referenceAssets": { "$ref": "#/$defs/ReferenceAssets" } },
           "additionalProperties": { "type": ["string", "number", "boolean"] }
         },
         "requiresConfirmation": { "const": true }
@@ -345,6 +347,17 @@
         "context": { "$ref": "#/$defs/MutationContext" },
         "quoteId": { "$ref": "#/$defs/OpaqueToken" },
         "quoteVersion": { "const": 1 }
+      }
+    },
+    "ReferenceAssets": {
+      "type": "array",
+      "maxItems": 9,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["mediaLibraryItemId"],
+        "properties": { "mediaLibraryItemId": { "type": "integer", "minimum": 1 } }
       }
     },
     "GenerationState": { "enum": ["draft", "creating", "queued", "processing", "completed", "failed", "cancelled"] },

@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "ShotGo Laravel Agent Protocol",
-    "version": "2026-08-25.1",
+    "version": "2026-08-26.1",
     "description": "Frozen Agent Runtime to Laravel control-plane and AIGC capability protocol. Harness calls the approved reasoning provider directly with service-only runtime configuration from Laravel; Laravel remains the policy, budget, audit, and business authority."
   },
   "servers": [{ "url": "https://shotgo.cn" }],
@@ -216,7 +216,7 @@
       "capabilityGrant": { "type": "http", "scheme": "bearer", "bearerFormat": "opaque-capability-grant" }
     },
     "headers": {
-      "ProtocolVersion": { "required": true, "schema": { "type": "string", "const": "2026-08-25.1" } }
+      "ProtocolVersion": { "required": true, "schema": { "type": "string", "const": "2026-08-26.1" } }
     },
     "parameters": {
       "IdempotencyKey": { "name": "Idempotency-Key", "in": "header", "required": true, "description": "Must equal body context.clientRequestId", "schema": { "type": "string", "minLength": 1 } },

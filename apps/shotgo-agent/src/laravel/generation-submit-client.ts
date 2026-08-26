@@ -4,6 +4,7 @@ import {
   isProtocolProblem,
   SHOTGO_PROTOCOL_HEADER,
   SHOTGO_PROTOCOL_VERSION,
+  isSupportedShotGoProtocolVersion,
   type GenerationCreateRequest,
   type GenerationCreateResponse,
 } from '../contracts/laravel-v1.ts'
@@ -55,7 +56,7 @@ export class LaravelGenerationSubmitClient {
       if (isProtocolProblem(value)) throw new Error(value.code)
       throw new Error(`GENERATION_SUBMIT_HTTP_${response.status}`)
     }
-    if (response.headers.get(SHOTGO_PROTOCOL_HEADER) !== SHOTGO_PROTOCOL_VERSION || !isGenerationResponse(value)) {
+    if (!isSupportedShotGoProtocolVersion(response.headers.get(SHOTGO_PROTOCOL_HEADER)) || !isGenerationResponse(value)) {
       throw new Error('GENERATION_SUBMIT_PROTOCOL_INVALID')
     }
     return value

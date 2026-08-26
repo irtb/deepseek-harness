@@ -1,6 +1,7 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import {
   SHOTGO_GATEWAY_LEGACY_PROTOCOL_VERSION,
+  SHOTGO_GATEWAY_PREVIOUS_PROTOCOL_VERSION,
   SHOTGO_GATEWAY_PROTOCOL_HEADER,
   SHOTGO_GATEWAY_PROTOCOL_VERSION,
   type ShotGoGatewayProtocolVersion,
@@ -92,7 +93,10 @@ function requestedGatewayProtocol(request: IncomingMessage): ShotGoGatewayProtoc
   const value = request.headers[SHOTGO_GATEWAY_PROTOCOL_HEADER.toLowerCase()]
   const version = Array.isArray(value) ? value[0] : value
   if (version === undefined || version === '') return SHOTGO_GATEWAY_LEGACY_PROTOCOL_VERSION
-  if (version !== SHOTGO_GATEWAY_PROTOCOL_VERSION && version !== SHOTGO_GATEWAY_LEGACY_PROTOCOL_VERSION) {
+  if (version !== SHOTGO_GATEWAY_PROTOCOL_VERSION
+    && version !== SHOTGO_GATEWAY_PREVIOUS_PROTOCOL_VERSION
+    && version !== SHOTGO_GATEWAY_LEGACY_PROTOCOL_VERSION
+  ) {
     throw new GatewaySessionError('GATEWAY_PROTOCOL_UNSUPPORTED', 426)
   }
   return version
@@ -125,7 +129,7 @@ async function readJsonBody(request: IncomingMessage): Promise<unknown> {
   }
 }
 
-function parseMessage(value: unknown): GatewayMessageRequest {
+function parseMessage(value: unknown, gatewayProtocolVersion: ShotGoGatewayProtocolVersion): GatewayMessageRequest {
   if (value === null || typeof value !== 'object') throw new GatewaySessionError('INVALID_MESSAGE_REQUEST', 422)
   const input = value as Record<string, unknown>
   if (!hasOnlyKeys(input, ['clientRequestId', 'message', 'generationContext'])) {
@@ -145,7 +149,7 @@ function parseMessage(value: unknown): GatewayMessageRequest {
   ) {
     throw new GatewaySessionError('MESSAGE_INVALID', 422)
   }
-  const generationContext = parseGenerationContext(input.generationContext)
+  const generationContext = parseGenerationContext(input.generationContext, gatewayProtocolVersion)
   return {
     clientRequestId: input.clientRequestId,
     message: { type: 'text', text: candidate.text },
@@ -156,7 +160,10 @@ function parseMessage(value: unknown): GatewayMessageRequest {
 const IMAGE_PARAMETER_KEYS = ['qualityId', 'resolutionId', 'aspectRatioId', 'multipleId'] as const
 const VIDEO_PARAMETER_KEYS = ['resolutionId', 'aspectRatioId', 'duration', 'fps', 'audio', 'operationType'] as const
 
-function parseGenerationContext(value: unknown): GatewayMessageRequest['generationContext'] {
+function parseGenerationContext(
+  value: unknown,
+  gatewayProtocolVersion: ShotGoGatewayProtocolVersion,
+): GatewayMessageRequest['generationContext'] {
   if (value === undefined) return undefined
   if (value === null || typeof value !== 'object' || Array.isArray(value)) {
     throw new GatewaySessionError('GENERATION_CONTEXT_INVALID', 422)
@@ -173,10 +180,14 @@ function parseGenerationContext(value: unknown): GatewayMessageRequest['generati
     || Array.isArray(context.parameters)
   ) throw new GatewaySessionError('GENERATION_CONTEXT_INVALID', 422)
   const parameters = context.parameters as Record<string, unknown>
-  const allowed = context.kind === 'image' ? IMAGE_PARAMETER_KEYS : VIDEO_PARAMETER_KEYS
+  const allowed = context.kind === 'image' && gatewayProtocolVersion === SHOTGO_GATEWAY_PROTOCOL_VERSION
+    ? [...IMAGE_PARAMETER_KEYS, 'referenceAssets']
+    : context.kind === 'image' ? IMAGE_PARAMETER_KEYS : VIDEO_PARAMETER_KEYS
   if (!hasOnlyKeys(parameters, allowed)) throw new GatewaySessionError('GENERATION_CONTEXT_INVALID', 422)
   for (const [key, item] of Object.entries(parameters)) {
-    if (key === 'duration' || key === 'fps') {
+    if (key === 'referenceAssets') {
+      parameters[key] = parseReferenceAssets(item)
+    } else if (key === 'duration' || key === 'fps') {
       if (typeof item !== 'number' || !Number.isSafeInteger(item) || item <= 0 || item > 10_000) {
         throw new GatewaySessionError('GENERATION_CONTEXT_INVALID', 422)
       }
@@ -192,6 +203,30 @@ function parseGenerationContext(value: unknown): GatewayMessageRequest['generati
     modelId: context.modelId,
     parameters,
   }
+}
+
+function parseReferenceAssets(value: unknown): Array<{ mediaLibraryItemId: number }> | undefined {
+  if (value === undefined) return undefined
+  if (!Array.isArray(value) || value.length > 9) {
+    throw new GatewaySessionError('GENERATION_CONTEXT_INVALID', 422)
+  }
+  const seen = new Set<number>()
+  return value.map((item) => {
+    if (item === null || typeof item !== 'object' || Array.isArray(item)) {
+      throw new GatewaySessionError('GENERATION_CONTEXT_INVALID', 422)
+    }
+    const reference = item as Record<string, unknown>
+    if (!hasOnlyKeys(reference, ['mediaLibraryItemId'])
+      || !Number.isSafeInteger(reference.mediaLibraryItemId)
+      || Number(reference.mediaLibraryItemId) <= 0
+    ) {
+      throw new GatewaySessionError('GENERATION_CONTEXT_INVALID', 422)
+    }
+    const mediaLibraryItemId = Number(reference.mediaLibraryItemId)
+    if (seen.has(mediaLibraryItemId)) throw new GatewaySessionError('GENERATION_CONTEXT_INVALID', 422)
+    seen.add(mediaLibraryItemId)
+    return { mediaLibraryItemId }
+  })
 }
 
 function hasOnlyKeys(value: Record<string, unknown>, allowed: readonly string[]): boolean {
@@ -250,7 +285,7 @@ async function handleSessionRequest(
     if (!request.headers['content-type']?.toLowerCase().startsWith('application/json')) {
       throw new GatewaySessionError('CONTENT_TYPE_UNSUPPORTED', 415)
     }
-    const body = parseMessage(await readJsonBody(request))
+    const body = parseMessage(await readJsonBody(request), gatewayProtocolVersion)
     const idempotencyKey = request.headers['idempotency-key']
     if (idempotencyKey !== body.clientRequestId) throw new GatewaySessionError('IDEMPOTENCY_KEY_MISMATCH', 422)
     const result = await sessions.submit({
@@ -260,7 +295,7 @@ async function handleSessionRequest(
       text: body.message.text,
       ...(body.generationContext === undefined ? {} : { generationContext: body.generationContext }),
     })
-    const accepted: GatewayRunAccepted | (Omit<GatewayRunAccepted, 'protocolVersion'> & { protocolVersion: typeof SHOTGO_GATEWAY_LEGACY_PROTOCOL_VERSION }) = {
+    const accepted: GatewayRunAccepted = {
       protocolVersion: gatewayProtocolVersion,
       sessionId: route.sessionId,
       runId: result.runId,

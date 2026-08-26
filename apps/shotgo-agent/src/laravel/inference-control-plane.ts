@@ -2,6 +2,7 @@ import {
   IDEMPOTENCY_HEADER,
   SHOTGO_PROTOCOL_HEADER,
   SHOTGO_PROTOCOL_VERSION,
+  isSupportedShotGoProtocolVersion,
   type InferencePolicy,
   type InferenceRuntimeConfig,
   type InferenceUsageReport,
@@ -46,7 +47,7 @@ function assertUsagePayloadIsMetadataOnly(value: unknown, path = 'usageReport'):
 function isInferencePolicy(value: unknown): value is InferencePolicy {
   if (value === null || typeof value !== 'object') return false
   const candidate = value as Record<string, unknown>
-  return candidate.protocolVersion === SHOTGO_PROTOCOL_VERSION
+  return isSupportedShotGoProtocolVersion(candidate.protocolVersion)
     && candidate.provider === 'volcengine-ark'
     && Array.isArray(candidate.allowedModels)
     && candidate.allowedModels.length > 0
@@ -74,7 +75,7 @@ function isInferenceRuntimeConfig(value: unknown): value is InferenceRuntimeConf
   const expectedModelKeys = ['deepseek-v4-flash', 'deepseek-v4-pro'].sort()
   const flash = modelMap['deepseek-v4-flash']
   const pro = modelMap['deepseek-v4-pro']
-  return candidate.protocolVersion === SHOTGO_PROTOCOL_VERSION
+  return isSupportedShotGoProtocolVersion(candidate.protocolVersion)
     && typeof candidate.configurationVersion === 'string'
     && candidate.configurationVersion.length > 0
     && candidate.provider === 'volcengine-ark'
@@ -92,9 +93,9 @@ function isInferenceRuntimeConfig(value: unknown): value is InferenceRuntimeConf
 
 function assertProtocolVersion(response: Response): void {
   const actual = response.headers.get(SHOTGO_PROTOCOL_HEADER)
-  if (actual !== SHOTGO_PROTOCOL_VERSION) {
+  if (!isSupportedShotGoProtocolVersion(actual)) {
     throw new InferenceControlPlaneError(
-      `Laravel protocol mismatch: expected ${SHOTGO_PROTOCOL_VERSION}, received ${actual ?? 'missing'}`,
+      `Laravel protocol mismatch: unsupported ${actual ?? 'missing'} response version`,
       'PROTOCOL_VERSION_MISMATCH',
       response.status,
     )

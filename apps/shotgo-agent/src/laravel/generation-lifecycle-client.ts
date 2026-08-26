@@ -4,6 +4,7 @@ import {
   isProtocolProblem,
   SHOTGO_PROTOCOL_HEADER,
   SHOTGO_PROTOCOL_VERSION,
+  isSupportedShotGoProtocolVersion,
   type GenerationCancelRequest,
   type GenerationResponse,
   type MutationContext,
@@ -84,7 +85,7 @@ export class LaravelGenerationLifecycleClient {
       if (isProtocolProblem(value)) throw new Error(value.code)
       throw new Error(`${prefix}_HTTP_${response.status}`)
     }
-    if (response.headers.get(SHOTGO_PROTOCOL_HEADER) !== SHOTGO_PROTOCOL_VERSION || !isGenerationResponse(value)) {
+    if (!isSupportedShotGoProtocolVersion(response.headers.get(SHOTGO_PROTOCOL_HEADER)) || !isGenerationResponse(value)) {
       throw new Error(`${prefix}_PROTOCOL_INVALID`)
     }
     return value

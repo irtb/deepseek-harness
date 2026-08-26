@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "ShotGo Agent Gateway Protocol",
-    "version": "2026-08-26.1",
+    "version": "2026-08-26.2",
     "description": "Browser-facing Session submission, one-shot approval response, cancellation, and replayable SSE delivery for the ShotGo Harness Runtime."
   },
   "servers": [{ "url": "https://agent.shotgo.cn" }],
@@ -106,11 +106,11 @@
       "capabilityGrant": { "type": "http", "scheme": "bearer", "bearerFormat": "opaque ShotGo capability grant" }
     },
     "headers": {
-      "ProtocolVersion": { "schema": { "type": "string", "const": "2026-08-26.1" } }
+      "ProtocolVersion": { "schema": { "type": "string", "enum": ["2026-08-26.2", "2026-08-26.1", "2026-08-25.1"] } }
     },
     "parameters": {
       "SessionId": { "name": "sessionId", "in": "path", "required": true, "schema": { "type": "string", "minLength": 1, "maxLength": 128 } },
-      "GatewayProtocolVersion": { "name": "X-ShotGo-Gateway-Protocol-Version", "in": "header", "required": true, "schema": { "type": "string", "const": "2026-08-26.1" } },
+      "GatewayProtocolVersion": { "name": "X-ShotGo-Gateway-Protocol-Version", "in": "header", "required": false, "description": "Declare 2026-08-26.2 for image media references. Explicit 2026-08-26.1 remains supported; omission selects legacy 2026-08-25.1 projection.", "schema": { "type": "string", "enum": ["2026-08-26.2", "2026-08-26.1", "2026-08-25.1"] } },
       "IdempotencyKey": { "name": "Idempotency-Key", "in": "header", "required": true, "schema": { "type": "string", "minLength": 8, "maxLength": 128 } }
     },
     "schemas": {
@@ -153,7 +153,19 @@
               "qualityId": { "type": "string", "minLength": 1, "maxLength": 128 },
               "resolutionId": { "type": "string", "minLength": 1, "maxLength": 128 },
               "aspectRatioId": { "type": "string", "minLength": 1, "maxLength": 128 },
-              "multipleId": { "type": "string", "minLength": 1, "maxLength": 128 }
+              "multipleId": { "type": "string", "minLength": 1, "maxLength": 128 },
+              "referenceAssets": {
+                "type": "array",
+                "maxItems": 9,
+                "uniqueItems": true,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["mediaLibraryItemId"],
+                  "properties": { "mediaLibraryItemId": { "type": "integer", "minimum": 1 } }
+                },
+                "description": "Ordered, Laravel-scoped media-library IDs. Available only when the request declares Gateway protocol 2026-08-26.2."
+              }
             }
           }
         }
@@ -185,7 +197,7 @@
         "additionalProperties": false,
         "required": ["protocolVersion", "sessionId", "runId", "streamUrl"],
         "properties": {
-          "protocolVersion": { "const": "2026-08-26.1" },
+          "protocolVersion": { "enum": ["2026-08-26.2", "2026-08-26.1", "2026-08-25.1"] },
           "sessionId": { "type": "string" },
           "runId": { "type": "string", "format": "uuid" },
           "streamUrl": { "type": "string" }

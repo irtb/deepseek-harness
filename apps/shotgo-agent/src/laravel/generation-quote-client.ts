@@ -1,6 +1,7 @@
 import {
   SHOTGO_PROTOCOL_HEADER,
   SHOTGO_PROTOCOL_VERSION,
+  isSupportedShotGoProtocolVersion,
   type GenerationQuoteParameters,
   type GenerationQuoteRequest,
   type GenerationQuoteResponse,
@@ -32,7 +33,26 @@ function isParameters(value: unknown): value is GenerationQuoteParameters {
   return value !== null
     && typeof value === 'object'
     && !Array.isArray(value)
-    && Object.values(value).every(item => ['string', 'number', 'boolean'].includes(typeof item))
+    && Object.entries(value).every(([key, item]) => key === 'referenceAssets'
+      ? isReferenceAssets(item)
+      : ['string', 'number', 'boolean'].includes(typeof item))
+}
+
+function isReferenceAssets(value: unknown): boolean {
+  if (!Array.isArray(value) || value.length > 9) return false
+  const seen = new Set<number>()
+  return value.every((item) => {
+    if (item === null || typeof item !== 'object' || Array.isArray(item)) return false
+    const reference = item as Record<string, unknown>
+    if (!hasOnlyKeys(reference, ['mediaLibraryItemId'])) return false
+    const mediaLibraryItemId = Number(reference.mediaLibraryItemId)
+    if (!Number.isSafeInteger(reference.mediaLibraryItemId)
+      || mediaLibraryItemId <= 0
+      || seen.has(mediaLibraryItemId)
+    ) return false
+    seen.add(mediaLibraryItemId)
+    return true
+  })
 }
 
 function isQuote(value: unknown): value is GenerationQuoteResponse {
@@ -42,7 +62,7 @@ function isQuote(value: unknown): value is GenerationQuoteResponse {
     'protocolVersion', 'quoteId', 'quoteVersion', 'kind', 'modelId', 'credits', 'breakdown',
     'canAfford', 'userBalance', 'expiresAt', 'normalizedParameters', 'requiresConfirmation',
   ])) return false
-  return quote.protocolVersion === SHOTGO_PROTOCOL_VERSION
+  return isSupportedShotGoProtocolVersion(quote.protocolVersion)
     && nonEmptyString(quote.quoteId)
     && quote.quoteVersion === 1
     && (quote.kind === 'image' || quote.kind === 'video')
@@ -101,7 +121,7 @@ export class LaravelGenerationQuoteClient {
       cache: 'no-store',
       ...(input.signal === undefined ? {} : { signal: input.signal }),
     })
-    if (response.headers.get(SHOTGO_PROTOCOL_HEADER) !== SHOTGO_PROTOCOL_VERSION) {
+    if (!isSupportedShotGoProtocolVersion(response.headers.get(SHOTGO_PROTOCOL_HEADER))) {
       throw new Error('LARAVEL_PROTOCOL_VERSION_MISMATCH')
     }
     if (!response.ok) throw new Error(`GENERATION_QUOTE_REJECTED:${response.status}`)

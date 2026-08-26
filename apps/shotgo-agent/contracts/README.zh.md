@@ -2,7 +2,7 @@
 
 [English](README.md) | 中文
 
-状态：Phase 0B.3 已于 2026-08-25 **冻结，可进入实现**。Wire 版本：`2026-08-25.1`。
+状态：Phase 0B.3 **已冻结，可进入实现**。当前 Wire 版本：`2026-08-26.1`。
 
 本目录是 Agent Runtime 与 ShotGo Laravel 边界的权威来源。`openapi.json` 定义 HTTP 操作，`schemas/laravel-v1.schema.json` 定义共享消息，`src/contracts/laravel-v1.ts` 映射稳定的运行时类型和不变量。任何影响 wire format 的 Laravel 或 Agent Runtime 改动，必须同步更新这些文件和契约测试。
 
@@ -19,12 +19,12 @@ Laravel 为用户、可为空的团队、空间、可为空的项目、Agent 模
 ## 已冻结约定
 
 - 基础路径：`/api/agent/v1`；服务身份控制面写入：`/api/internal/agent/v1`。
-- 每个响应携带 `X-ShotGo-Protocol-Version: 2026-08-25.1`。
+- 请求声明 `X-ShotGo-Protocol-Version: 2026-08-26.1`。在受限滚动窗口内，Agent 客户端接受响应 Header 与 Body 声明 `2026-08-26.1` 或 `2026-08-25.1`；只有 API 与 Agent 能够联动回滚且不再提供旧 API 时，才能移除上一响应版本。
 - `GET /api/internal/agent/v1/inference-runtime-config` 必须使用服务身份认证并返回 `Cache-Control: no-store`；加密凭据或两个不同的供应商节点 ID 不完整时采用失败关闭。
 - 推理策略具有短有效期并采用失败关闭；默认模型必须位于允许列表中。
 - 推理用量以 `llmRequestId` 作为 `Idempotency-Key`，只允许标识符、模型、时间、状态和 Token 计数；禁止供应商密钥、提示词、消息、回答和原始响应。
 - 生成配置在 `parameterSchemaVersion: 1` 下返回可见模型、安全选项约束和按生成类型区分的默认值；其中的积分字段属于目录元数据，不构成报价或确认依据。
-- 生成报价使用当前 Capability Grant，不执行任何业务写入，并返回整数积分和短期 opaque Quote Envelope。报价请求不携带变更上下文或幂等 Key；后续生成提交仍必须幂等。
+- 生成报价使用当前 Capability Grant，不执行任何业务写入，并返回整数积分和短期 opaque Quote Envelope。图片报价参数可以携带最多九个有序且不重复的 `referenceAssets`，每项只含正整数 `mediaLibraryItemId`；Laravel 在加密执行 Envelope 内解析归属范围内的路径，绝不向 Agent 返回这些路径。报价请求不携带变更上下文或幂等 Key；后续生成提交仍必须幂等。
 - 创建生成只发送可信写上下文、`quoteId` 和 `quoteVersion`。Laravel 重新验证报价与账户上下文，在扣费前先占用 `(user_id, client_request_id)`，仅在事务提交后派发任务；完全相同的重试返回 `replayed: true`，同一幂等 Key 改变请求则返回 `IDEMPOTENCY_CONFLICT`。
 - 生成状态与恢复查询只读，并要求与创建请求时相同的用户、可空团队、授权上下文和 Session。取消使用确定性写 Key 与单次 UI 批准；排队取消退款，处理中取消不假设供应商退款，取消与完成竞争时以已经形成的终态为准。
 - 每个写请求携带 `Idempotency-Key`，且必须等于请求体中的 `context.clientRequestId`。
