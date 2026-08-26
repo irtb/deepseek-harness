@@ -20,7 +20,7 @@ Phase 5 增加权威 `generation_status` 与受审批保护的 `generation_cance
 
 Phase 6 为已完成任务的状态结果增加稳定资产描述。Laravel 只返回用户、可空团队、来源和存储路径均与生成任务匹配的 `user_media_assets` 转存记录。Agent 只能得到不透明资产 ID、媒体类型、公开 HTTP(S) URL 和字节大小；供应商响应、供应商 URL 与私有存储路径继续隐藏。即使用户在 Worker 执行期间切换账户上下文，媒体转存也按生成任务冻结的团队上下文记账。
 
-Phase 4A 使用 Gateway 协议 `2026-08-26.2` 传递结构化生成意图。图片上下文可以包含最多九个有序且不重复的 `parameters.referenceAssets`，每项只含正整数 `mediaLibraryItemId`；视频引用、原始 URL、路径、名称、字节和额外字段均被拒绝。Gateway 把 UI 选择写入 Harness Session，并用该选择替换模型提供的报价选项，同时保留 Agent 整理后的最终提示词。Laravel 解析素材归属与执行路径，并继续独占校验、定价、扣分、退款和幂等；模型可见的报价 Tool 不暴露引用字段。滚动发布顺序为 Agent、API、Canvas：明确声明 Gateway `2026-08-26.1` 的标量客户端与未声明版本的 `2026-08-25.1` 旧客户端保持兼容；Laravel 请求声明 `2026-08-26.1`，并在受限过渡期接受 `2026-08-25.1` 响应。
+Phase 4A 使用 Gateway 协议 `2026-08-26.2` 传递结构化生成意图。图片上下文可以包含最多九个有序且不重复的 `parameters.referenceAssets`，每项只含正整数 `mediaLibraryItemId`；视频引用、原始 URL、路径、名称、字节和额外字段均被拒绝。Gateway 把 UI 选择写入 Harness Session，并用该选择替换模型提供的报价选项，同时保留 Agent 整理后的最终提示词。Laravel 解析素材归属与执行路径，并继续独占校验、定价、扣分、退款和幂等；模型可见的报价 Tool 有意不暴露引用字段，Gateway 会自动注入可信 UI 选择，Agent 不得据此误判参考图不受支持。滚动发布顺序为 Agent、API、Canvas：明确声明 Gateway `2026-08-26.1` 的标量客户端与未声明版本的 `2026-08-25.1` 旧客户端保持兼容；Laravel 请求声明 `2026-08-26.1`，并在受限过渡期接受 `2026-08-25.1` 响应。
 
 Phase 4B 只会在新 Laravel Grant 与模型不可见的 Gateway 恢复绑定中的用户、团队、空间、项目、模式、preset 和 runtime 版本完全一致时冷恢复持久 Session。绑定原子写入 Harness 日志旁，绝不包含 Grant 或凭据。每次在线实例化都有新的 `streamEpoch`，Canvas 因此会在重启后重置陈旧的进程内 cursor。中断的推理与审批会被关闭而不是恢复，下一条用户消息开始新的 Run。
 
