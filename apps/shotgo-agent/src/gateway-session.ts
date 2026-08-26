@@ -351,7 +351,7 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
     })
     if (ctx.get('approval') !== undefined) {
       this.stopApprovalRequests = ctx.on('approval/request', (request, next) => {
-        if (!['generation_submit', 'generation_cancel'].includes(request.toolName)) return next()
+        if (!['generation_submit', 'generation_cancel', 'canvas_ops_apply'].includes(request.toolName)) return next()
         if (request.signal?.aborted === true) return Promise.resolve<ApprovalOutcome>('cancelled')
         const live = this.sessions.get(request.agent.session.id)
         if (live === undefined || live.handle.agent !== request.agent || live.activeRunId === undefined) return next()
