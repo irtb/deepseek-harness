@@ -140,6 +140,17 @@ function generationMessage(text: string, context: GatewayGenerationContext | und
   ].join('\n')
 }
 
+/**
+ * Keep the browser replay window focused on events the ShotGo UI can consume.
+ * Harness persists fine-grained reasoning and tool-argument chunks for audit,
+ * but forwarding those chunks can evict an approval before the SSE client has
+ * connected (one encrypted quote argument may contain thousands of chunks).
+ */
+export function shouldForwardSessionEvent(event: SessionEvent): boolean {
+  if (event.type === 'assistant/chunk') return event.data.chunk.type === 'text-delta'
+  return event.type === 'assistant/message' || event.type === 'tool/call' || event.type === 'tool/result'
+}
+
 export class HarnessGatewaySessionService implements GatewaySessionService {
   private readonly sessions = new Map<string, LiveSession>()
   private readonly requestIds = new Map<string, { runId: string; fingerprint: string }>()
@@ -342,7 +353,7 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
           approvalId: event.data.id,
           outcome: event.data.outcome,
         })
-      } else {
+      } else if (shouldForwardSessionEvent(event)) {
         this.append(live, live.activeRunId, 'session.event', {
           sessionSeq: event.seq,
           eventType: event.type,
