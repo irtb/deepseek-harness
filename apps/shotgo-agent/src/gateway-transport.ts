@@ -1,10 +1,11 @@
-import type { GatewayStreamEvent } from './contracts/gateway-v1.ts'
+import type { GatewayGenerationContext, GatewayStreamEvent } from './contracts/gateway-v1.ts'
 
 export interface GatewaySessionSubmit {
   capabilityGrant: string
   sessionId: string
   clientRequestId: string
   text: string
+  generationContext?: GatewayGenerationContext
   signal?: AbortSignal
 }
 

@@ -294,16 +294,26 @@ describe('Gateway to Harness session composition', () => {
       sessionId: 'gateway-keyless-session',
       clientRequestId: 'client-request-0001',
       text: '我能使用哪些图片模型？',
+      generationContext: {
+        schemaVersion: 1 as const,
+        kind: 'image' as const,
+        modelId: 'image-real',
+        parameters: { aspectRatioId: '16:9', resolutionId: '2K' },
+      },
     }
     const accepted = await service.submit(input)
     const duplicate = await service.submit(input)
     expect(duplicate).toEqual(accepted)
+    await expect(service.submit({
+      ...input,
+      text: '使用相同幂等键但改变提示词',
+    })).rejects.toMatchObject({ code: 'IDEMPOTENCY_CONFLICT', status: 409 })
     await expect(service.submit({ ...input, capabilityGrant: 'invalid-grant' })).rejects.toThrow('denied')
     await expect(ctx.get('shotgoGenerationQuoteReader')?.quote({
       sessionId: input.sessionId,
       kind: 'image',
       modelId: 'image-real',
-      parameters: { prompt: 'cat' },
+      parameters: { prompt: 'cat', qualityId: 'model-injected' },
     })).resolves.toMatchObject({ quoteId: 'opaque-quote', credits: 18 })
     expect(quoteRequests).toEqual([{
       authorization: 'Bearer grant-a',
@@ -311,7 +321,11 @@ describe('Gateway to Harness session composition', () => {
         sessionId: input.sessionId,
         kind: 'image',
         modelId: 'image-real',
-        parameters: { prompt: 'cat' },
+        parameters: {
+          prompt: 'cat',
+          aspectRatioId: '16:9',
+          resolutionId: '2K',
+        },
       },
     }])
     await expect(ctx.get('shotgoGenerationSubmitter')?.submit({
@@ -402,6 +416,7 @@ describe('Gateway to Harness session composition', () => {
     })) replay.push(event)
     expect(replay).toEqual([events.at(-1)])
     expect(requiredCapabilities).toEqual([
+      'agent.session.submit',
       'agent.session.submit',
       'agent.session.submit',
       'agent.session.events.read',

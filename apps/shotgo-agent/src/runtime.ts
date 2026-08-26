@@ -18,6 +18,7 @@ import * as mockLlm from './llm/mock.ts'
 import * as arkLlm from './llm/ark.ts'
 import * as generationConfigRead from './tools/generation-config-read.ts'
 import * as generationQuote from './tools/generation-quote.ts'
+import * as generationQuoteRegistry from './generation-quote-registry.ts'
 import * as generationSubmit from './tools/generation-submit.ts'
 import * as generationStatus from './tools/generation-status.ts'
 import * as generationCancel from './tools/generation-cancel.ts'
@@ -70,6 +71,7 @@ export async function apply(ctx: Context): Promise<void> {
   await ctx.plugin(mockLlm)
   await ctx.plugin(arkLlm)
   await ctx.plugin(generationConfigRead)
+  await ctx.plugin(generationQuoteRegistry)
   await ctx.plugin(generationQuote)
   await ctx.plugin(generationSubmit)
   await ctx.plugin(generationStatus)

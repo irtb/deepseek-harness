@@ -20,6 +20,8 @@ Phase 5 增加权威 `generation_status` 与受审批保护的 `generation_cance
 
 Phase 6 为已完成任务的状态结果增加稳定资产描述。Laravel 只返回用户、可空团队、来源和存储路径均与生成任务匹配的 `user_media_assets` 转存记录。Agent 只能得到不透明资产 ID、媒体类型、公开 HTTP(S) URL 和字节大小；供应商响应、供应商 URL 与私有存储路径继续隐藏。即使用户在 Worker 执行期间切换账户上下文，媒体转存也按生成任务冻结的团队上下文记账。
 
+Phase 4A 在 Gateway 协议 `2026-08-26.1` 中增加可选的结构化生成上下文。Gateway 校验图片或视频模型及标量选项，要求上下文类型与 Grant 绑定的 Agent 模式一致，将确定性的 JSON 投影写入 Harness Session，并在 Agent 请求 Laravel 报价时只应用这些已选标量值；Agent 整理后的最终提示词保持不变。该上下文只表达用户意图，不是业务权威：Laravel 仍校验每个选项，并继续独占报价、扣分、退款和幂等策略。一次性确认会消费一条未过期的 Laravel 报价注册记录，并从中读取模型、参数和积分；`generation_submit` 只接受不透明报价 ID 和版本。媒体附件在 Laravel 范围化素材 ID 合同完成前明确排除。滚动发布时先部署 Agent：声明 `2026-08-26.1` 的客户端获得新协议，未声明版本的旧客户端在 Canvas 完成部署前继续获得 `2026-08-25.1`。
+
 ## 本地 Smoke
 
 ```sh

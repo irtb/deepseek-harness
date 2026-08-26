@@ -20,6 +20,8 @@ Phase 5 adds authoritative `generation_status` and approval-gated `generation_ca
 
 Phase 6 adds stable asset results to completed generation status. Laravel returns only mirrored `user_media_assets` rows whose user, nullable team, source, and stored path match the generation. The Agent receives an opaque asset ID, media kind, public HTTP(S) URL, and byte size; provider responses, provider URLs, and private storage paths remain hidden. Media mirroring records the generation's frozen team context even if the user switches account context while the worker runs.
 
+Phase 4A adds an optional structured generation context to Gateway protocol `2026-08-26.1`. The Gateway validates image/video model and scalar option selections, requires the context kind to match the Grant-bound Agent mode, records a deterministic JSON projection in the Harness Session, and applies only those selected scalar values when the Agent requests a Laravel quote; the Agent's final prompt is preserved. The context is user intent, not business authority: Laravel still validates every option and owns pricing, charging, refunds, and idempotency. The one-shot confirmation consumes one unexpired Laravel quote registry entry and reads its model, parameters, and credits; `generation_submit` accepts only the opaque quote ID and version. Media attachments are intentionally excluded until a Laravel-scoped media-ID contract is implemented. During a rolling release, the Agent is deployed first: clients declaring `2026-08-26.1` receive that protocol, while undeclared legacy clients receive `2026-08-25.1` until Canvas deployment completes.
+
 ## Local smoke
 
 ```sh

@@ -1,7 +1,9 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import {
+  SHOTGO_GATEWAY_LEGACY_PROTOCOL_VERSION,
   SHOTGO_GATEWAY_PROTOCOL_HEADER,
   SHOTGO_GATEWAY_PROTOCOL_VERSION,
+  type ShotGoGatewayProtocolVersion,
   type GatewayApprovalResponse,
   type GatewayMessageRequest,
   type GatewayRunAccepted,
@@ -33,13 +35,18 @@ export interface GatewayStatus {
   status: 'ok' | 'not_ready'
 }
 
-function sendJson(response: ServerResponse, statusCode: number, body: unknown): void {
+function sendJson(
+  response: ServerResponse,
+  statusCode: number,
+  body: unknown,
+  gatewayProtocolVersion: ShotGoGatewayProtocolVersion = SHOTGO_GATEWAY_PROTOCOL_VERSION,
+): void {
   response.writeHead(statusCode, {
     'Cache-Control': 'no-store',
     'Content-Type': 'application/json; charset=utf-8',
     'X-Content-Type-Options': 'nosniff',
     'X-ShotGo-Protocol-Version': SHOTGO_PROTOCOL_VERSION,
-    [SHOTGO_GATEWAY_PROTOCOL_HEADER]: SHOTGO_GATEWAY_PROTOCOL_VERSION,
+    [SHOTGO_GATEWAY_PROTOCOL_HEADER]: gatewayProtocolVersion,
   })
   response.end(JSON.stringify(body))
 }
@@ -58,7 +65,7 @@ function reportRequestFailure(request: IncomingMessage, url: URL, error: unknown
   })}\n`)
 }
 
-const CORS_ALLOW_HEADERS = 'Authorization, Content-Type, Idempotency-Key, Last-Event-ID'
+const CORS_ALLOW_HEADERS = `Authorization, Content-Type, Idempotency-Key, Last-Event-ID, ${SHOTGO_GATEWAY_PROTOCOL_HEADER}`
 const CORS_ALLOW_METHODS = 'GET, POST, DELETE, OPTIONS'
 const CORS_EXPOSE_HEADERS = `${SHOTGO_PROTOCOL_HEADER}, ${SHOTGO_GATEWAY_PROTOCOL_HEADER}`
 
@@ -79,6 +86,16 @@ function bearerToken(request: IncomingMessage): string {
   const match = /^Bearer ([^\s]+)$/.exec(authorization)
   if (match === null) throw new GatewaySessionError('CAPABILITY_GRANT_REQUIRED', 401)
   return match[1] as string
+}
+
+function requestedGatewayProtocol(request: IncomingMessage): ShotGoGatewayProtocolVersion {
+  const value = request.headers[SHOTGO_GATEWAY_PROTOCOL_HEADER.toLowerCase()]
+  const version = Array.isArray(value) ? value[0] : value
+  if (version === undefined || version === '') return SHOTGO_GATEWAY_LEGACY_PROTOCOL_VERSION
+  if (version !== SHOTGO_GATEWAY_PROTOCOL_VERSION && version !== SHOTGO_GATEWAY_LEGACY_PROTOCOL_VERSION) {
+    throw new GatewaySessionError('GATEWAY_PROTOCOL_UNSUPPORTED', 426)
+  }
+  return version
 }
 
 function parseCursor(request: IncomingMessage, url: URL): number {
@@ -111,19 +128,74 @@ async function readJsonBody(request: IncomingMessage): Promise<unknown> {
 function parseMessage(value: unknown): GatewayMessageRequest {
   if (value === null || typeof value !== 'object') throw new GatewaySessionError('INVALID_MESSAGE_REQUEST', 422)
   const input = value as Record<string, unknown>
+  if (!hasOnlyKeys(input, ['clientRequestId', 'message', 'generationContext'])) {
+    throw new GatewaySessionError('INVALID_MESSAGE_REQUEST', 422)
+  }
   const message = input.message
   if (typeof input.clientRequestId !== 'string' || input.clientRequestId.length < 8 || input.clientRequestId.length > 128) {
     throw new GatewaySessionError('CLIENT_REQUEST_ID_INVALID', 422)
   }
   if (message === null || typeof message !== 'object') throw new GatewaySessionError('MESSAGE_INVALID', 422)
   const candidate = message as Record<string, unknown>
-  if (candidate.type !== 'text' || typeof candidate.text !== 'string' || candidate.text.trim() === '' || candidate.text.length > 20_000) {
+  if (!hasOnlyKeys(candidate, ['type', 'text'])
+    || candidate.type !== 'text'
+    || typeof candidate.text !== 'string'
+    || candidate.text.trim() === ''
+    || candidate.text.length > 20_000
+  ) {
     throw new GatewaySessionError('MESSAGE_INVALID', 422)
   }
+  const generationContext = parseGenerationContext(input.generationContext)
   return {
     clientRequestId: input.clientRequestId,
     message: { type: 'text', text: candidate.text },
+    ...(generationContext === undefined ? {} : { generationContext }),
   }
+}
+
+const IMAGE_PARAMETER_KEYS = ['qualityId', 'resolutionId', 'aspectRatioId', 'multipleId'] as const
+const VIDEO_PARAMETER_KEYS = ['resolutionId', 'aspectRatioId', 'duration', 'fps', 'audio', 'operationType'] as const
+
+function parseGenerationContext(value: unknown): GatewayMessageRequest['generationContext'] {
+  if (value === undefined) return undefined
+  if (value === null || typeof value !== 'object' || Array.isArray(value)) {
+    throw new GatewaySessionError('GENERATION_CONTEXT_INVALID', 422)
+  }
+  const context = value as Record<string, unknown>
+  if (!hasOnlyKeys(context, ['schemaVersion', 'kind', 'modelId', 'parameters'])
+    || context.schemaVersion !== 1
+    || (context.kind !== 'image' && context.kind !== 'video')
+    || typeof context.modelId !== 'string'
+    || context.modelId.length === 0
+    || context.modelId.length > 128
+    || context.parameters === null
+    || typeof context.parameters !== 'object'
+    || Array.isArray(context.parameters)
+  ) throw new GatewaySessionError('GENERATION_CONTEXT_INVALID', 422)
+  const parameters = context.parameters as Record<string, unknown>
+  const allowed = context.kind === 'image' ? IMAGE_PARAMETER_KEYS : VIDEO_PARAMETER_KEYS
+  if (!hasOnlyKeys(parameters, allowed)) throw new GatewaySessionError('GENERATION_CONTEXT_INVALID', 422)
+  for (const [key, item] of Object.entries(parameters)) {
+    if (key === 'duration' || key === 'fps') {
+      if (typeof item !== 'number' || !Number.isSafeInteger(item) || item <= 0 || item > 10_000) {
+        throw new GatewaySessionError('GENERATION_CONTEXT_INVALID', 422)
+      }
+    } else if (key === 'audio') {
+      if (typeof item !== 'boolean') throw new GatewaySessionError('GENERATION_CONTEXT_INVALID', 422)
+    } else if (typeof item !== 'string' || item.length === 0 || item.length > 128) {
+      throw new GatewaySessionError('GENERATION_CONTEXT_INVALID', 422)
+    }
+  }
+  return {
+    schemaVersion: 1,
+    kind: context.kind,
+    modelId: context.modelId,
+    parameters,
+  }
+}
+
+function hasOnlyKeys(value: Record<string, unknown>, allowed: readonly string[]): boolean {
+  return Object.keys(value).every(key => allowed.includes(key))
 }
 
 function sessionPath(pathname: string): { sessionId: string; kind: 'messages' | 'events' } | undefined {
@@ -171,6 +243,7 @@ async function handleSessionRequest(
   url: URL,
   sessions: GatewaySessionService,
 ): Promise<boolean> {
+  const gatewayProtocolVersion = requestedGatewayProtocol(request)
   const route = sessionPath(url.pathname)
   if (route?.kind === 'messages' && request.method === 'POST') {
     const capabilityGrant = bearerToken(request)
@@ -185,14 +258,15 @@ async function handleSessionRequest(
       sessionId: route.sessionId,
       clientRequestId: body.clientRequestId,
       text: body.message.text,
+      ...(body.generationContext === undefined ? {} : { generationContext: body.generationContext }),
     })
-    const accepted: GatewayRunAccepted = {
-      protocolVersion: SHOTGO_GATEWAY_PROTOCOL_VERSION,
+    const accepted: GatewayRunAccepted | (Omit<GatewayRunAccepted, 'protocolVersion'> & { protocolVersion: typeof SHOTGO_GATEWAY_LEGACY_PROTOCOL_VERSION }) = {
+      protocolVersion: gatewayProtocolVersion,
       sessionId: route.sessionId,
       runId: result.runId,
       streamUrl: `/api/agent/v1/sessions/${encodeURIComponent(route.sessionId)}/events`,
     }
-    sendJson(response, 202, accepted)
+    sendJson(response, 202, accepted, gatewayProtocolVersion)
     return true
   }
 
@@ -213,10 +287,13 @@ async function handleSessionRequest(
       Connection: 'keep-alive',
       'Content-Type': 'text/event-stream; charset=utf-8',
       'X-Accel-Buffering': 'no',
-      [SHOTGO_GATEWAY_PROTOCOL_HEADER]: SHOTGO_GATEWAY_PROTOCOL_VERSION,
+      [SHOTGO_GATEWAY_PROTOCOL_HEADER]: gatewayProtocolVersion,
     })
     for await (const event of events) {
-      response.write(`id: ${event.cursor}\nevent: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`)
+      response.write(`id: ${event.cursor}\nevent: ${event.type}\ndata: ${JSON.stringify({
+        ...event,
+        protocolVersion: gatewayProtocolVersion,
+      })}\n\n`)
     }
     response.end()
     return true
@@ -230,11 +307,11 @@ async function handleSessionRequest(
       runId: cancel.runId,
     })
     sendJson(response, 202, {
-      protocolVersion: SHOTGO_GATEWAY_PROTOCOL_VERSION,
+      protocolVersion: gatewayProtocolVersion,
       sessionId: cancel.sessionId,
       runId: cancel.runId,
       status: 'cancelling',
-    })
+    }, gatewayProtocolVersion)
     return true
   }
 
@@ -251,11 +328,11 @@ async function handleSessionRequest(
       outcome: body.outcome,
     })
     sendJson(response, 200, {
-      protocolVersion: SHOTGO_GATEWAY_PROTOCOL_VERSION,
+      protocolVersion: gatewayProtocolVersion,
       sessionId: approval.sessionId,
       approvalId: approval.approvalId,
       outcome: body.outcome,
-    })
+    }, gatewayProtocolVersion)
     return true
   }
 

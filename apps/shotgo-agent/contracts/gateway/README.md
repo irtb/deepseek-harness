@@ -2,7 +2,11 @@
 
 English | [中文](README.zh.md)
 
-The browser-facing Gateway protocol is frozen at `2026-08-25.1`. [`gateway-v1.openapi.json`](../gateway-v1.openapi.json) defines message submission, one-shot approval responses, run cancellation, and replayable Server-Sent Events (SSE); [`gateway-v1.ts`](../../src/contracts/gateway-v1.ts) owns the matching runtime types. This protocol is separate from the [Laravel control-plane protocol](../README.md), so either interface can version without changing the other's header.
+The browser-facing Gateway protocol is frozen at `2026-08-26.1`. [`gateway-v1.openapi.json`](../gateway-v1.openapi.json) defines message submission, optional scalar image/video generation intent, one-shot approval responses, run cancellation, and replayable Server-Sent Events (SSE); [`gateway-v1.ts`](../../src/contracts/gateway-v1.ts) owns the matching runtime types. This protocol is separate from the [Laravel control-plane protocol](../README.md), which remains at `2026-08-25.1`, so either interface can version without changing the other's header.
+
+An optional `generationContext` records the model and scalar options selected in the Canvas UI. The Gateway requires its kind to match the Grant-bound Agent mode, rejects unknown or attachment-like fields, logs the deterministic selection with the user message, and applies only those selected scalar values to the next Laravel quote request while preserving the Agent's final prompt. Laravel remains authoritative for model availability, option validation, pricing, charging, and refunds. The confirmation prompt consumes one unexpired quote registry entry and reads its model, normalized parameters, and credits; model-authored display fields cannot affect the prompt or charge.
+
+For a rolling release, Canvas `2026-08-26.1` sends `X-ShotGo-Gateway-Protocol-Version` on every Session request. The new Agent must be deployed first: it returns `2026-08-26.1` to an explicitly versioned client and projects `2026-08-25.1` for an undeclared legacy client. Unknown declared versions fail with `GATEWAY_PROTOCOL_UNSUPPORTED`; this compatibility response is removed only after the legacy Canvas build is no longer served or cached.
 
 `approval.requested` exposes the Harness-audited pending decision to the owning Canvas Session. The browser answers it through the approval endpoint with `allowed-once` or `rejected`. The Gateway re-authorizes `agent.session.approval.respond`, binds the response to the live authorization context and Session, accepts an identical retry idempotently, and rejects a changed or stale decision. Model text is never treated as approval.
 
@@ -12,7 +16,7 @@ Every Session request carries an opaque Capability Grant as a Bearer token. A `G
 
 Browser requests originate only from the configured Canvas origin. The Gateway answers its preflight without cookies, permits the authorization, content, idempotency, and replay headers, exposes both protocol-version headers, and rejects any other supplied Origin.
 
-`POST /api/agent/v1/sessions/{sessionId}/messages` accepts one text message and requires `Idempotency-Key` to equal `clientRequestId`. Repeating the pair `{sessionId, clientRequestId}` returns the original `runId` without scheduling another Harness turn. A Session permits one active run; concurrent submissions return `SESSION_BUSY`.
+`POST /api/agent/v1/sessions/{sessionId}/messages` accepts one text message and requires `Idempotency-Key` to equal `clientRequestId`. Repeating the same `{sessionId, clientRequestId, message, generationContext}` returns the original `runId` without scheduling another Harness turn; reusing the key with changed content returns `IDEMPOTENCY_CONFLICT`. A Session permits one active run; concurrent submissions return `SESSION_BUSY`.
 
 ## SSE replay and cancellation
 

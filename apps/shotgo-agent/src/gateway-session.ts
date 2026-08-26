@@ -12,6 +12,7 @@ import type { LaravelGenerationSubmitClient } from './laravel/generation-submit-
 import type { LaravelGenerationLifecycleClient } from './laravel/generation-lifecycle-client.ts'
 import {
   SHOTGO_GATEWAY_PROTOCOL_VERSION,
+  type GatewayGenerationContext,
   type GatewayStreamEvent,
 } from './contracts/gateway-v1.ts'
 import { GatewaySessionError } from './gateway-errors.ts'
@@ -62,6 +63,7 @@ interface LiveSession {
   readonly capabilityGrant: { current: string }
   nextCursor: number
   activeRunId?: string
+  activeGenerationContext?: GatewayGenerationContext
   cancelledRunId?: string
   disposed: boolean
 }
@@ -118,9 +120,18 @@ function wakeAll(session: LiveSession): void {
   for (const wake of [...session.waiters]) wake()
 }
 
+function generationMessage(text: string, context: GatewayGenerationContext | undefined): string {
+  if (context === undefined) return text
+  return [
+    'The following JSON records generation settings explicitly selected in the ShotGo UI.',
+    'Use these values unchanged when calling generation_quote. Laravel remains authoritative and may reject stale values.',
+    JSON.stringify({ userRequest: text, generationContext: context }),
+  ].join('\n')
+}
+
 export class HarnessGatewaySessionService implements GatewaySessionService {
   private readonly sessions = new Map<string, LiveSession>()
-  private readonly requestIds = new Map<string, string>()
+  private readonly requestIds = new Map<string, { runId: string; fingerprint: string }>()
   private readonly admissions = new Map<string, Promise<void>>()
   private readonly pendingApprovals = new Map<string, PendingApproval>()
   private readonly resolvedApprovals = new Map<string, ResolvedApproval>()
@@ -164,12 +175,22 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
         quote: async ({ sessionId, kind, modelId, parameters, signal }) => {
           const live = this.sessions.get(sessionId)
           if (live === undefined) throw new GatewaySessionError('SESSION_NOT_FOUND', 404)
+          const selected = live.activeGenerationContext
+          let quoteParameters = parameters
+          if (selected !== undefined) {
+            const prompt = parameters.prompt
+            if (typeof prompt !== 'string' || prompt.trim() === '') {
+              throw new GatewaySessionError('GENERATION_PROMPT_REQUIRED', 422)
+            }
+            const selectedParameters = Object.fromEntries(Object.entries(selected.parameters))
+            quoteParameters = { prompt, ...selectedParameters }
+          }
           return await generationQuote.quote({
             capabilityGrant: live.capabilityGrant.current,
             sessionId,
-            kind,
-            modelId,
-            parameters,
+            kind: selected?.kind ?? kind,
+            modelId: selected?.modelId ?? modelId,
+            parameters: quoteParameters,
             ...(signal === undefined ? {} : { signal }),
           })
         },
@@ -335,9 +356,20 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
       throw new GatewaySessionError('SESSION_ACCESS_DENIED', 403)
     }
     const requestKey = JSON.stringify([input.sessionId, input.clientRequestId])
-    const existingRunId = this.requestIds.get(requestKey)
-    if (existingRunId !== undefined) return { runId: existingRunId }
+    const requestFingerprint = createHash('sha256')
+      .update(JSON.stringify({ text: input.text, generationContext: input.generationContext ?? null }))
+      .digest('hex')
+    const existingRequest = this.requestIds.get(requestKey)
+    if (existingRequest !== undefined) {
+      if (existingRequest.fingerprint !== requestFingerprint) {
+        throw new GatewaySessionError('IDEMPOTENCY_CONFLICT', 409)
+      }
+      return { runId: existingRequest.runId }
+    }
     if (live?.activeRunId !== undefined) throw new GatewaySessionError('SESSION_BUSY', 409)
+    if (input.generationContext !== undefined && input.generationContext.kind !== authorization.agentMode) {
+      throw new GatewaySessionError('GENERATION_CONTEXT_MODE_MISMATCH', 422)
+    }
 
     if (live !== undefined) live.capabilityGrant.current = input.capabilityGrant
 
@@ -380,10 +412,15 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
 
     const runId = crypto.randomUUID()
     live.activeRunId = runId
-    this.requestIds.set(requestKey, runId)
+    if (input.generationContext === undefined) {
+      delete live.activeGenerationContext
+    } else {
+      live.activeGenerationContext = input.generationContext
+    }
+    this.requestIds.set(requestKey, { runId, fingerprint: requestFingerprint })
     this.append(live, runId, 'run.accepted', { clientRequestId: input.clientRequestId })
     live.handle.agent.followup(createUserMessage({
-      content: [{ type: 'text', text: input.text }],
+      content: [{ type: 'text', text: generationMessage(input.text, input.generationContext) }],
       source: { kind: 'user' },
     }))
     void this.settle(live, runId)
@@ -534,7 +571,10 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
         message: error instanceof Error ? error.message : 'Harness run failed',
       })
     } finally {
-      if (live.activeRunId === runId) delete live.activeRunId
+      if (live.activeRunId === runId) {
+        delete live.activeRunId
+        delete live.activeGenerationContext
+      }
       if (live.cancelledRunId === runId) delete live.cancelledRunId
     }
   }

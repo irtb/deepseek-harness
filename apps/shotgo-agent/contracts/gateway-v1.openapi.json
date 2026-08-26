@@ -2,7 +2,7 @@
   "openapi": "3.1.0",
   "info": {
     "title": "ShotGo Agent Gateway Protocol",
-    "version": "2026-08-25.1",
+    "version": "2026-08-26.1",
     "description": "Browser-facing Session submission, one-shot approval response, cancellation, and replayable SSE delivery for the ShotGo Harness Runtime."
   },
   "servers": [{ "url": "https://agent.shotgo.cn" }],
@@ -13,6 +13,7 @@
         "security": [{ "capabilityGrant": [] }],
         "parameters": [
           { "$ref": "#/components/parameters/SessionId" },
+          { "$ref": "#/components/parameters/GatewayProtocolVersion" },
           { "$ref": "#/components/parameters/IdempotencyKey" }
         ],
         "requestBody": {
@@ -39,6 +40,7 @@
         "security": [{ "capabilityGrant": [] }],
         "parameters": [
           { "$ref": "#/components/parameters/SessionId" },
+          { "$ref": "#/components/parameters/GatewayProtocolVersion" },
           {
             "name": "Last-Event-ID",
             "in": "header",
@@ -63,6 +65,7 @@
         "security": [{ "capabilityGrant": [] }],
         "parameters": [
           { "$ref": "#/components/parameters/SessionId" },
+          { "$ref": "#/components/parameters/GatewayProtocolVersion" },
           { "name": "runId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
         ],
         "responses": {
@@ -81,6 +84,7 @@
         "security": [{ "capabilityGrant": [] }],
         "parameters": [
           { "$ref": "#/components/parameters/SessionId" },
+          { "$ref": "#/components/parameters/GatewayProtocolVersion" },
           { "name": "approvalId", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
         ],
         "requestBody": {
@@ -102,10 +106,11 @@
       "capabilityGrant": { "type": "http", "scheme": "bearer", "bearerFormat": "opaque ShotGo capability grant" }
     },
     "headers": {
-      "ProtocolVersion": { "schema": { "type": "string", "const": "2026-08-25.1" } }
+      "ProtocolVersion": { "schema": { "type": "string", "const": "2026-08-26.1" } }
     },
     "parameters": {
       "SessionId": { "name": "sessionId", "in": "path", "required": true, "schema": { "type": "string", "minLength": 1, "maxLength": 128 } },
+      "GatewayProtocolVersion": { "name": "X-ShotGo-Gateway-Protocol-Version", "in": "header", "required": true, "schema": { "type": "string", "const": "2026-08-26.1" } },
       "IdempotencyKey": { "name": "Idempotency-Key", "in": "header", "required": true, "schema": { "type": "string", "minLength": 8, "maxLength": 128 } }
     },
     "schemas": {
@@ -123,6 +128,55 @@
               "type": { "const": "text" },
               "text": { "type": "string", "minLength": 1, "maxLength": 20000 }
             }
+          },
+          "generationContext": { "$ref": "#/components/schemas/GenerationContext" }
+        }
+      },
+      "GenerationContext": {
+        "oneOf": [
+          { "$ref": "#/components/schemas/ImageGenerationContext" },
+          { "$ref": "#/components/schemas/VideoGenerationContext" }
+        ]
+      },
+      "ImageGenerationContext": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["schemaVersion", "kind", "modelId", "parameters"],
+        "properties": {
+          "schemaVersion": { "const": 1 },
+          "kind": { "const": "image" },
+          "modelId": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "parameters": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "qualityId": { "type": "string", "minLength": 1, "maxLength": 128 },
+              "resolutionId": { "type": "string", "minLength": 1, "maxLength": 128 },
+              "aspectRatioId": { "type": "string", "minLength": 1, "maxLength": 128 },
+              "multipleId": { "type": "string", "minLength": 1, "maxLength": 128 }
+            }
+          }
+        }
+      },
+      "VideoGenerationContext": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["schemaVersion", "kind", "modelId", "parameters"],
+        "properties": {
+          "schemaVersion": { "const": 1 },
+          "kind": { "const": "video" },
+          "modelId": { "type": "string", "minLength": 1, "maxLength": 128 },
+          "parameters": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "resolutionId": { "type": "string", "minLength": 1, "maxLength": 128 },
+              "aspectRatioId": { "type": "string", "minLength": 1, "maxLength": 128 },
+              "duration": { "type": "integer", "minimum": 1, "maximum": 10000 },
+              "fps": { "type": "integer", "minimum": 1, "maximum": 10000 },
+              "audio": { "type": "boolean" },
+              "operationType": { "type": "string", "minLength": 1, "maxLength": 128 }
+            }
           }
         }
       },
@@ -131,7 +185,7 @@
         "additionalProperties": false,
         "required": ["protocolVersion", "sessionId", "runId", "streamUrl"],
         "properties": {
-          "protocolVersion": { "const": "2026-08-25.1" },
+          "protocolVersion": { "const": "2026-08-26.1" },
           "sessionId": { "type": "string" },
           "runId": { "type": "string", "format": "uuid" },
           "streamUrl": { "type": "string" }

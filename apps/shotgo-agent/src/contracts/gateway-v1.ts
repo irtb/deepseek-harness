@@ -1,7 +1,37 @@
 import type { AgentMode } from './laravel-v1.ts'
 
-export const SHOTGO_GATEWAY_PROTOCOL_VERSION = '2026-08-25.1' as const
+export const SHOTGO_GATEWAY_PROTOCOL_VERSION = '2026-08-26.1' as const
+export const SHOTGO_GATEWAY_LEGACY_PROTOCOL_VERSION = '2026-08-25.1' as const
 export const SHOTGO_GATEWAY_PROTOCOL_HEADER = 'X-ShotGo-Gateway-Protocol-Version' as const
+export type ShotGoGatewayProtocolVersion =
+  | typeof SHOTGO_GATEWAY_PROTOCOL_VERSION
+  | typeof SHOTGO_GATEWAY_LEGACY_PROTOCOL_VERSION
+
+export type GatewayImageGenerationParameters = Partial<{
+  qualityId: string
+  resolutionId: string
+  aspectRatioId: string
+  multipleId: string
+}>
+
+export type GatewayVideoGenerationParameters = Partial<{
+  resolutionId: string
+  aspectRatioId: string
+  duration: number
+  fps: number
+  audio: boolean
+  operationType: string
+}>
+
+interface GatewayGenerationContextBase {
+  schemaVersion: 1
+  modelId: string
+}
+
+export type GatewayGenerationContext = GatewayGenerationContextBase & (
+  | { kind: 'image'; parameters: GatewayImageGenerationParameters }
+  | { kind: 'video'; parameters: GatewayVideoGenerationParameters }
+)
 
 export interface GatewayMessageRequest {
   clientRequestId: string
@@ -9,6 +39,7 @@ export interface GatewayMessageRequest {
     type: 'text'
     text: string
   }
+  generationContext?: GatewayGenerationContext
 }
 
 export interface GatewayRunAccepted {

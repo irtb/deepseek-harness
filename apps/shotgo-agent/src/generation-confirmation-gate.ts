@@ -3,7 +3,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 
 export const name = 'shotgo-generation-confirmation-gate'
-export const inject = ['tools', 'approval']
+export const inject = ['tools', 'approval', 'shotgoGenerationQuoteRegistry']
 
 /** Require a one-shot UI approval immediately before charge or cancellation mutations. */
 export function apply(ctx: Context): void {
@@ -18,14 +18,22 @@ export function apply(ctx: Context): void {
     }
     if (execution.name !== 'generation_submit') return next()
     const input = asRecord(execution.arguments)
-    const kind = input.kind === 'video' ? '视频' : '图片'
-    const modelId = typeof input.modelId === 'string' ? input.modelId : '未知模型'
-    const credits = typeof input.credits === 'number' && Number.isSafeInteger(input.credits)
-      ? `${input.credits} 积分`
-      : '报价中的积分'
+    const sessionId = execution.agent?.session.id
+    const quoteId = typeof input.quoteId === 'string' ? input.quoteId : undefined
+    if (sessionId === undefined || quoteId === undefined) throw new Error('GENERATION_QUOTE_CONFIRMATION_REQUIRED')
+    const quote = ctx.shotgoGenerationQuoteRegistry.take(sessionId, quoteId)
+    if (quote === undefined || input.quoteVersion !== quote.quoteVersion) {
+      throw new Error('GENERATION_QUOTE_CONFIRMATION_REQUIRED')
+    }
+    const kind = quote.kind === 'video' ? '视频' : '图片'
+    const prompt = typeof quote.normalizedParameters.prompt === 'string'
+      ? quote.normalizedParameters.prompt.slice(0, 160)
+      : '未提供'
+    const settings = Object.fromEntries(Object.entries(quote.normalizedParameters)
+      .filter(([key]) => !['prompt', 'kind', 'modelId'].includes(key)))
     return Promise.resolve({
       kind: 'ask' as const,
-      reason: `确认使用 ${modelId} 生成${kind}，预计扣除 ${credits}。批准仅对本次工具调用有效。`,
+      reason: `确认使用 ${quote.modelId} 生成${kind}，将扣除 ${quote.credits} 积分。提示词：${prompt}。设置：${JSON.stringify(settings)}。批准仅对本次工具调用有效。`,
     })
   })
 }

@@ -1,0 +1,6 @@
+# Bilingual-pair consistency record (docs/i18n/README.md): the git blob hash of each
+# side as of the last confirmed-consistent state. Both languages carry equal authority;
+# after editing either side, bring the other along and re-record with:
+#   pnpm run verify-translation-pairing --write .agents/notes/implemented/feature/2026-08-26-structured-generation-intent-and-trusted-quote-confirmation.md
+2026-08-26-structured-generation-intent-and-trusted-quote-confirmation.md: 6d07f7ee1a9cf783535f4e2ded94ed6deb659daa
+2026-08-26-structured-generation-intent-and-trusted-quote-confirmation.zh.md: 5cc22ec9afa1e539753259f0cc61ae3a6af3c7d4

@@ -14,9 +14,6 @@ export function apply(ctx: Context): void {
     parameters: {
       quoteId: { type: 'string', required: true, description: 'Opaque quote returned by generation_quote.' },
       quoteVersion: { type: 'number', required: true, const: 1 },
-      kind: { type: 'string', required: true, enum: ['image', 'video'] },
-      modelId: { type: 'string', required: true },
-      credits: { type: 'number', required: true, description: 'Quoted integer credits shown in the approval prompt.' },
     },
     output: {
       schema: {
@@ -57,9 +54,9 @@ export function apply(ctx: Context): void {
         replayed: generation.replayed,
       }
     },
-    presentCall: args => ({
+    presentCall: () => ({
       card: 'generic',
-      title: args.kind === 'image' ? '确认并提交图片生成' : '确认并提交视频生成',
+      title: '确认并提交生成',
       kind: 'execute',
     }),
   }))

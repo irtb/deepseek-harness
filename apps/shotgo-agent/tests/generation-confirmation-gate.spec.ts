@@ -7,6 +7,7 @@ import ToolRuntime, { defineTool } from '@deepseek-ai/dsh-tools'
 import ApprovalService, { type ApprovalOutcome } from '@deepseek-ai/dsh-user-approval'
 import { describe, expect, it, vi } from 'vitest'
 import * as confirmationGate from '../src/generation-confirmation-gate.ts'
+import * as quoteRegistry from '../src/generation-quote-registry.ts'
 
 function activeAgent(): Agent {
   const events: SessionEvent[] = [{ type: 'turn/start' } as SessionEvent]
@@ -28,14 +29,33 @@ async function mounted(): Promise<Context> {
   await ctx.plugin(SystemPrompt)
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(ApprovalService)
+  await ctx.plugin(quoteRegistry)
   await ctx.plugin(confirmationGate)
   return ctx
+}
+
+function recordQuote(ctx: Context, quoteId = 'quote-real'): void {
+  ctx.shotgoGenerationQuoteRegistry.record('confirmation-session', {
+    protocolVersion: '2026-08-25.1',
+    quoteId,
+    quoteVersion: 1,
+    kind: 'image',
+    modelId: 'image-real',
+    credits: 18,
+    breakdown: [{ key: 'model', label: 'Image Real', credits: 18 }],
+    canAfford: true,
+    userBalance: 100,
+    expiresAt: '2099-01-01T00:00:00.000Z',
+    normalizedParameters: { prompt: 'cat', aspectRatioId: '16:9' },
+    requiresConfirmation: true,
+  })
 }
 
 describe('generation confirmation gate', () => {
   it('dispatches generation only after one explicit allowed-once response', async () => {
     const ctx = await mounted()
     const execute = vi.fn(() => Promise.resolve('submitted'))
+    recordQuote(ctx)
     ctx.tools.register(defineTool({
       name: 'generation_submit',
       description: 'test submission',
@@ -53,19 +73,29 @@ describe('generation confirmation gate', () => {
       agent: activeAgent(),
       callId: CallId('generation-call'),
       name: 'generation_submit',
-      arguments: { kind: 'image', modelId: 'image-real', credits: 18 },
+      arguments: { quoteId: 'quote-real', quoteVersion: 1, kind: 'video', modelId: 'fake', credits: 1 },
       signal: new AbortController().signal,
     })
 
     expect(result.isError).toBe(false)
     expect(execute).toHaveBeenCalledOnce()
-    expect(reason).toContain('image-real')
-    expect(reason).toContain('18 积分')
+    expect(reason).toBe('确认使用 image-real 生成图片，将扣除 18 积分。提示词：cat。设置：{"aspectRatioId":"16:9"}。批准仅对本次工具调用有效。')
+
+    const replay = await ctx.tools.execute({
+      agent: activeAgent(),
+      callId: CallId('generation-call-replay'),
+      name: 'generation_submit',
+      arguments: { quoteId: 'quote-real', quoteVersion: 1 },
+      signal: new AbortController().signal,
+    })
+    expect(replay.isError).toBe(true)
+    expect(execute).toHaveBeenCalledOnce()
   })
 
   it.each(['rejected', 'cancelled', 'unavailable'] as const)('fails closed on %s', async (outcome) => {
     const ctx = await mounted()
     const execute = vi.fn(() => Promise.resolve('must-not-run'))
+    recordQuote(ctx)
     ctx.tools.register(defineTool({
       name: 'generation_submit',
       description: 'test submission',
@@ -79,7 +109,7 @@ describe('generation confirmation gate', () => {
       agent: activeAgent(),
       callId: CallId(`generation-${outcome}`),
       name: 'generation_submit',
-      arguments: { kind: 'video', modelId: 'video-real', credits: 135 },
+      arguments: { quoteId: 'quote-real', quoteVersion: 1 },
       signal: new AbortController().signal,
     })
 
@@ -112,6 +142,27 @@ describe('generation confirmation gate', () => {
 
     expect(result.isError).toBe(false)
     expect(prompted).not.toHaveBeenCalled()
+  })
+
+  it('fails closed when the authoritative quote is missing', async () => {
+    const ctx = await mounted()
+    const execute = vi.fn(() => Promise.resolve('must-not-run'))
+    ctx.tools.register(defineTool({
+      name: 'generation_submit',
+      description: 'test submission',
+      parameters: {},
+      output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] },
+      execute,
+    }))
+    const result = await ctx.tools.execute({
+      agent: activeAgent(),
+      callId: CallId('missing-quote'),
+      name: 'generation_submit',
+      arguments: { quoteId: 'missing', quoteVersion: 1 },
+      signal: new AbortController().signal,
+    })
+    expect(result.isError).toBe(true)
+    expect(execute).not.toHaveBeenCalled()
   })
 
   it('requires one-shot approval before cancellation', async () => {

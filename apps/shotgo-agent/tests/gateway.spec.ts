@@ -115,10 +115,10 @@ describe('production Gateway baseline', () => {
   })
 
   it('accepts one idempotent message and emits replayable SSE frames', async () => {
-    const submitted: string[] = []
+    const submitted: Array<Record<string, unknown>> = []
     const approvals: string[] = []
     const streamEvent: GatewayStreamEvent = {
-      protocolVersion: '2026-08-25.1',
+      protocolVersion: '2026-08-26.1',
       cursor: 7,
       sessionId: 'session-http',
       runId: 'run-http',
@@ -129,7 +129,12 @@ describe('production Gateway baseline', () => {
     }
     const sessions: GatewaySessionService = {
       async submit(input) {
-        submitted.push(`${input.capabilityGrant}:${input.clientRequestId}:${input.text}`)
+        submitted.push({
+          grant: input.capabilityGrant,
+          clientRequestId: input.clientRequestId,
+          text: input.text,
+          generationContext: input.generationContext,
+        })
         return { runId: 'run-http' }
       },
       async events(input) {
@@ -149,24 +154,45 @@ describe('production Gateway baseline', () => {
         Authorization: 'Bearer opaque-grant',
         'Content-Type': 'application/json',
         'Idempotency-Key': 'client-request-http',
+        'X-ShotGo-Gateway-Protocol-Version': '2026-08-26.1',
       },
       body: JSON.stringify({
         clientRequestId: 'client-request-http',
         message: { type: 'text', text: '生成一张海报' },
+        generationContext: {
+          schemaVersion: 1,
+          kind: 'image',
+          modelId: 'image-real',
+          parameters: { aspectRatioId: '16:9', resolutionId: '2K' },
+        },
       }),
     })
     expect(accepted.status).toBe(202)
-    expect(accepted.headers.get('x-shotgo-gateway-protocol-version')).toBe('2026-08-25.1')
+    expect(accepted.headers.get('x-shotgo-gateway-protocol-version')).toBe('2026-08-26.1')
     expect(await accepted.json()).toEqual({
-      protocolVersion: '2026-08-25.1',
+      protocolVersion: '2026-08-26.1',
       sessionId: 'session-http',
       runId: 'run-http',
       streamUrl: '/api/agent/v1/sessions/session-http/events',
     })
-    expect(submitted).toEqual(['opaque-grant:client-request-http:生成一张海报'])
+    expect(submitted).toEqual([{
+      grant: 'opaque-grant',
+      clientRequestId: 'client-request-http',
+      text: '生成一张海报',
+      generationContext: {
+        schemaVersion: 1,
+        kind: 'image',
+        modelId: 'image-real',
+        parameters: { aspectRatioId: '16:9', resolutionId: '2K' },
+      },
+    }])
 
     const stream = await fetch(`${baseUrl}/api/agent/v1/sessions/session-http/events`, {
-      headers: { Authorization: 'Bearer opaque-grant', 'Last-Event-ID': '6' },
+      headers: {
+        Authorization: 'Bearer opaque-grant',
+        'Last-Event-ID': '6',
+        'X-ShotGo-Gateway-Protocol-Version': '2026-08-26.1',
+      },
     })
     expect(stream.status).toBe(200)
     expect(stream.headers.get('content-type')).toContain('text/event-stream')
@@ -174,7 +200,11 @@ describe('production Gateway baseline', () => {
 
     const approval = await fetch(`${baseUrl}/api/agent/v1/sessions/session-http/approvals/approval-1`, {
       method: 'POST',
-      headers: { Authorization: 'Bearer opaque-grant', 'Content-Type': 'application/json' },
+      headers: {
+        Authorization: 'Bearer opaque-grant',
+        'Content-Type': 'application/json',
+        'X-ShotGo-Gateway-Protocol-Version': '2026-08-26.1',
+      },
       body: JSON.stringify({ outcome: 'allowed-once' }),
     })
     expect(approval.status).toBe(200)
@@ -184,6 +214,34 @@ describe('production Gateway baseline', () => {
       outcome: 'allowed-once',
     })
     expect(approvals).toEqual(['opaque-grant:session-http:approval-1:allowed-once'])
+
+    const legacy = await fetch(`${baseUrl}/api/agent/v1/sessions/session-legacy/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer opaque-grant',
+        'Content-Type': 'application/json',
+        'Idempotency-Key': 'legacy-request-http',
+      },
+      body: JSON.stringify({
+        clientRequestId: 'legacy-request-http',
+        message: { type: 'text', text: '旧页面请求' },
+      }),
+    })
+    expect(legacy.headers.get('x-shotgo-gateway-protocol-version')).toBe('2026-08-25.1')
+    expect(await legacy.json()).toMatchObject({ protocolVersion: '2026-08-25.1' })
+    const legacyStream = await fetch(`${baseUrl}/api/agent/v1/sessions/session-legacy/events`, {
+      headers: { Authorization: 'Bearer opaque-grant', 'Last-Event-ID': '6' },
+    })
+    expect(await legacyStream.text()).toContain('"protocolVersion":"2026-08-25.1"')
+
+    const unsupported = await fetch(`${baseUrl}/api/agent/v1/sessions/session-http/events`, {
+      headers: {
+        Authorization: 'Bearer opaque-grant',
+        'X-ShotGo-Gateway-Protocol-Version': '2099-01-01.1',
+      },
+    })
+    expect(unsupported.status).toBe(426)
+    expect(await unsupported.json()).toEqual({ code: 'GATEWAY_PROTOCOL_UNSUPPORTED' })
   })
 
   it('keeps Session APIs closed without traffic acceptance and validates idempotency', async () => {
@@ -214,6 +272,58 @@ describe('production Gateway baseline', () => {
     })
     expect(invalid.status).toBe(422)
     expect(await invalid.json()).toEqual({ code: 'IDEMPOTENCY_KEY_MISMATCH' })
+
+    const injected = await fetch(`${enabled}/api/agent/v1/sessions/session/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer opaque-grant',
+        'Content-Type': 'application/json',
+        'Idempotency-Key': 'context-request',
+      },
+      body: JSON.stringify({
+        clientRequestId: 'context-request',
+        message: { type: 'text', text: 'hello' },
+        generationContext: {
+          schemaVersion: 1,
+          kind: 'image',
+          modelId: 'image-real',
+          parameters: { referenceImageUrls: ['https://evil.example/image.png'] },
+        },
+      }),
+    })
+    expect(injected.status).toBe(422)
+    expect(await injected.json()).toEqual({ code: 'GENERATION_CONTEXT_INVALID' })
+
+    const unknownMessageField = await fetch(`${enabled}/api/agent/v1/sessions/session/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer opaque-grant',
+        'Content-Type': 'application/json',
+        'Idempotency-Key': 'unknown-message-field',
+      },
+      body: JSON.stringify({
+        clientRequestId: 'unknown-message-field',
+        message: { type: 'text', text: 'hello', credits: 1 },
+      }),
+    })
+    expect(unknownMessageField.status).toBe(422)
+    expect(await unknownMessageField.json()).toEqual({ code: 'MESSAGE_INVALID' })
+
+    const unknownRequestField = await fetch(`${enabled}/api/agent/v1/sessions/session/messages`, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer opaque-grant',
+        'Content-Type': 'application/json',
+        'Idempotency-Key': 'unknown-request-field',
+      },
+      body: JSON.stringify({
+        clientRequestId: 'unknown-request-field',
+        message: { type: 'text', text: 'hello' },
+        quotedCredits: 1,
+      }),
+    })
+    expect(unknownRequestField.status).toBe(422)
+    expect(await unknownRequestField.json()).toEqual({ code: 'INVALID_MESSAGE_REQUEST' })
   })
 
   it('allows only the configured Canvas origin and answers its preflight', async () => {
@@ -236,6 +346,7 @@ describe('production Gateway baseline', () => {
     expect(preflight.status).toBe(204)
     expect(preflight.headers.get('access-control-allow-origin')).toBe('https://canvas.shotgo.cn')
     expect(preflight.headers.get('access-control-allow-headers')).toContain('Authorization')
+    expect(preflight.headers.get('access-control-allow-headers')).toContain('X-ShotGo-Gateway-Protocol-Version')
     expect(preflight.headers.get('access-control-expose-headers')).toContain('X-ShotGo-Gateway-Protocol-Version')
 
     const rejected = await fetch(`${baseUrl}/api/agent/v1/sessions/session/messages`, {

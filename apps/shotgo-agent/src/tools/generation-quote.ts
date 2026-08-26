@@ -7,7 +7,7 @@ import type { GenerationQuoteParameters, GenerationQuoteResponse } from '../cont
 import type {} from '../generation-quote.ts'
 
 export const name = 'shotgo-generation-quote'
-export const inject = ['tools']
+export const inject = ['tools', 'shotgoGenerationQuoteRegistry']
 
 /** Register the Grant-bound generation quote tool. */
 export function apply(ctx: Context): void {
@@ -73,6 +73,7 @@ export function apply(ctx: Context): void {
         parameters,
         signal: exec.signal,
       })
+      ctx.shotgoGenerationQuoteRegistry.record(sessionId, quote)
       return toolResult(quote)
     },
     presentCall: args => ({
