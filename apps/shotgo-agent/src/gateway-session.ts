@@ -11,6 +11,7 @@ import type { LaravelGenerationQuoteClient } from './laravel/generation-quote-cl
 import type { LaravelGenerationSubmitClient } from './laravel/generation-submit-client.ts'
 import type { LaravelGenerationLifecycleClient } from './laravel/generation-lifecycle-client.ts'
 import type { LaravelCanvasContextClient } from './laravel/canvas-context-client.ts'
+import type { LaravelCanvasPlanClient } from './laravel/canvas-plan-client.ts'
 import {
   SHOTGO_GATEWAY_PROTOCOL_VERSION,
   type GatewayGenerationContext,
@@ -151,6 +152,8 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
   private readonly stopGenerationSubmitter?: () => void
   private readonly stopGenerationLifecycle?: () => void
   private readonly stopCanvasContextReader?: () => void
+  private readonly stopCanvasPlanQuoteReader?: () => void
+  private readonly stopCanvasPlanSubmitter?: () => void
   private disposed = false
 
   constructor(
@@ -167,6 +170,7 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
     generationLifecycle?: LaravelGenerationLifecycleClient,
     private readonly recoveryStore = new GatewayRecoveryStore(`${resolveSessionRoot()}/.gateway`),
     canvasContext?: LaravelCanvasContextClient,
+    canvasPlan?: LaravelCanvasPlanClient,
   ) {
     if (canvasContext !== undefined) {
       this.stopCanvasContextReader = ctx.provide('shotgoCanvasContextReader', {
@@ -177,6 +181,44 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
           return await canvasContext.read({
             capabilityGrant: live.capabilityGrant.current,
             sessionId,
+            ...(signal === undefined ? {} : { signal }),
+          })
+        },
+      })
+    }
+    if (canvasPlan !== undefined) {
+      this.stopCanvasPlanQuoteReader = ctx.provide('shotgoCanvasPlanQuoteReader', {
+        quote: async ({ sessionId, revision, summary, nodes, dependencies, signal }) => {
+          const live = this.sessions.get(sessionId)
+          if (live === undefined) throw new GatewaySessionError('SESSION_NOT_FOUND', 404)
+          if (live.agentMode !== 'canvas') throw new GatewaySessionError('CANVAS_PLAN_DENIED', 403)
+          return await canvasPlan.quote({
+            capabilityGrant: live.capabilityGrant.current,
+            sessionId,
+            revision,
+            summary,
+            nodes,
+            dependencies,
+            ...(signal === undefined ? {} : { signal }),
+          })
+        },
+      })
+      this.stopCanvasPlanSubmitter = ctx.provide('shotgoCanvasPlanSubmitter', {
+        apply: async ({ sessionId, actionId, quoteId, quoteVersion, signal }) => {
+          const live = this.sessions.get(sessionId)
+          if (live === undefined) throw new GatewaySessionError('SESSION_NOT_FOUND', 404)
+          if (live.agentMode !== 'canvas') throw new GatewaySessionError('CANVAS_PLAN_DENIED', 403)
+          if (live.activeRunId === undefined) throw new GatewaySessionError('RUN_NOT_ACTIVE', 409)
+          const digest = createHash('sha256').update(`${sessionId}\0${quoteId}`).digest('hex')
+          const clientRequestId = `canvas-${digest.slice(0, 57)}`
+          return await canvasPlan.apply({
+            capabilityGrant: live.capabilityGrant.current,
+            sessionId,
+            runId: live.activeRunId,
+            actionId,
+            clientRequestId,
+            quoteId,
+            quoteVersion,
             ...(signal === undefined ? {} : { signal }),
           })
         },
@@ -655,6 +697,8 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
     this.stopGenerationSubmitter?.()
     this.stopGenerationLifecycle?.()
     this.stopCanvasContextReader?.()
+    this.stopCanvasPlanQuoteReader?.()
+    this.stopCanvasPlanSubmitter?.()
     this.sessions.clear()
     this.resolvedApprovals.clear()
   }

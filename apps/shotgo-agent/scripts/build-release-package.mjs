@@ -33,6 +33,10 @@ const requiredFiles = [
   'dist/tools/generation-submit.js',
   'dist/tools/generation-status.js',
   'dist/tools/generation-cancel.js',
+  'dist/tools/canvas-context-read.js',
+  'dist/tools/canvas-plan-preview.js',
+  'dist/tools/canvas-plan-quote.js',
+  'dist/tools/canvas-ops-apply.js',
   'node_modules/@deepseek-ai/cordis-plugin-group/package.json',
   'node_modules/@deepseek-ai/dsh-agent-presets/package.json',
   'node_modules/@deepseek-ai/dsh-home-paths/package.json',
@@ -54,6 +58,8 @@ const canvasToolReferences = new Set([
   ...expectedToolReferences,
   '../../../tools/canvas-context-read.js',
   '../../../tools/canvas-plan-preview.js',
+  '../../../tools/canvas-plan-quote.js',
+  '../../../tools/canvas-ops-apply.js',
 ])
 const presetsRoot = resolve(packageRoot, 'dist/config/agent-presets')
 const presetEntries = readdirSync(presetsRoot, { withFileTypes: true })

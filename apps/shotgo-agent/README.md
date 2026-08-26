@@ -26,6 +26,10 @@ Phase 4B cold-resumes a persisted Session only after a fresh Laravel Grant exact
 
 Phase 4C reads a Grant-bound compact Canvas snapshot and presents a read-only proposed workflow. `canvas_plan_preview` accepts one to twelve uniquely identified nodes, no more than twenty-four unique non-self dependencies, bounded non-blank text, and a non-negative integral credit estimate. The estimate is descriptive only: the plan neither writes Canvas state nor replaces Laravel's quote and confirmation flow.
 
+Phase 4E turns an unchanged read-only plan into a short-lived Laravel-authoritative quote and exposes `canvas_ops_apply` only in the Canvas Preset. The trusted UI confirms the exact quoted node and dependency counts immediately before Laravel adds stable-keyed nodes and connections. Revision drift, scope changes, locks, occupied keys, malformed quotes, and partial replays fail closed. This phase never updates or deletes existing Canvas state and reports one virtual Agent credit without calling the Laravel billing path.
+
+Canvas, Image, and Video Agent conversational reasoning and replies default to Simplified Chinese and switch language only when the user explicitly requests it. This default does not constrain creative output: artwork text, prompts, scripts, subtitles, narration, and other generated content follow the user's requested language.
+
 ## Local smoke
 
 ```sh
@@ -66,6 +70,6 @@ The three Presets have distinct persona text. Within one Preset, the prompt and 
 
 - The keyless executable remains a Phase 0A smoke entry; `gateway-bin` is the production process entry.
 - `gateway-bin` mounts the restricted Harness Runtime, trusted mode Presets, Laravel Grant authorizer, Session submission, SSE replay, and cancellation. Production admission remains closed until Laravel implements and accepts Grant issuance and introspection.
-- Laravel runtime configuration, inference policy, metadata usage, Grant introspection, generation configuration, read-only quote, trusted confirmation, idempotent generation submission, status, recovery lookup, and cancellation clients are implemented. Asset projection and canvas mutation clients remain disconnected.
-- Asset projection and canvas mutation stay disabled until both implementations pass contract and integration acceptance.
+- Laravel runtime configuration, inference policy, metadata usage, Grant introspection, generation configuration, read-only quote, trusted confirmation, idempotent generation submission, status, recovery lookup, cancellation, and additive Canvas plan clients are implemented. Canvas mutation is limited to confirmed stable-key node and connection creation.
+- Existing Canvas node or connection updates and deletion remain unavailable to the Agent.
 - Gateway SSE replay remains process-local and bounded to 512 events. Cold recovery restores completed Harness history for the next Run, but does not provide cross-device Session discovery, multi-instance coordination, or unfinished-Run replay.
