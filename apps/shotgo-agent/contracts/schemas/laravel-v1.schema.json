@@ -515,6 +515,27 @@
         "payload": { "type": "object" }
       }
     },
+    "CanvasContextReadRequest": {
+      "type": "object", "additionalProperties": false, "required": ["sessionId"],
+      "properties": { "sessionId": { "$ref": "#/$defs/OpaqueId" } }
+    },
+    "CanvasContextReadResponse": {
+      "type": "object", "additionalProperties": false,
+      "required": ["protocolVersion", "snapshotVersion", "authorizationContextId", "sessionId", "spaceId", "projectId", "projectName", "revision", "updatedAt", "counts", "truncated", "nodes", "connections", "locks", "availableCapabilities"],
+      "properties": {
+        "protocolVersion": { "$ref": "#/$defs/ProtocolVersion" }, "snapshotVersion": { "const": 1 },
+        "authorizationContextId": { "$ref": "#/$defs/OpaqueId" }, "sessionId": { "$ref": "#/$defs/OpaqueId" },
+        "spaceId": { "$ref": "#/$defs/OpaqueId" }, "projectId": { "$ref": "#/$defs/OpaqueId" },
+        "projectName": { "type": "string", "maxLength": 255 }, "revision": { "$ref": "#/$defs/OpaqueId" },
+        "updatedAt": { "oneOf": [{ "$ref": "#/$defs/DateTime" }, { "type": "null" }] },
+        "counts": { "type": "object", "additionalProperties": false, "required": ["nodes", "connections"], "properties": { "nodes": { "type": "integer", "minimum": 0 }, "connections": { "type": "integer", "minimum": 0 } } },
+        "truncated": { "type": "object", "additionalProperties": false, "required": ["nodes", "connections"], "properties": { "nodes": { "type": "boolean" }, "connections": { "type": "boolean" } } },
+        "nodes": { "type": "array", "maxItems": 80, "items": { "type": "object", "additionalProperties": false, "required": ["nodeKey", "type", "name", "locked"], "properties": { "nodeKey": { "$ref": "#/$defs/OpaqueId" }, "type": { "type": "string" }, "toolKey": { "type": ["string", "null"] }, "name": { "type": "string", "maxLength": 160 }, "status": { "type": ["string", "null"] }, "parentKey": { "type": ["string", "null"] }, "locked": { "type": "boolean" } } } },
+        "connections": { "type": "array", "maxItems": 120, "items": { "type": "object", "additionalProperties": false, "required": ["connectionKey", "sourceKey", "targetKey"], "properties": { "connectionKey": { "$ref": "#/$defs/OpaqueId" }, "sourceKey": { "$ref": "#/$defs/OpaqueId" }, "targetKey": { "$ref": "#/$defs/OpaqueId" } } } },
+        "locks": { "type": "array", "maxItems": 80, "items": { "type": "object", "additionalProperties": false, "required": ["nodeKey", "lockedByCurrentUser"], "properties": { "nodeKey": { "$ref": "#/$defs/OpaqueId" }, "lockedByCurrentUser": { "type": "boolean" } } } },
+        "availableCapabilities": { "type": "array", "uniqueItems": true, "items": { "type": "string" } }
+      }
+    },
     "Problem": {
       "type": "object",
       "additionalProperties": true,

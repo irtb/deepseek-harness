@@ -10,6 +10,7 @@ import { LaravelGenerationConfigClient } from './laravel/generation-config-clien
 import { LaravelGenerationQuoteClient } from './laravel/generation-quote-client.ts'
 import { LaravelGenerationSubmitClient } from './laravel/generation-submit-client.ts'
 import { LaravelGenerationLifecycleClient } from './laravel/generation-lifecycle-client.ts'
+import { LaravelCanvasContextClient } from './laravel/canvas-context-client.ts'
 
 const NAME = 'shotgo-agent-gateway'
 const config = readGatewayConfig(process.env)
@@ -47,6 +48,7 @@ try {
   const generationQuote = new LaravelGenerationQuoteClient(config.laravel)
   const generationSubmit = new LaravelGenerationSubmitClient(config.laravel)
   const generationLifecycle = new LaravelGenerationLifecycleClient(config.laravel)
+  const canvasContext = new LaravelCanvasContextClient(config.laravel)
   const sessions = new HarnessGatewaySessionService(
     runtimeEntry.ctx,
     authorizer,
@@ -55,6 +57,8 @@ try {
     generationQuote,
     generationSubmit,
     generationLifecycle,
+    undefined,
+    canvasContext,
   )
   const server = createGatewayServer(config, {
     isInferenceRuntimeReady: () => runtimeConfig.isReady(),

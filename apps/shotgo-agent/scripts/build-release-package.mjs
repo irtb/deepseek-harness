@@ -50,6 +50,11 @@ const expectedToolReferences = new Set([
   '../../../tools/generation-status.js',
   '../../../tools/generation-cancel.js',
 ])
+const canvasToolReferences = new Set([
+  ...expectedToolReferences,
+  '../../../tools/canvas-context-read.js',
+  '../../../tools/canvas-plan-preview.js',
+])
 const presetsRoot = resolve(packageRoot, 'dist/config/agent-presets')
 const presetEntries = readdirSync(presetsRoot, { withFileTypes: true })
   .filter(entry => entry.isDirectory())
@@ -67,9 +72,12 @@ for (const entry of presetEntries) {
   const relativeNames = [...content.matchAll(/^\s*name:\s*['"]?(\.[^'"\s]+)['"]?\s*$/gm)]
     .map(match => match[1])
   const actualToolReferences = new Set(relativeNames)
+  const expectedReferences = entry.name === 'shotgo-canvas-v1'
+    ? canvasToolReferences
+    : expectedToolReferences
   if (
-    actualToolReferences.size !== expectedToolReferences.size
-    || [...expectedToolReferences].some(reference => !actualToolReferences.has(reference))
+    actualToolReferences.size !== expectedReferences.size
+    || [...expectedReferences].some(reference => !actualToolReferences.has(reference))
   ) {
     throw new Error(`Release preset has an unexpected compiled tool set: ${relativePath}`)
   }

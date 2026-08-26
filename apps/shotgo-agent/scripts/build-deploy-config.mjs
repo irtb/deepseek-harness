@@ -12,6 +12,8 @@ await rm(`${targetConfig}agent-presets`, { recursive: true, force: true })
 await cp(`${sourceConfig}agent-presets`, `${targetConfig}agent-presets`, { recursive: true, force: true })
 
 const toolModules = [
+  'canvas-context-read',
+  'canvas-plan-preview',
   'generation-config-read',
   'generation-quote',
   'generation-submit',

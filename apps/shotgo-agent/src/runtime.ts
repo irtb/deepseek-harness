@@ -23,6 +23,8 @@ import * as generationSubmit from './tools/generation-submit.ts'
 import * as generationStatus from './tools/generation-status.ts'
 import * as generationCancel from './tools/generation-cancel.ts'
 import * as generationConfirmationGate from './generation-confirmation-gate.ts'
+import * as canvasContextRead from './tools/canvas-context-read.ts'
+import * as canvasPlanPreview from './tools/canvas-plan-preview.ts'
 
 export const name = 'shotgo-agent-runtime'
 
@@ -49,7 +51,7 @@ export async function apply(ctx: Context): Promise<void> {
     includeHarnessIdentity: false,
     includeRuntimeContext: false,
     persona: 'You are the ShotGo Image Agent. Use only the tools mounted for this session.',
-    toolOrder: ['generation_config_read', 'generation_quote', 'generation_submit', 'generation_status', 'generation_cancel', '<unlisted-tools>'],
+    toolOrder: ['canvas_context_read', 'canvas_plan_preview', 'generation_config_read', 'generation_quote', 'generation_submit', 'generation_status', 'generation_cancel', '<unlisted-tools>'],
   })
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(ApprovalService, { policy: 'ask' })
@@ -77,6 +79,8 @@ export async function apply(ctx: Context): Promise<void> {
   await ctx.plugin(generationStatus)
   await ctx.plugin(generationCancel)
   await ctx.plugin(generationConfirmationGate)
+  await ctx.plugin(canvasContextRead)
+  await ctx.plugin(canvasPlanPreview)
   await ctx.plugin(AgentLoop, {
     agents: [],
   })

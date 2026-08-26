@@ -10,6 +10,7 @@ import type { LaravelGenerationConfigClient } from './laravel/generation-config-
 import type { LaravelGenerationQuoteClient } from './laravel/generation-quote-client.ts'
 import type { LaravelGenerationSubmitClient } from './laravel/generation-submit-client.ts'
 import type { LaravelGenerationLifecycleClient } from './laravel/generation-lifecycle-client.ts'
+import type { LaravelCanvasContextClient } from './laravel/canvas-context-client.ts'
 import {
   SHOTGO_GATEWAY_PROTOCOL_VERSION,
   type GatewayGenerationContext,
@@ -149,6 +150,7 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
   private readonly stopGenerationQuoteReader?: () => void
   private readonly stopGenerationSubmitter?: () => void
   private readonly stopGenerationLifecycle?: () => void
+  private readonly stopCanvasContextReader?: () => void
   private disposed = false
 
   constructor(
@@ -164,7 +166,22 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
     generationSubmit?: LaravelGenerationSubmitClient,
     generationLifecycle?: LaravelGenerationLifecycleClient,
     private readonly recoveryStore = new GatewayRecoveryStore(`${resolveSessionRoot()}/.gateway`),
+    canvasContext?: LaravelCanvasContextClient,
   ) {
+    if (canvasContext !== undefined) {
+      this.stopCanvasContextReader = ctx.provide('shotgoCanvasContextReader', {
+        read: async ({ sessionId, signal }) => {
+          const live = this.sessions.get(sessionId)
+          if (live === undefined) throw new GatewaySessionError('SESSION_NOT_FOUND', 404)
+          if (live.agentMode !== 'canvas') throw new GatewaySessionError('CANVAS_CONTEXT_DENIED', 403)
+          return await canvasContext.read({
+            capabilityGrant: live.capabilityGrant.current,
+            sessionId,
+            ...(signal === undefined ? {} : { signal }),
+          })
+        },
+      })
+    }
     if (generationConfig !== undefined) {
       this.stopGenerationConfigReader = ctx.provide('shotgoGenerationConfigReader', {
         read: async ({ kind, sessionId, signal }) => {
@@ -637,6 +654,7 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
     this.stopGenerationQuoteReader?.()
     this.stopGenerationSubmitter?.()
     this.stopGenerationLifecycle?.()
+    this.stopCanvasContextReader?.()
     this.sessions.clear()
     this.resolvedApprovals.clear()
   }
