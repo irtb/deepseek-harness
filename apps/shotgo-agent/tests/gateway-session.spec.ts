@@ -179,7 +179,6 @@ describe('Gateway to Harness session composition', () => {
             qualities: [{ id: 'standard', label: 'Standard' }],
             resolutions: [{ id: '2K', label: '2K' }],
             aspectRatios: [{ id: '16:9', label: '16:9' }],
-            multiples: [{ id: '1', label: '1 image' }],
           },
           defaults: { modelId: 'image-real' },
         }), {

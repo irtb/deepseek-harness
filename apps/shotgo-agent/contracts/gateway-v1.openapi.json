@@ -153,7 +153,6 @@
               "qualityId": { "type": "string", "minLength": 1, "maxLength": 128 },
               "resolutionId": { "type": "string", "minLength": 1, "maxLength": 128 },
               "aspectRatioId": { "type": "string", "minLength": 1, "maxLength": 128 },
-              "multipleId": { "type": "string", "minLength": 1, "maxLength": 128 },
               "referenceAssets": {
                 "type": "array",
                 "maxItems": 9,

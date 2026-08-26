@@ -26,7 +26,6 @@ export function apply(ctx: Context): void {
       qualityId: { type: 'string', description: 'Selected image quality id.' },
       resolutionId: { type: 'string', description: 'Selected resolution id.' },
       aspectRatioId: { type: 'string', description: 'Selected aspect-ratio id.' },
-      multipleId: { type: 'string', description: 'Selected image count id.' },
       duration: { type: 'number', description: 'Selected video duration in seconds.' },
       fps: { type: 'number', description: 'Selected video frame rate.' },
       audio: { type: 'boolean', description: 'Whether generated video includes audio.' },
@@ -60,7 +59,7 @@ export function apply(ctx: Context): void {
       if (sessionId === undefined) throw new Error('GENERATION_QUOTE_SESSION_REQUIRED')
       const parameters: GenerationQuoteParameters = { prompt: args.prompt }
       for (const key of [
-        'qualityId', 'resolutionId', 'aspectRatioId', 'multipleId',
+        'qualityId', 'resolutionId', 'aspectRatioId',
         'duration', 'fps', 'audio', 'operationType',
       ] as const) {
         const value = args[key]

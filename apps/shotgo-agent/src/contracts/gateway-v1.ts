@@ -17,7 +17,6 @@ export type GatewayImageGenerationParameters = Partial<{
   qualityId: string
   resolutionId: string
   aspectRatioId: string
-  multipleId: string
   referenceAssets: GatewayReferenceAsset[]
 }>
 

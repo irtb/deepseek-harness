@@ -181,12 +181,11 @@
     "ImageGenerationParameters": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["qualities", "resolutions", "aspectRatios", "multiples"],
+      "required": ["qualities", "resolutions", "aspectRatios"],
       "properties": {
         "qualities": { "type": "array", "items": { "$ref": "#/$defs/GenerationOption" } },
         "resolutions": { "type": "array", "items": { "$ref": "#/$defs/GenerationOption" } },
-        "aspectRatios": { "type": "array", "items": { "$ref": "#/$defs/GenerationOption" } },
-        "multiples": { "type": "array", "items": { "$ref": "#/$defs/GenerationOption" } }
+        "aspectRatios": { "type": "array", "items": { "$ref": "#/$defs/GenerationOption" } }
       }
     },
     "VideoGenerationParameters": {
@@ -209,8 +208,7 @@
         "modelId": { "$ref": "#/$defs/OpaqueId" },
         "qualityId": { "$ref": "#/$defs/OpaqueId" },
         "resolutionId": { "$ref": "#/$defs/OpaqueId" },
-        "aspectRatioId": { "$ref": "#/$defs/OpaqueId" },
-        "multipleId": { "$ref": "#/$defs/OpaqueId" }
+        "aspectRatioId": { "$ref": "#/$defs/OpaqueId" }
       }
     },
     "VideoGenerationDefaults": {
