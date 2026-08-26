@@ -135,6 +135,7 @@ function generationMessage(text: string, context: GatewayGenerationContext | und
   return [
     'The following JSON records generation settings explicitly selected in the ShotGo UI.',
     'Use these values unchanged when calling generation_quote. Laravel remains authoritative and may reject stale values.',
+    'Reference assets, when present in generationContext, are trusted UI selections and are injected into the quote by the Gateway. The generation_quote tool intentionally has no referenceAssets argument. Do not claim that references are unsupported merely because that argument is absent.',
     JSON.stringify({ userRequest: text, generationContext: context }),
   ].join('\n')
 }
