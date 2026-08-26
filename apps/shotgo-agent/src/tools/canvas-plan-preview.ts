@@ -4,6 +4,10 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 export const name = 'shotgo-canvas-plan-preview'
 export const inject = ['tools']
 
+function validText(value: string, maxLength: number): boolean {
+  return value.trim().length > 0 && value.length <= maxLength
+}
+
 export function apply(ctx: Context): void {
   ctx.tools.register(defineTool({
     name: 'canvas_plan_preview',
@@ -23,17 +27,23 @@ export function apply(ctx: Context): void {
       schema: { type: 'object', additionalProperties: true },
       render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
     },
-    async execute(args) {
-      if (args.nodes.length > 12 || args.dependencies.length > 24
+    execute(args) {
+      if (args.nodes.length === 0 || args.nodes.length > 12 || args.dependencies.length > 24
         || !Number.isSafeInteger(args.estimatedCredits) || args.estimatedCredits < 0) {
         throw new Error('CANVAS_PLAN_LIMIT_EXCEEDED')
       }
+      if (!validText(args.summary, 2_000) || !validText(args.modelId, 128)
+        || args.nodes.some(node => !validText(node.tempId, 128) || !validText(node.name, 256))) {
+        throw new Error('CANVAS_PLAN_INVALID_CONTENT')
+      }
       const ids = new Set(args.nodes.map(node => node.tempId))
+      const edges = new Set(args.dependencies.map(edge => `${edge.from}\u0000${edge.to}`))
       if (ids.size !== args.nodes.length
-        || args.dependencies.some(edge => !ids.has(edge.from) || !ids.has(edge.to))) {
+        || edges.size !== args.dependencies.length
+        || args.dependencies.some(edge => edge.from === edge.to || !ids.has(edge.from) || !ids.has(edge.to))) {
         throw new Error('CANVAS_PLAN_INVALID_DEPENDENCY')
       }
-      return { schemaVersion: 1, readOnly: true, requiresConfirmation: true, ...args }
+      return Promise.resolve({ schemaVersion: 1, readOnly: true, requiresConfirmation: true, ...args })
     },
     presentCall: () => ({ card: 'generic', title: '整理画布计划', kind: 'read' }),
   }))

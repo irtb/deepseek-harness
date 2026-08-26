@@ -24,6 +24,8 @@ Phase 4A 使用 Gateway 协议 `2026-08-26.2` 传递结构化生成意图。图�
 
 Phase 4B 只会在新 Laravel Grant 与模型不可见的 Gateway 恢复绑定中的用户、团队、空间、项目、模式、preset 和 runtime 版本完全一致时冷恢复持久 Session。绑定原子写入 Harness 日志旁，绝不包含 Grant 或凭据。每次在线实例化都有新的 `streamEpoch`，Canvas 因此会在重启后重置陈旧的进程内 cursor。中断的推理与审批会被关闭而不是恢复，下一条用户消息开始新的 Run。
 
+Phase 4C 读取绑定到 Grant 的紧凑 Canvas 快照并展示只读工作流计划。`canvas_plan_preview` 只接受一到十二个具有唯一标识的节点、最多二十四条唯一且非自环的依赖、长度受限的非空文本，以及非负整数积分估算。该估算仅用于说明；计划既不写入 Canvas，也不能替代 Laravel 的报价和确认流程。
+
 ## 本地 Smoke
 
 ```sh

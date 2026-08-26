@@ -24,6 +24,8 @@ Phase 4A uses Gateway protocol `2026-08-26.2` for structured generation intent. 
 
 Phase 4B cold-resumes a persisted Session only after a fresh Laravel Grant exactly matches the model-invisible Gateway recovery binding for user, team, space, project, mode, preset, and runtime version. The binding is stored atomically beside the Harness log and never contains a Grant or credential. Every live materialization has a new `streamEpoch`, so Canvas resets a stale process-local cursor after restart. Interrupted inference and approvals are closed rather than resumed; the next user message starts a new Run.
 
+Phase 4C reads a Grant-bound compact Canvas snapshot and presents a read-only proposed workflow. `canvas_plan_preview` accepts one to twelve uniquely identified nodes, no more than twenty-four unique non-self dependencies, bounded non-blank text, and a non-negative integral credit estimate. The estimate is descriptive only: the plan neither writes Canvas state nor replaces Laravel's quote and confirmation flow.
+
 ## Local smoke
 
 ```sh
