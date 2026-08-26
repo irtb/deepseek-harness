@@ -8,6 +8,7 @@ import ApprovalService, { type ApprovalOutcome } from '@deepseek-ai/dsh-user-app
 import { describe, expect, it, vi } from 'vitest'
 import * as confirmationGate from '../src/generation-confirmation-gate.ts'
 import * as quoteRegistry from '../src/generation-quote-registry.ts'
+import * as canvasPlanQuoteRegistry from '../src/canvas-plan-quote-registry.ts'
 
 function activeAgent(): Agent {
   const events: SessionEvent[] = [{ type: 'turn/start' } as SessionEvent]
@@ -30,6 +31,7 @@ async function mounted(): Promise<Context> {
   await ctx.plugin(ToolRuntime)
   await ctx.plugin(ApprovalService)
   await ctx.plugin(quoteRegistry)
+  await ctx.plugin(canvasPlanQuoteRegistry)
   await ctx.plugin(confirmationGate)
   return ctx
 }
@@ -192,5 +194,37 @@ describe('generation confirmation gate', () => {
     expect(result.isError).toBe(false)
     expect(execute).toHaveBeenCalledOnce()
     expect(reason).toContain('42')
+  })
+
+  it('uses only the authoritative Canvas plan quote in the one-shot approval reason', async () => {
+    const ctx = await mounted()
+    const execute = vi.fn(() => Promise.resolve('applied'))
+    ctx.shotgoCanvasPlanQuoteRegistry.record('confirmation-session', {
+      protocolVersion: '2026-08-26.1', quoteId: 'canvas-quote', quoteVersion: 1,
+      quoteKind: 'canvas-plan', authorizationContextId: 'auth', sessionId: 'confirmation-session',
+      userId: 1, teamId: null, spaceId: 'space', projectId: 'project', planId: 'plan', revision: 'r'.repeat(32),
+      summary: '新增文案与主视觉',
+      nodes: [
+        { tempId: 'copy', nodeKey: 'node-copy', name: '文案', kind: 'text' },
+        { tempId: 'hero', nodeKey: 'node-hero', name: '主视觉', kind: 'image' },
+      ],
+      dependencies: [{ from: 'copy', to: 'hero', connectionKey: 'edge', sourceKey: 'node-copy', targetKey: 'node-hero' }],
+      credits: 1, billingMode: 'virtual', expiresAt: '2099-01-01T00:00:00.000Z', requiresConfirmation: true,
+    })
+    ctx.tools.register(defineTool({
+      name: 'canvas_ops_apply', description: 'test Canvas apply', parameters: {},
+      output: { schema: { type: 'string' }, render: (_args, value) => [{ type: 'text', text: value }] }, execute,
+    }))
+    let reason = ''
+    ctx.on('approval/request', (request) => { reason = request.reason ?? ''; return Promise.resolve<ApprovalOutcome>('allowed-once') })
+
+    const result = await ctx.tools.execute({
+      agent: activeAgent(), callId: CallId('canvas-apply'), name: 'canvas_ops_apply',
+      arguments: { quoteId: 'canvas-quote', quoteVersion: 1, summary: '伪造计划', credits: 999 },
+      signal: new AbortController().signal,
+    })
+    expect(result.isError).toBe(false)
+    expect(execute).toHaveBeenCalledOnce()
+    expect(reason).toBe('确认在当前画布新增 2 个节点和 1 条连线。计划：新增文案与主视觉。本次显示 1 个 Agent 虚拟积分，不实际扣费。批准仅对这份 Laravel 冻结计划有效。')
   })
 })

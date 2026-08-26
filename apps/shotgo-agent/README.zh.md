@@ -26,6 +26,10 @@ Phase 4B 只会在新 Laravel Grant 与模型不可见的 Gateway 恢复绑定�
 
 Phase 4C 读取绑定到 Grant 的紧凑 Canvas 快照并展示只读工作流计划。`canvas_plan_preview` 只接受一到十二个具有唯一标识的节点、最多二十四条唯一且非自环的依赖、长度受限的非空文本，以及非负整数积分估算。该估算仅用于说明；计划既不写入 Canvas，也不能替代 Laravel 的报价和确认流程。
 
+Phase 4E 将未发生变化的只读计划转换为短期 Laravel 权威报价，并且仅在 Canvas Preset 中暴露 `canvas_ops_apply`。可信 UI 在执行前确认报价中的准确节点数和依赖数，随后 Laravel 使用稳定 Key 新增节点与连接。版本漂移、范围变化、锁、Key 占用、无效报价和不完整重放均安全失败。本阶段绝不更新或删除既有 Canvas 状态，并显示 1 个虚拟 Agent 积分，但不调用 Laravel 计费流程。
+
+Canvas、Image、Video Agent 的会话推理和回复默认使用简体中文，仅在用户明确要求时切换语言。该默认值不限制创作产出；作品文案、提示词、脚本、字幕、旁白和其他生成内容遵循用户指定的语言。
+
 ## 本地 Smoke
 
 ```sh
@@ -66,6 +70,6 @@ Phase 0A mock 总是请求只读 `generation_config_read` Tool，然后解释其
 
 - 无密钥 executable 仍是 Phase 0A smoke 入口；`gateway-bin` 是生产进程入口。
 - `gateway-bin` 已挂载受限 Harness Runtime、可信模式 Preset、Laravel Grant Authorizer、Session 提交、SSE 重放与取消；Laravel 完成并验收 Grant 签发和内省前，生产接入保持关闭。
-- Laravel 运行时配置、推理策略、元数据用量、Grant 内省、生成配置、只读报价、可信确认、幂等生成提交、状态、恢复查询和取消客户端已经实现；资产投影和画布写入客户端仍未接通。
-- 双方通过契约与集成验收前，资产投影和画布写入保持禁用。
+- Laravel 运行时配置、推理策略、元数据用量、Grant 内省、生成配置、只读报价、可信确认、幂等生成提交、状态、恢复查询、取消和 Canvas 追加计划客户端已经实现。Canvas 修改仅允许创建经过确认且使用稳定 Key 的节点与连接。
+- Agent 仍不能更新或删除既有 Canvas 节点与连接。
 - Gateway SSE 重放仍只存在于当前进程且最多保留 512 个事件。冷恢复会为下一轮恢复已完成的 Harness 历史，但不提供跨设备 Session 发现、多实例协调或未完成 Run 重放。

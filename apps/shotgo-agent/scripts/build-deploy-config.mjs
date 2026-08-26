@@ -14,6 +14,8 @@ await cp(`${sourceConfig}agent-presets`, `${targetConfig}agent-presets`, { recur
 const toolModules = [
   'canvas-context-read',
   'canvas-plan-preview',
+  'canvas-plan-quote',
+  'canvas-ops-apply',
   'generation-config-read',
   'generation-quote',
   'generation-submit',

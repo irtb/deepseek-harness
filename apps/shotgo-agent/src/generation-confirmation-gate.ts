@@ -3,7 +3,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 
 export const name = 'shotgo-generation-confirmation-gate'
-export const inject = ['tools', 'approval', 'shotgoGenerationQuoteRegistry']
+export const inject = ['tools', 'approval', 'shotgoGenerationQuoteRegistry', 'shotgoCanvasPlanQuoteRegistry']
 
 /** Require a one-shot UI approval immediately before charge or cancellation mutations. */
 export function apply(ctx: Context): void {
@@ -14,6 +14,18 @@ export function apply(ctx: Context): void {
       return Promise.resolve({
         kind: 'ask' as const,
         reason: `确认取消生成任务 ${generationId}。取消可能与任务完成同时发生，最终状态以 Laravel 返回为准。批准仅对本次工具调用有效。`,
+      })
+    }
+    if (execution.name === 'canvas_ops_apply') {
+      const input = asRecord(execution.arguments)
+      const sessionId = execution.agent?.session.id
+      const quoteId = typeof input.quoteId === 'string' ? input.quoteId : undefined
+      if (sessionId === undefined || quoteId === undefined) throw new Error('CANVAS_PLAN_CONFIRMATION_REQUIRED')
+      const quote = ctx.shotgoCanvasPlanQuoteRegistry.take(sessionId, quoteId)
+      if (quote === undefined || input.quoteVersion !== quote.quoteVersion) throw new Error('CANVAS_PLAN_CONFIRMATION_REQUIRED')
+      return Promise.resolve({
+        kind: 'ask' as const,
+        reason: `确认在当前画布新增 ${quote.nodes.length} 个节点和 ${quote.dependencies.length} 条连线。计划：${quote.summary}。本次显示 ${quote.credits} 个 Agent 虚拟积分，不实际扣费。批准仅对这份 Laravel 冻结计划有效。`,
       })
     }
     if (execution.name !== 'generation_submit') return next()

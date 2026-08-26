@@ -88,7 +88,9 @@ describe('ShotGo Phase 0A runtime', () => {
         ],
         "visibleTools": [
           "canvas_context_read",
+          "canvas_ops_apply",
           "canvas_plan_preview",
+          "canvas_plan_quote",
           "generation_cancel",
           "generation_config_read",
           "generation_quote",

@@ -47,6 +47,50 @@ export interface CanvasContextResponse {
   locks: Array<{ nodeKey: string; lockedByCurrentUser: boolean }>
   availableCapabilities: string[]
 }
+
+export interface CanvasPlanNodeInput {
+  tempId: string
+  name: string
+  kind: AssetKind
+}
+
+export interface CanvasPlanDependencyInput {
+  from: string
+  to: string
+}
+
+export interface CanvasPlanQuoteResponse {
+  protocolVersion: ShotGoProtocolVersion
+  quoteId: string
+  quoteVersion: 1
+  quoteKind: 'canvas-plan'
+  authorizationContextId: string
+  sessionId: string
+  userId: number
+  teamId: number | null
+  spaceId: string
+  projectId: string
+  planId: string
+  revision: string
+  summary: string
+  nodes: Array<CanvasPlanNodeInput & { nodeKey: string }>
+  dependencies: Array<CanvasPlanDependencyInput & { connectionKey: string; sourceKey: string; targetKey: string }>
+  credits: 1
+  billingMode: 'virtual'
+  expiresAt: string
+  requiresConfirmation: true
+}
+
+export interface CanvasPlanApplyResponse {
+  protocolVersion: ShotGoProtocolVersion
+  planId: string
+  projectId: string
+  nodeKeys: string[]
+  connectionKeys: string[]
+  credits: 1
+  billingMode: 'virtual'
+  replayed: boolean
+}
 export type GenerationState =
   | 'draft'
   | 'creating'
