@@ -466,6 +466,11 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
     if (pending === undefined || pending.sessionId !== input.sessionId) {
       throw new GatewaySessionError('APPROVAL_NOT_PENDING', 409)
     }
+    // The browser deliberately refreshes its short-lived Grant immediately
+    // before answering. Carry that newly authorized credential into the
+    // suspended tool call so generation_submit/cancel does not resume with the
+    // older Grant captured when the run started.
+    live.capabilityGrant.current = input.capabilityGrant
     this.resolvedApprovals.set(input.approvalId, {
       sessionId: input.sessionId,
       outcome: input.outcome,
