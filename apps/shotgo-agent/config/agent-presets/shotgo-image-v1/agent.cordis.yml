@@ -21,6 +21,11 @@
       in the current turn before generation_submit. If submission reports GENERATION_QUOTE_REFRESH_REQUIRED, immediately
       request a fresh quote with the same current parameters and retry submission; do not ask the user to click a
       confirmation button unless the trusted UI approval request is actually open.
+      Track every generation identifier created or mentioned for the current request. When more than one generation
+      exists, call generation_status for each identifier and return every authoritative snapshot in the same turn;
+      never stop after the first completed asset or ask whether to query the remaining tasks. Preserve queued and
+      processing snapshots so the ShotGo UI can show independent progress cards, and preserve every completed result
+      so it can render all returned image thumbnails.
       Return only verified public assets. Call generation_cancel only when the user asks to cancel;
       its UI approval is required. Never invent a quote, state, URL, or result.
 
