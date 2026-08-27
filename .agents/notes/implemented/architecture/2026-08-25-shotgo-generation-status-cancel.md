@@ -14,10 +14,12 @@ Laravel exposes Grant-bound status, recovery-by-client-request, and cancellation
 
 Laravel locks the generation row while cancelling. A queued request is refunded and marked cancelled before the worker can claim it. A processing request is marked cancelled but not automatically refunded because no provider cancellation/refund contract exists yet. If completion or another terminal state wins the lock first, that state is returned unchanged. Repeated cancellation returns the same authoritative terminal state.
 
+Image and video Presets retain every generation identifier associated with a multi-output request and query each identifier before concluding the turn. Each authoritative queued, processing, or completed snapshot remains a separate structured tool result so the Canvas client can project parallel progress and every returned asset without interpreting assistant prose.
+
 ## Alternatives considered
 
 Polling or cancelling suppliers directly from Harness was rejected because Laravel owns provider credentials, credits, jobs, and refunds. Trusting a generation identifier alone was rejected because another Session of the same user could otherwise observe or cancel it. Automatically refunding processing work was rejected because the supplier may already have charged and no upstream refund was verified.
 
 ## Consequences
 
-No schema migration is required; trusted Session and authorization metadata are stored inside the existing request parameters for newly submitted Agent generations. Requests created before this binding exists fail closed on Agent status access. Asset payloads remain withheld until the next asset-result phase defines stable ownership and URL semantics.
+No schema migration is required; trusted Session and authorization metadata are stored inside the existing request parameters for newly submitted Agent generations. Requests created before this binding exists fail closed on Agent status access. Multi-task tracking adds tool calls for each known identifier, but prevents one completed task from hiding sibling processing or completed results.
