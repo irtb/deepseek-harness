@@ -65,6 +65,7 @@ describe('Laravel Capability Grant authorizer', () => {
       projectId: null,
       model: 'deepseek-v4-flash',
       maxTokens: 8_192,
+      reasoningEffort: 'high',
     })
 
     expect(fetch).toHaveBeenCalledOnce()

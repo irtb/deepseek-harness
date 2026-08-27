@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-24-shotgo-laravel-managed-ark-runtime-configuration.md
-2026-08-24-shotgo-laravel-managed-ark-runtime-configuration.md: f11e51fce66c8a5e608f31fb19e215003b56e5a9
-2026-08-24-shotgo-laravel-managed-ark-runtime-configuration.zh.md: 4afcd887bd97fed3a3b754d2d09f94890a7e219c
+2026-08-24-shotgo-laravel-managed-ark-runtime-configuration.md: 3ba9499727d275033e723ed0f1ce5f7825520b85
+2026-08-24-shotgo-laravel-managed-ark-runtime-configuration.zh.md: dccf8d6d5eb2484f73aabd2295d5d64f3a86c512

@@ -10,13 +10,13 @@ Harness 必须直接调用火山方舟推理端点，避免 Laravel 代理长时
 
 ## Decision
 
-Laravel 是方舟 API Key 以及逻辑模型 `deepseek-v4-flash`、`deepseek-v4-pro` 对应供应商节点 ID 的存储权威。API Key 使用 Laravel 加密模型转换器，供应商节点 ID 作为普通模型配置保存。发布导入器读取工作站部署变量，并通过标准输入写入通用配置；Laravel 应用代码和 Harness 都不识别这些部署变量名。
+Laravel 是方舟 API Key、供应商 Base URL 以及逻辑模型 `deepseek-v4-flash`、`deepseek-v4-pro` 对应供应商节点 ID 的存储权威。API Key 使用 Laravel 加密模型转换器，管理 API 将其作为只写字段：读取只披露是否已配置。供应商节点 ID 和单模型推理策略作为普通模型配置保存。发布导入器读取工作站部署变量，并通过标准输入写入通用配置；Laravel 应用代码和 Harness 都不识别这些部署变量名。
 
 当前 Laravel Wire 协议包含 `GET /api/internal/agent/v1/inference-runtime-config`。该端点只接受 Agent 服务 Bearer Token。成功响应包含 `Cache-Control: no-store`、供应商 Base URL、解密后的 Key、两个不同的供应商节点 ID 和不透明配置版本。数据库配置缺失、禁用、重复、无法解密或不完整时，接口返回可重试的 `INFERENCE_RUNTIME_CONFIG_UNAVAILABLE` Problem，不返回任何部分密钥。
 
 Agent Runtime 在 HTTP 边界校验响应，只在进程内存保留一份不可变副本，并在任何刷新失败后清除 readiness。`ShotGoArkLlmAdapter` 继续向 Harness 暴露逻辑模型名，同时在方舟请求中发送映射后的供应商节点 ID。凭据和供应商节点 ID 都不会进入浏览器响应、Capability Grant、Harness Session 事件、用量报告、命令参数或应用日志。
 
-方舟推理仍在 Agent 进程中执行并复用公共 `DeepSeekAdapter` 传输，因此 Laravel Worker 不承载 Token 流。Laravel 继续提供团队策略，并在每次推理后接收仅含元数据的用量。业务文本、图片、视频和音频生成继续通过 Laravel Capability API，沿用其报价、积分、队列、资产和退款权威。
+方舟推理仍在 Agent 进程中执行并复用公共 `DeepSeekAdapter` 传输，因此 Laravel Worker 不承载 Token 流。Laravel 提供账号策略，Gateway 将其中的模型、输出上限和推理强度应用到会话。Adapter 在每次带会话范围的推理后，通过幂等用量端点回传仅含元数据的 Token 计数、耗时、状态、用途和模型。报告不包含提示词、消息、回答、凭据或原始供应商响应。推理计费关闭时，用量存储只用于审计，因此报告故障由运维记录，但不会破坏已经完成的模型流。业务文本、图片、视频和音频生成继续通过 Laravel Capability API，沿用其报价、积分、队列、资产和退款权威。
 
 `ve-shotgo` 发布继续使用 `/data/projects/agent.shotgo.cn`、Supervisor、`www-data` 和预构建校验包。Agent 环境在该配置链路中只包含 Laravel Base URL 和 Agent 服务 Token，不包含方舟 Key 或供应商模型 ID。readiness 同时要求显式开启流量以及当前进程内存在有效运行时配置。
 
@@ -36,4 +36,4 @@ Agent Runtime 在 HTTP 边界校验响应，只在进程内存保留一份不可
 
 ## Consequences
 
-ShotGo 获得方舟凭据与节点映射的单一运维权威，同时保留低延迟直连推理和上游流式行为。Laravel 应用 Key 与数据库同时泄露时可能暴露供应商凭据，Agent 进程被攻破时也可能读取内存副本，因此仍需轮换服务 Token、隔离主机、禁止缓存、避免日志泄密并限制进程权限。无密钥启动和确定性 Snapshot 保持可用，但 Laravel 配置完整前，真实推理和 readiness 都采用失败关闭。契约测试固定服务认证、响应校验、逻辑模型映射、内存失效和 readiness 行为；真实 Key 方舟调用属于生产验收步骤，不进入仓库测试。
+ShotGo 获得方舟凭据、节点映射、推理策略和用量审计的单一运维权威，同时保留低延迟直连推理和上游流式行为。共享管理页面不会把 Agent 推理并入业务文本生成数据表或 Laravel 执行链路。Laravel 应用 Key 与数据库同时泄露时可能暴露供应商凭据，Agent 进程被攻破时也可能读取内存副本，因此仍需轮换服务 Token、隔离主机、禁止缓存、管理字段只写、避免日志泄密并限制进程权限。无密钥启动和确定性 Snapshot 保持可用，但 Laravel 配置完整前，真实推理和 readiness 都采用失败关闭。契约测试固定服务认证、响应校验、逻辑模型映射、会话策略、仅元数据报告、内存失效和 readiness 行为；真实 Key 方舟调用属于生产验收步骤，不进入仓库测试。

@@ -182,6 +182,7 @@ export class LaravelCapabilityGrantAuthorizer implements GatewaySessionAuthorize
       provider: introspection.inferencePolicy.provider,
       model: introspection.inferencePolicy.defaultModel,
       maxTokens: introspection.inferencePolicy.maxOutputTokens,
+      reasoningEffort: introspection.inferencePolicy.defaultReasoningEffort,
     }
   }
 }

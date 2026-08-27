@@ -1,4 +1,5 @@
 import type { Context } from '@deepseek-ai/cordis'
+import { randomUUID } from 'node:crypto'
 import { credentialRef } from '@deepseek-ai/dsh-credentials'
 import { getOrCreateAnonymousUserId, type AnonymousUserId } from '@deepseek-ai/dsh-anonymous-user-id'
 import {
@@ -18,7 +19,7 @@ import {
   type DeepSeekConnectionOptions,
 } from '@deepseek-ai/dsh-llm-deepseek'
 import z from '@deepseek-ai/schemastery'
-import type { InferenceModel, InferenceRuntimeConfig } from '../contracts/laravel-v1.ts'
+import { SHOTGO_PROTOCOL_VERSION, type InferenceModel, type InferenceRuntimeConfig, type InferenceUsageReport } from '../contracts/laravel-v1.ts'
 import { InferenceControlPlaneClient } from '../laravel/inference-control-plane.ts'
 import { InferenceRuntimeConfigStore } from '../laravel/inference-runtime-config.ts'
 
@@ -30,6 +31,7 @@ const REFRESH_INTERVAL_MS = 60_000
 const modelSet = new Set<string>(SHOTGO_ARK_MODELS)
 export interface ArkAdapterOptions {
   resolveRuntimeConfig: () => InferenceRuntimeConfig
+  reportUsage?: (report: InferenceUsageReport) => Promise<void>
   resolveUserId?: () => AnonymousUserId
   maxTokens?: number
   reasoningEffort?: 'off' | 'high' | 'max'
@@ -109,7 +111,59 @@ export class ShotGoArkLlmAdapter extends DeepSeekAdapter {
       )),
       resolveUserId: this.shotgoOptions.resolveUserId ?? (() => getOrCreateAnonymousUserId()),
     })
-    yield* delegate.stream({ ...options, model: configuration.models[logicalModel] })
+    const startedAt = new Date()
+    const llmRequestId = randomUUID()
+    let usage: InferenceUsageReport['usage'] = { inputTokens: 0, outputTokens: 0 }
+    let terminal: Extract<StreamChunk, { type: 'finish' }> | undefined
+    try {
+      for await (const chunk of delegate.stream({ ...options, model: configuration.models[logicalModel] })) {
+        if (chunk.type === 'usage') usage = chunk.usage
+        if (chunk.type === 'finish') {
+          terminal = chunk
+          break
+        }
+        yield chunk
+      }
+    } catch (error) {
+      await this.report(options, logicalModel, llmRequestId, startedAt, usage, 'failed', 'INFERENCE_STREAM_FAILED')
+      throw error
+    }
+    if (terminal === undefined) return
+    const status = terminal.reason.kind === 'aborted' ? 'cancelled' : terminal.reason.kind === 'error' ? 'failed' : 'completed'
+    const errorCode = terminal.reason.kind === 'error' ? 'INFERENCE_PROVIDER_ERROR' : terminal.reason.kind === 'aborted' ? 'INFERENCE_CANCELLED' : undefined
+    await this.report(options, logicalModel, llmRequestId, startedAt, usage, status, errorCode)
+    yield terminal
+  }
+
+  private async report(
+    options: GenerateOptions,
+    model: InferenceModel,
+    llmRequestId: string,
+    startedAt: Date,
+    usage: InferenceUsageReport['usage'],
+    status: InferenceUsageReport['status'],
+    errorCode?: string,
+  ): Promise<void> {
+    if (options.sessionId === undefined || this.shotgoOptions.reportUsage === undefined) return
+    const completedAt = new Date()
+    try {
+      await this.shotgoOptions.reportUsage({
+        protocolVersion: SHOTGO_PROTOCOL_VERSION,
+        llmRequestId,
+        sessionId: String(options.sessionId),
+        ...(options.purpose === undefined ? {} : { purpose: options.purpose }),
+        provider: SHOTGO_ARK_PROVIDER,
+        model,
+        status,
+        startedAt: startedAt.toISOString(),
+        completedAt: completedAt.toISOString(),
+        durationMs: Math.max(0, completedAt.getTime() - startedAt.getTime()),
+        usage,
+        ...(errorCode === undefined ? {} : { errorCode }),
+      })
+    } catch {
+      // Usage reporting is audit-only while inference billing is disabled; it must not corrupt a completed model stream.
+    }
   }
 
   private assertAllowedModel(model: string): void {
@@ -140,9 +194,10 @@ export const inject = ['llm']
 export async function apply(ctx: Context, config: Config): Promise<void> {
   const baseURL = process.env.SHOTGO_LARAVEL_BASE_URL?.trim() ?? ''
   const serviceToken = process.env.SHOTGO_LARAVEL_SERVICE_TOKEN?.trim() ?? ''
-  const store = baseURL === '' || serviceToken === ''
+  const controlPlane = baseURL === '' || serviceToken === ''
     ? undefined
-    : new InferenceRuntimeConfigStore(new InferenceControlPlaneClient({ baseURL, serviceToken }))
+    : new InferenceControlPlaneClient({ baseURL, serviceToken })
+  const store = controlPlane === undefined ? undefined : new InferenceRuntimeConfigStore(controlPlane)
 
   if (store !== undefined) {
     try {
@@ -169,5 +224,6 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
       if (store === undefined) throw new LlmError('Laravel inference runtime configuration is not configured', 'MISSING_CREDENTIAL')
       return store.snapshot()
     },
+    ...(controlPlane === undefined ? {} : { reportUsage: (report: InferenceUsageReport) => controlPlane.reportUsage(report) }),
   }))
 }
