@@ -164,6 +164,8 @@ describe('generation confirmation gate', () => {
       signal: new AbortController().signal,
     })
     expect(result.isError).toBe(true)
+    expect(JSON.stringify(result)).toContain('GENERATION_QUOTE_REFRESH_REQUIRED')
+    expect(JSON.stringify(result)).toContain('Call generation_quote again')
     expect(execute).not.toHaveBeenCalled()
   })
 

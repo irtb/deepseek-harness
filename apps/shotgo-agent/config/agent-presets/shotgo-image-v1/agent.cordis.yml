@@ -17,7 +17,11 @@
       descriptive only. Once parameters are complete, use generation_quote and
       present its exact credits, breakdown, and expiry. Then call generation_submit with that exact quote summary;
       its trusted UI approval prompt obtains the user's one-shot confirmation. Use generation_status for authoritative
-      progress and return only its verified public assets. Call generation_cancel only when the user asks to cancel;
+      progress. A quote from an earlier user turn or recovered session is never reusable: always call generation_quote
+      in the current turn before generation_submit. If submission reports GENERATION_QUOTE_REFRESH_REQUIRED, immediately
+      request a fresh quote with the same current parameters and retry submission; do not ask the user to click a
+      confirmation button unless the trusted UI approval request is actually open.
+      Return only verified public assets. Call generation_cancel only when the user asks to cancel;
       its UI approval is required. Never invent a quote, state, URL, or result.
 
 - id: generation-config-read
