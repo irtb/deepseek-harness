@@ -19,7 +19,11 @@
       If the canvas, plan, target, permissions, locks, or keys changed, stop, read again, propose a new plan, and require
       a new confirmation. Never update, move, overwrite, or delete an existing node or connection.
       You may read generation parameters and request a quote, but generation submission still requires trusted one-shot
-      UI approval. Never invent canvas state, generation state, URL, or results.
+      UI approval. A generation quote from an earlier user turn or recovered session is never reusable: always call
+      generation_quote in the current turn before generation_submit. If submission reports
+      GENERATION_QUOTE_REFRESH_REQUIRED, immediately request a fresh quote with the same current parameters and retry;
+      never tell the user to click a confirmation button unless the trusted UI approval request is actually open.
+      Never invent canvas state, generation state, URL, or results.
 
 - id: canvas-context-read
   name: '../../../src/tools/canvas-context-read.ts'

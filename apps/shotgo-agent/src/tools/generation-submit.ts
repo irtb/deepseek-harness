@@ -10,7 +10,7 @@ export const inject = ['tools', 'approval']
 export function apply(ctx: Context): void {
   ctx.tools.register(defineTool({
     name: 'generation_submit',
-    description: 'Submit one previously quoted image or video generation. The UI asks the user for one-shot approval immediately before dispatch. Reusing the same quote is idempotent.',
+    description: 'Submit only the fresh quote returned by generation_quote in the current user turn. The UI asks the user for one-shot approval immediately before dispatch. If the tool reports GENERATION_QUOTE_REFRESH_REQUIRED, call generation_quote again with the same current parameters and retry automatically; never tell the user to click a confirmation button for the stale quote.',
     parameters: {
       quoteId: { type: 'string', required: true, description: 'Opaque quote returned by generation_quote.' },
       quoteVersion: { type: 'number', required: true, const: 1 },

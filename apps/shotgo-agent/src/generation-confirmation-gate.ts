@@ -32,10 +32,10 @@ export function apply(ctx: Context): void {
     const input = asRecord(execution.arguments)
     const sessionId = execution.agent?.session.id
     const quoteId = typeof input.quoteId === 'string' ? input.quoteId : undefined
-    if (sessionId === undefined || quoteId === undefined) throw new Error('GENERATION_QUOTE_CONFIRMATION_REQUIRED')
+    if (sessionId === undefined || quoteId === undefined) throw new Error('GENERATION_QUOTE_REFRESH_REQUIRED: call generation_quote now with the current generation parameters, then call generation_submit with that newly returned quote. Do not ask the user to find a confirmation button until an approval request is actually open.')
     const quote = ctx.shotgoGenerationQuoteRegistry.take(sessionId, quoteId)
     if (quote === undefined || input.quoteVersion !== quote.quoteVersion) {
-      throw new Error('GENERATION_QUOTE_CONFIRMATION_REQUIRED')
+      throw new Error('GENERATION_QUOTE_REFRESH_REQUIRED: this quote is expired, already consumed, or unavailable after session recovery. Call generation_quote again now with the same current parameters, then call generation_submit with the new quote. Do not tell the user to click a confirmation button for the stale quote.')
     }
     const kind = quote.kind === 'video' ? '视频' : '图片'
     const prompt = typeof quote.normalizedParameters.prompt === 'string'
