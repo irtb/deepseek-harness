@@ -1,5 +1,6 @@
 import type { AnonymousUserId } from '@deepseek-ai/dsh-anonymous-user-id'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
+import { SessionId } from '@deepseek-ai/dsh-session'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   SHOTGO_ARK_MODELS,
@@ -80,6 +81,37 @@ describe('ShotGo Ark LLM adapter', () => {
     })
     expect(chunks).toContainEqual(expect.objectContaining({ type: 'usage', usage: { inputTokens: 3, outputTokens: 2 } }))
     expect(chunks).toContainEqual(expect.objectContaining({ type: 'finish', reason: { kind: 'stop' } }))
+  })
+
+  it('reports metadata-only token usage for a session request', async () => {
+    const events = [
+      '{"choices":[{"delta":{"content":"done"}}]}',
+      '{"choices":[{"delta":{"content":""},"finish_reason":"stop"}],"usage":{"prompt_tokens":7,"completion_tokens":3}}',
+      '[DONE]',
+    ]
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockResolvedValue(new Response(
+      events.map(event => `data: ${event}\n\n`).join(''),
+      { headers: { 'content-type': 'text/event-stream' } },
+    )))
+    const reportUsage = vi.fn()
+    const adapter = createArkAdapter({ resolveRuntimeConfig: () => runtimeConfiguration, resolveUserId: () => userId, reportUsage })
+
+    await drain(adapter.stream({
+      provider: SHOTGO_ARK_PROVIDER,
+      model: 'deepseek-v4-flash',
+      messages,
+      sessionId: SessionId('session-usage-1'),
+    }))
+
+    expect(reportUsage).toHaveBeenCalledOnce()
+    expect(reportUsage).toHaveBeenCalledWith(expect.objectContaining({
+      sessionId: 'session-usage-1',
+      provider: 'volcengine-ark',
+      model: 'deepseek-v4-flash',
+      status: 'completed',
+      usage: { inputTokens: 7, outputTokens: 3 },
+    }))
+    expect(reportUsage.mock.calls[0]?.[0]).not.toHaveProperty('prompt')
   })
 
   it('fails per request when Laravel runtime configuration is unavailable', async () => {

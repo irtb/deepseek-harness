@@ -2,10 +2,10 @@ import type { Context } from '@deepseek-ai/cordis'
 import { createHash, randomUUID } from 'node:crypto'
 import type { AgentHandle } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-presets/types'
-import { createUserMessage } from '@deepseek-ai/dsh-llm'
+import { createUserMessage, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import type { ApprovalOutcome, ApprovalRequestId } from '@deepseek-ai/dsh-user-approval'
-import type { AgentMode, AgentSessionCapability } from './contracts/laravel-v1.ts'
+import type { AgentMode, AgentSessionCapability, InferenceReasoningEffort } from './contracts/laravel-v1.ts'
 import type { LaravelGenerationConfigClient } from './laravel/generation-config-client.ts'
 import type { LaravelGenerationQuoteClient } from './laravel/generation-quote-client.ts'
 import type { LaravelGenerationSubmitClient } from './laravel/generation-submit-client.ts'
@@ -45,6 +45,7 @@ export interface AuthorizedGatewaySession {
   provider: string
   model: string
   maxTokens: number
+  reasoningEffort?: InferenceReasoningEffort
 }
 
 export interface GatewaySessionAuthorizer {
@@ -471,7 +472,7 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
           maxTokens: authorization.maxTokens,
         },
         setup: async (agentCtx) => {
-          await this.mountAgentPreset(agentCtx, authorization.agentMode)
+          await this.setupAuthorizedAgent(agentCtx, authorization)
         },
         ...(input.signal === undefined ? {} : { signal: input.signal }),
       })
@@ -564,7 +565,9 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
           model: authorization.model,
           maxTokens: authorization.maxTokens,
         },
-        setup: async agentCtx => await this.mountAgentPreset(agentCtx, authorization.agentMode),
+        setup: async (agentCtx) => {
+          await this.setupAuthorizedAgent(agentCtx, authorization)
+        },
         ...(signal === undefined ? {} : { signal }),
       })
     } catch (error) {
@@ -589,6 +592,15 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
     }
     this.sessions.set(authorization.sessionId, live)
     return live
+  }
+
+  private async setupAuthorizedAgent(agentCtx: Context, authorization: AuthorizedGatewaySession): Promise<void> {
+    await this.mountAgentPreset(agentCtx, authorization.agentMode)
+    if (authorization.reasoningEffort === undefined) return
+    agentCtx.on('agent/request', async (_payload, next) => ({
+      ...await next(),
+      reasoningEffort: ReasoningEffortId(authorization.reasoningEffort as string),
+    }))
   }
 
   async events(input: GatewaySessionAccess): Promise<AsyncIterable<GatewayStreamEvent>> {
