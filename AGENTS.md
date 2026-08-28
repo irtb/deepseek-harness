@@ -2,6 +2,14 @@
 
 DeepSeek Harness is a plugin-based agent harness on vendored Cordis: **everything is a plugin**. Read [docs/architecture.md](docs/architecture.md) before changing `packages/`; follow [docs/AGENTS.md](docs/AGENTS.md) for documentation.
 
+## 禁止 AI 自动部署
+
+- AI Agent 可以在本地执行开发、依赖安装、构建、自动测试和只读验收，但不得把“继续”“下一步”“发布”或测试通过解释为获准部署。
+- AI Agent 不得在任何测试、预发布或生产服务器执行部署动作，包括远程拉取或切换代码、复制或覆盖运行文件、运行数据库迁移或 SQL、构建生产产物、重启或 reload 服务、修改 Nginx、Supervisor、systemd、容器或定时任务。
+- 完成测试、合并、提交或推送后必须停止。需要部署时，只能核对目标分支、提交、目录和风险，并向人工展示可审阅的部署命令及回滚命令，由人工在服务器手动执行。
+- 部署后的只读检查可以由 AI Agent 执行，但不得借验收之名修改服务器状态。若发现故障，应报告证据和建议命令，不得自动回滚或修复生产环境。
+- 本地服务启动、本地数据库迁移和本地测试不属于部署，但仍须明确限定为本机资源，不得使用生产数据库或生产运行目录。
+
 ## Pre-release stance: foundation over blast radius
 
 **Remove this section at the first tagged release.** With no external consumers, prefer the correct foundation over compatibility shims: rename or repackage freely and update every reference together. Backends reject old on-disk formats. SQLite uses monotonic `SCHEMA_VERSION`; `dsh-session` keeps `SESSION_FORMAT_VERSION` at `0` with no compatibility promise.
