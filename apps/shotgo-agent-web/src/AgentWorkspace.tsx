@@ -518,6 +518,7 @@ export function AgentWorkspace({ mode }: { mode: AgentMode }) {
           isTeam={user?.active_team_id != null}
           initialIds={referenceItems.map(item => item.id)}
           maxSelection={9}
+          defaultKind="image"
           onClose={() => {
             setReferencePickerOpen(false)
           }}

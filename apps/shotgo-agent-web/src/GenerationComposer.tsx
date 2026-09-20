@@ -104,14 +104,16 @@ export function ComposerAttachBar({
         <em>{referenceItems.length}/9</em>
       </button>
       {referenceItems.length === 0 ? (
-        <p className="composer-attach__hint">可添加图片作为风格、主体或首帧参考</p>
+        <p className="composer-attach__hint">可上传或从素材库选择图片、视频，作为风格、主体或首帧参考</p>
       ) : (
         <div className="reference-strip" aria-label="已选参考素材">
           {referenceItems.map((item) => {
             const preview = resolveMediaUrl(item.thumbPath ?? item.path)
             return (
               <span key={item.id} className="reference-chip">
-                {preview ? <img src={preview} alt="" /> : <i className="reference-chip__placeholder" />}
+                {preview === undefined ? <i className="reference-chip__placeholder" /> : item.mediaType === 'video'
+                  ? <video src={preview} muted playsInline preload="metadata" />
+                  : <img src={preview} alt="" />}
                 <b title={item.originalName ?? `素材 ${item.id}`}>{item.originalName ?? `素材 ${item.id}`}</b>
                 <button
                   type="button"

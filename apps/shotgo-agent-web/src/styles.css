@@ -157,7 +157,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
   display: flex; flex: 0 0 auto; align-items: center; gap: 7px; max-width: 168px;
   padding: 4px 6px 4px 4px; border: 1px solid #34363e; border-radius: 12px; background: #1c1e24;
 }
-.reference-chip img, .reference-chip__placeholder {
+.reference-chip img, .reference-chip video, .reference-chip__placeholder {
   width: 36px; height: 36px; border-radius: 8px; object-fit: cover; background: #0c0d10; flex: 0 0 auto;
 }
 .reference-chip__placeholder { display: block; }
@@ -171,19 +171,25 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .composer-footer__actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 .composer-footer em { color: #5f6570; font-style: normal; font-size: 11px; white-space: nowrap; }
 .media-picker-backdrop { position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 20px; background: #000a; }
-.media-picker { display: grid; grid-template-rows: auto auto minmax(0, 1fr) auto; width: min(900px, 100%); height: min(720px, 90vh); overflow: hidden; border: 1px solid #3a3c45; border-radius: 20px; background: #15161a; box-shadow: 0 30px 100px #000b; }
+.media-picker { display: flex; flex-direction: column; width: min(900px, 100%); height: min(720px, 90vh); overflow: hidden; border: 1px solid #3a3c45; border-radius: 20px; background: #15161a; box-shadow: 0 30px 100px #000b; }
 .media-picker > header, .media-picker > footer { display: flex; align-items: center; justify-content: space-between; gap: 15px; padding: 16px 20px; border-bottom: 1px solid #292b32; }
 .media-picker > footer { border-top: 1px solid #292b32; border-bottom: 0; }
 .media-picker header h2, .media-picker header p { margin: 0; }
 .media-picker header p { color: #858a94; font-size: 12px; }
 .media-picker header button { border: 0; color: #aaa; background: transparent; font-size: 24px; cursor: pointer; }
+.media-picker-actions { display: flex; align-items: center; gap: 8px; }
+.media-picker-actions button:not([aria-label]) {
+  padding: 7px 12px; border: 1px solid #393b43; border-radius: 8px; color: #eee; background: #25272e; font-size: 13px;
+}
+.media-picker-actions button:not([aria-label]):disabled { opacity: .45; cursor: not-allowed; }
 .media-picker nav { display: flex; gap: 5px; padding: 10px 20px; }
 .media-picker nav button { padding: 6px 13px; border: 0; border-radius: 8px; color: #9297a0; background: transparent; cursor: pointer; }
 .media-picker nav button.active { color: #061118; background: #64dcff; }
-.media-picker-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); align-content: start; gap: 12px; padding: 16px 20px; overflow: auto; }
+.media-picker-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); align-content: start; gap: 12px; padding: 16px 20px; overflow: auto; }
 .media-tile { position: relative; display: grid; gap: 6px; min-width: 0; padding: 7px; border: 1px solid #30323a; border-radius: 12px; color: #dfe1e5; background: #1c1e23; text-align: left; cursor: pointer; }
 .media-tile.selected { border-color: #64dcff; box-shadow: inset 0 0 0 1px #64dcff; }
-.media-tile img { width: 100%; aspect-ratio: 1; border-radius: 8px; object-fit: cover; background: #0c0d10; }
+.media-tile img, .media-tile video { width: 100%; aspect-ratio: 1; border-radius: 8px; object-fit: cover; background: #0c0d10; }
+.media-tile__kind { position: absolute; left: 12px; top: 12px; padding: 2px 6px; border-radius: 6px; background: #000c; color: #fff; font-size: 10px; font-style: normal; }
 .media-tile strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
 .media-tile i { position: absolute; top: 12px; right: 12px; display: grid; width: 20px; height: 20px; place-items: center; border-radius: 50%; color: #071016; background: #64dcff; font-style: normal; }
 .media-picker footer > div { display: flex; align-items: center; gap: 8px; }
@@ -369,7 +375,8 @@ button:disabled { cursor: wait; opacity: .55; }
 :root[data-theme='light'] .composer-footer button,
 :root[data-theme='light'] .decision-card button,
 :root[data-theme='light'] .run-start-card button,
-:root[data-theme='light'] .media-picker footer button { border-color: #d2dbe6; color: #344054; background: #f8fafc; }
+:root[data-theme='light'] .media-picker footer button,
+:root[data-theme='light'] .media-picker-actions button:not([aria-label]) { border-color: #d2dbe6; color: #344054; background: #f8fafc; }
 :root[data-theme='light'] .session { color: #475467; }
 :root[data-theme='light'] .session:hover,
 :root[data-theme='light'] .session.active,
