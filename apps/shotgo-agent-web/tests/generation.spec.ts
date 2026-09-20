@@ -21,6 +21,12 @@ describe('generation context', () => {
     context = addReference(context, 1)
     expect(context.parameters.referenceAssets).toHaveLength(9)
   })
+
+  it('attaches references on video context', () => {
+    const context = addReference(defaultGenerationContext('video'), 51)
+    expect(context.kind).toBe('video')
+    expect(context.parameters.referenceAssets).toEqual([{ mediaLibraryItemId: 51 }])
+  })
 })
 
 it('projects authoritative artifact events', () => {

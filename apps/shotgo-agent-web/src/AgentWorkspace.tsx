@@ -363,7 +363,7 @@ export function AgentWorkspace({ mode }: { mode: AgentMode }) {
             {session.messages.length === 0 ? (
               <div className="empty">
                 <h1>{mode === 'image' ? '想生成什么图片？' : '想制作什么视频？'}</h1>
-                <p>默认手动模式会在开始生成前确认一次。已配置自动执行策略时可切换自动模式。</p>
+                <p>参考素材放在输入框上方。发送后会在开始生成前确认一次。</p>
               </div>
             ) : (
               session.messages.map((message) => {
@@ -401,8 +401,8 @@ export function AgentWorkspace({ mode }: { mode: AgentMode }) {
             {agent.pendingRunStart === undefined ? null : (
               <article className="run-start-card">
                 <div>
-                  <strong>开始执行本次 Skill Run</strong>
-                  <p>这是手动模式本轮唯一一次普通生产确认。后续报价、重试和恢复不会再次打断。</p>
+                  <strong>开始本次生成</strong>
+                  <p>手动模式本轮只确认这一次。后续报价、重试和恢复不会再打断。</p>
                 </div>
                 <div>
                   <button
@@ -450,19 +450,15 @@ export function AgentWorkspace({ mode }: { mode: AgentMode }) {
               }}
               onRemoveReference={(id) => {
                 setReferenceItems(items => items.filter(item => item.id !== id))
-                setGenerationContext(current =>
-                  current.kind === 'image'
-                    ? {
-                      ...current,
-                      parameters: {
-                        ...current.parameters,
-                        referenceAssets: (current.parameters.referenceAssets ?? []).filter(
-                          item => item.mediaLibraryItemId !== id,
-                        ),
-                      },
-                    }
-                    : current,
-                )
+                setGenerationContext(current => ({
+                  ...current,
+                  parameters: {
+                    ...current.parameters,
+                    referenceAssets: (current.parameters.referenceAssets ?? []).filter(
+                      item => item.mediaLibraryItemId !== id,
+                    ),
+                  },
+                }))
               }}
             />
             <textarea
@@ -529,17 +525,13 @@ export function AgentWorkspace({ mode }: { mode: AgentMode }) {
             for (const item of items) merged.set(item.id, item)
             const selected = [...merged.values()].slice(0, 9)
             setReferenceItems(selected)
-            setGenerationContext(current =>
-              current.kind === 'image'
-                ? {
-                  ...current,
-                  parameters: {
-                    ...current.parameters,
-                    referenceAssets: selected.map(item => ({ mediaLibraryItemId: item.id })),
-                  },
-                }
-                : current,
-            )
+            setGenerationContext(current => ({
+              ...current,
+              parameters: {
+                ...current.parameters,
+                referenceAssets: selected.map(item => ({ mediaLibraryItemId: item.id })),
+              },
+            }))
           }}
         />
       )}

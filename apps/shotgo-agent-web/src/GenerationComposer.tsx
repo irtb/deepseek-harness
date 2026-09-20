@@ -104,7 +104,7 @@ export function ComposerAttachBar({
         <em>{referenceItems.length}/9</em>
       </button>
       {referenceItems.length === 0 ? (
-        <p className="composer-attach__hint">可添加图片作为风格 / 主体参考</p>
+        <p className="composer-attach__hint">可添加图片作为风格、主体或首帧参考</p>
       ) : (
         <div className="reference-strip" aria-label="已选参考素材">
           {referenceItems.map((item) => {

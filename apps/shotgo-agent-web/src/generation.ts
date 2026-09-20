@@ -87,7 +87,6 @@ export async function fetchGenerationConfig(token: string, signal?: AbortSignal)
 }
 
 export function addReference(context: GenerationContext, id: number): GenerationContext {
-  if (context.kind !== 'image') return context
   const current = context.parameters.referenceAssets ?? []
   if (
     !Number.isSafeInteger(id) ||

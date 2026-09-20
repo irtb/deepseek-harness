@@ -3,7 +3,8 @@ import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
   plugins: [react()],
-  server: { port: 3011 },
+  appType: 'spa',
+  server: { port: 3011, strictPort: true },
   test: {
     environment: 'jsdom',
     setupFiles: ['./tests/setup.ts'],
