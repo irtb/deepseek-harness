@@ -26,6 +26,7 @@ export function gatewayStatusMessage(status: number, code: string | undefined, f
   if (code === 'AGENT_TRAFFIC_DISABLED') return 'Agent 网关已启动，但流量开关关闭，无法发送。'
   if (code === 'ORIGIN_NOT_ALLOWED') return '当前页面来源未被 Agent 网关允许。本机请把 Gateway 的 SHOTGO_CANVAS_ORIGIN 设为 http://localhost:3011。'
   if (code === 'CREATIVE_RUN_ADMISSION_UNAVAILABLE') return '当前工作台走普通图/视频生成，不经过 Creative Project 准入。请刷新后再发送。'
+  if (code === 'SESSION_BUSY') return '上一轮还占着会话。已为你开新会话，请再发送一次。'
   if (code !== undefined && code.length > 0) return code
   if (status === 502 || status === 504 || status === 500) {
     return 'Agent 网关未就绪。本机请确认 3012 正在监听。'

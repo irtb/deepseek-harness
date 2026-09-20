@@ -415,7 +415,7 @@ export function useAgentSession(input: {
           ),
           updatedAt: new Date().toISOString(),
         }))
-        return false
+        return message.includes('SESSION_BUSY') || message.includes('开新会话') ? 'session-busy' : false
       }
     },
     [input, phase, token, update],

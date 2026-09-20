@@ -225,19 +225,20 @@ export function AgentWorkspace({ mode }: { mode: AgentMode }) {
   }
   async function submit(event: FormEvent) {
     event.preventDefault()
-    if (
-      await agent.send(
-        draft,
-        generationContext,
-        referenceItems.map(item => item.id),
-      )
-    ) {
+    const sent = await agent.send(
+      draft,
+      generationContext,
+      referenceItems.map(item => item.id),
+    )
+    if (sent === true) {
       setDraft('')
       setReferenceItems([])
       setGenerationContext(current =>
         current.kind === 'image' ? { ...current, parameters: { ...current.parameters, referenceAssets: [] } } : current,
       )
+      return
     }
+    if (sent === 'session-busy') await startNew()
   }
   async function changeAccount(value: string) {
     if (token === null) return

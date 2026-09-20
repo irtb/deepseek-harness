@@ -15,6 +15,7 @@ describe('gateway network errors', () => {
     expect(gatewayStatusMessage(503, 'AGENT_TRAFFIC_DISABLED', 'x')).toContain('流量开关')
     expect(gatewayStatusMessage(403, 'ORIGIN_NOT_ALLOWED', 'x')).toContain('SHOTGO_CANVAS_ORIGIN')
     expect(gatewayStatusMessage(503, 'CREATIVE_RUN_ADMISSION_UNAVAILABLE', 'x')).toContain('普通图/视频')
+    expect(gatewayStatusMessage(409, 'SESSION_BUSY', 'x')).toContain('开新会话')
     expect(gatewayStatusMessage(502, undefined, 'x')).toContain('3012')
   })
 })
