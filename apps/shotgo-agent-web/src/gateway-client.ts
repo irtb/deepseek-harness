@@ -1,6 +1,7 @@
 import type { AgentMode, ExecutionMode, GatewayEvent, GenerationContext } from './agent-session.ts'
 import { parseGatewayEvent, terminal } from './agent-session.ts'
 import { streamGatewayExceptionDecisions } from './gateway-exception-stream.ts'
+import { gatewayFetch, gatewayStatusMessage } from './network-error.ts'
 
 const protocol = '2026-09-03.1'
 
@@ -17,13 +18,11 @@ async function errorMessage(response: Response, fallback: string): Promise<strin
     message?: unknown
     code?: unknown
   } | null
-  return typeof body?.detail === 'string'
-    ? body.detail
-    : typeof body?.message === 'string'
-      ? body.message
-      : typeof body?.code === 'string'
-        ? body.code
-        : fallback
+  const code = typeof body?.code === 'string' ? body.code : undefined
+  const detail =
+    typeof body?.detail === 'string' ? body.detail : typeof body?.message === 'string' ? body.message : undefined
+  if (detail !== undefined) return detail
+  return gatewayStatusMessage(response.status, code, fallback)
 }
 
 export async function createGrant(input: {
@@ -66,7 +65,7 @@ export async function submitMessage(input: {
   signal?: AbortSignal
 }) {
   const clientRequestId = crypto.randomUUID()
-  const response = await fetch(
+  const response = await gatewayFetch(
     `${gatewayBase()}/api/agent/v1/sessions/${encodeURIComponent(input.sessionId)}/messages`,
     {
       method: 'POST',
@@ -128,6 +127,7 @@ export async function streamRun(input: {
         sessionId: input.sessionId,
         capabilityGrant: grant.grantToken,
         afterCursor: cursor,
+        fetch: gatewayFetch,
         signal: connection.signal,
         onCursor: () => { /* Commit cursors only with a parsed, scoped event below. */ },
         onEvent: (value) => {
@@ -165,7 +165,7 @@ export async function streamRun(input: {
 }
 
 export async function cancelRun(input: { grant: string; sessionId: string; runId: string }) {
-  const response = await fetch(
+  const response = await gatewayFetch(
     `${gatewayBase()}/api/agent/v1/sessions/${encodeURIComponent(input.sessionId)}/runs/${encodeURIComponent(input.runId)}`,
     {
       method: 'DELETE',
@@ -186,7 +186,7 @@ export async function respondRunStart(input: {
   outcome: 'allowed-once' | 'rejected'
   signal?: AbortSignal
 }) {
-  const response = await fetch(
+  const response = await gatewayFetch(
     `${gatewayBase()}/api/agent/v1/sessions/${encodeURIComponent(input.sessionId)}/approvals/${encodeURIComponent(input.approvalId)}`,
     {
       method: 'POST',

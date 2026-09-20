@@ -30,6 +30,8 @@ function stoppedMessage(code: unknown): string {
     return '执行权限不足，任务已停止；未自动重提。'
   if (code === 'GENERATION_OUTCOME_UNKNOWN' || code === 'CREATIVE_PROJECT_OUTCOME_UNKNOWN')
     return '提交结果未知，需要核对原任务；禁止重新提交。'
+  if (code === 'CREATIVE_RUN_ADMISSION_UNAVAILABLE')
+    return '当前工作台走普通图/视频生成；请刷新页面后重新发送。'
   return '任务执行失败，原任务保留；请恢复连接或核对结果。'
 }
 
@@ -193,7 +195,7 @@ export function useAgentSession(input: {
   }, [input.session.sessionId, input.projectId, input.spaceId, token, reconnectGeneration])
 
   const send = useCallback(
-    async (raw: string, generationContext: GenerationContext, referenceAssetIds: number[] = []) => {
+    async (raw: string, generationContext: GenerationContext, _referenceAssetIds: number[] = []) => {
       const text = raw.trim()
       if (sessionRef.current.activeRun) {
         setError('原任务结果尚未核清，禁止提交新任务；请先恢复或核对原任务。')
@@ -274,18 +276,6 @@ export function useAgentSession(input: {
           mode: input.executionMode,
           text,
           generationContext,
-          ...(generationContext.kind === 'video'
-            ? {
-              creativeRun: {
-                schemaVersion: 1 as const,
-                creativeRunId: `creative-${assistantId}`,
-                objective: text,
-                deliveryTargets: [`${generationContext.parameters.aspectRatioId ?? 'auto'} 视频`],
-                sourceRef: `agent-web:${userMessage.id}`,
-                businessInput: { script: text, assets: referenceAssetIds },
-              },
-            }
-            : {}),
           signal: controller.signal,
         })
         runRef.current = { runId: accepted.runId, grant: grant.grantToken }
