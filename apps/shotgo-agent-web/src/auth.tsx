@@ -20,6 +20,7 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<void>
   logout: () => Promise<void>
   applyUser: (user: AuthUser) => void
+  applySession: (token: string, user: AuthUser) => void
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
@@ -54,6 +55,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const applyUser = useCallback((next: AuthUser) => {
     localStorage.setItem(USER_KEY, JSON.stringify(next))
     setUser(next)
+  }, [])
+
+  const applySession = useCallback((nextToken: string, nextUser: AuthUser) => {
+    localStorage.setItem(TOKEN_KEY, nextToken)
+    localStorage.setItem(USER_KEY, JSON.stringify(nextUser))
+    setToken(nextToken)
+    setUser(nextUser)
   }, [])
 
   useEffect(() => {
@@ -101,7 +109,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     clear()
   }, [clear, token])
 
-  const value = useMemo(() => ({ token, user, ready, login, logout, applyUser }), [applyUser, login, logout, ready, token, user])
+  const value = useMemo(
+    () => ({ token, user, ready, login, logout, applyUser, applySession }),
+    [applySession, applyUser, login, logout, ready, token, user],
+  )
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
 
