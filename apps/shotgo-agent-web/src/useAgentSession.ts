@@ -23,6 +23,7 @@ import { appendUserPrompt } from './server-session-index.ts'
 import { ExceptionDecisionClient } from './exception-decision-client.ts'
 import { ExceptionDecisionRecovery } from './exception-decision-recovery.ts'
 import type { ExceptionDecisionState } from './exception-decision.ts'
+import { connectionInterruptedMessage, isBrowserOffline, sendBlockedOfflineMessage } from './network-error.ts'
 
 function stoppedMessage(code: unknown): string {
   if (code === 'AUTO_POLICY_HARD_BUDGET_EXCEEDED') return '预算不足，任务已停止；未自动重提。'
@@ -46,6 +47,8 @@ export function useAgentSession(input: {
   const { token } = useAuth()
   const [phase, setPhase] = useState<SessionPhase>('idle')
   const [error, setError] = useState<string>()
+  /** Paid Run stream lost; keep hang UI until events resume or the Run settles. */
+  const [connectionLost, setConnectionLost] = useState(false)
   const [decisions, setDecisions] = useState<ExceptionDecisionState>({})
   const [pendingRunStart, setPendingRunStart] = useState<{ approvalId: string; runId: string; reason?: string }>()
   const [runStartResponding, setRunStartResponding] = useState(false)
@@ -56,6 +59,8 @@ export function useAgentSession(input: {
   const runRef = useRef<{ runId: string; grant: string }>()
   const grantRef = useRef<{ grantToken: string; expiresAt: string; sessionId: string; agentMode: 'image' | 'video' }>()
   const sessionRef = useRef(input.session)
+  const phaseRef = useRef<SessionPhase>('idle')
+  phaseRef.current = phase
 
   useEffect(() => {
     sessionRef.current = input.session
@@ -98,12 +103,145 @@ export function useAgentSession(input: {
     [input],
   )
 
+  const resolveRunStart = useCallback(
+    async (
+      pending: { approvalId: string; runId: string },
+      outcome: 'allowed-once' | 'rejected',
+    ) => {
+      const run = runRef.current
+      const signal = abortRef.current?.signal
+      if (
+        run === undefined ||
+        signal === undefined ||
+        run.runId !== pending.runId ||
+        runStartResponding ||
+        responseInFlight.current ||
+        sessionRef.current.activeRun?.respondedApprovalIds?.includes(pending.approvalId)
+      ) {
+        return
+      }
+      setRunStartResponding(true)
+      responseInFlight.current = true
+      try {
+        // Persist intent before sending: a lost response must never unlock a second approval POST.
+        update(session => ({
+          ...session,
+          activeRun:
+            session.activeRun?.runId === pending.runId
+              ? {
+                ...session.activeRun,
+                respondedApprovalIds: [
+                  ...new Set([...(session.activeRun.respondedApprovalIds ?? []), pending.approvalId]),
+                ],
+              }
+              : session.activeRun,
+        }))
+        setPendingRunStart(undefined)
+        await respondRunStart({
+          grant: run.grant,
+          sessionId: input.session.sessionId,
+          approvalId: pending.approvalId,
+          outcome,
+          signal,
+        })
+      } catch {
+        setPendingRunStart(undefined)
+        if (!signal.aborted) {
+          setError('开始确认结果未知；禁止重复确认，请恢复原任务连接。')
+          setPhase('error')
+        }
+      } finally {
+        setRunStartResponding(false)
+        responseInFlight.current = false
+      }
+    },
+    [input.session.sessionId, runStartResponding, update],
+  )
+
+  const handleApprovalRequested = useCallback(
+    (event: { runId: string; payload: Record<string, unknown> }, mode: ExecutionMode) => {
+      const approvalId = event.payload.approvalId
+      if (typeof approvalId !== 'string') return
+      if (sessionRef.current.activeRun?.respondedApprovalIds?.includes(approvalId)) return
+      const pending = {
+        approvalId,
+        runId: event.runId,
+        ...(typeof event.payload.reason === 'string' ? { reason: event.payload.reason } : {}),
+      }
+      if (mode === 'manual') {
+        setPendingRunStart(pending)
+        return
+      }
+      // Automatic mode never shows the Run Start card; answer immediately.
+      void resolveRunStart(pending, 'allowed-once')
+    },
+    [resolveRunStart],
+  )
+  const handleApprovalRequestedRef = useRef(handleApprovalRequested)
+  handleApprovalRequestedRef.current = handleApprovalRequested
+
+  // Browser offline: cable unplug / Wi-Fi drop often stalls fetch/SSE without rejecting.
+  // Mark the paid Run hung immediately so the banner is visible; auto-resume waits for online.
+  useEffect(() => {
+    const markOffline = () => {
+      if (!isBrowserOffline()) return
+      const hasActiveRun = sessionRef.current.activeRun !== undefined
+      const inFlight = phaseRef.current === 'authorizing' || phaseRef.current === 'running'
+      if (!hasActiveRun && !inFlight) return
+      abortRef.current?.abort()
+      if (hasActiveRun) {
+        setConnectionLost(true)
+        setError(connectionInterruptedMessage('网络已断开'))
+        setPhase('error')
+      }
+    }
+    window.addEventListener('offline', markOffline)
+    const timer = window.setInterval(markOffline, 1_500)
+    return () => {
+      window.removeEventListener('offline', markOffline)
+      window.clearInterval(timer)
+    }
+  }, [])
+
+  // Browser offline OR Gateway briefly down: keep retrying the original Run stream (no resubmit).
+  // `online` alone is not enough — killing local :3012 does not flip navigator.onLine.
+  // Never clear the hang banner here; users must keep seeing why the Run is paused.
+  useEffect(() => {
+    if (!connectionLost) return
+    if (sessionRef.current.activeRun === undefined) return
+    const resume = () => {
+      if (sessionRef.current.activeRun === undefined) return
+      if (isBrowserOffline()) return
+      // Skip only while a recovery connect is already opening; otherwise bump stream.
+      if (phaseRef.current === 'authorizing') return
+      cancelInFlight.current = false
+      if (phaseRef.current === 'running') abortRef.current?.abort()
+      setError(current =>
+        connectionInterruptedMessage(
+          current && current.includes('正在重连') ? current : '连接已中断，正在重连原任务（不会重新提交）…',
+        ),
+      )
+      setPhase('error')
+      setReconnectGeneration(value => value + 1)
+    }
+    window.addEventListener('online', resume)
+    const timer = window.setInterval(resume, 4_000)
+    // First probe shortly after hang so recovery is not stuck waiting a full interval.
+    const immediate = window.setTimeout(resume, 800)
+    return () => {
+      window.removeEventListener('online', resume)
+      window.clearInterval(timer)
+      window.clearTimeout(immediate)
+    }
+  }, [connectionLost])
+
   useEffect(() => {
     const saved = sessionRef.current
     const active = saved.activeRun
     if (!active || !saved.streamEpoch || token === null || typeof active.runId !== 'string'
       || typeof active.assistantId !== 'string' || !['automatic', 'manual'].includes(active.executionMode)) return
     if (active.projectId !== input.projectId || active.spaceId !== input.spaceId) {
+      setConnectionLost(true)
       setError('恢复范围不一致；原任务保留，禁止重新提交。')
       setPhase('error')
       return
@@ -136,6 +274,8 @@ export function useAgentSession(input: {
         if (controller.signal.aborted || settled || event.sessionId !== saved.sessionId || event.runId !== active.runId
           || event.streamEpoch !== epoch || event.cursor <= lastApplied) return
         lastApplied = event.cursor
+        setConnectionLost(false)
+        setError(undefined)
         setPhase('running')
         const workflow = creativeWorkflow(event)
         if (workflow) update(session => session.workflow && session.workflow.projectRevision > workflow.projectRevision
@@ -144,9 +284,8 @@ export function useAgentSession(input: {
         if (revision) update(session => ({ ...session, revision }))
         const decision = exceptionDecision(event)
         if (decision) recovery.current?.upsert(decision)
-        if (event.type === 'approval.requested' && active.executionMode === 'manual' && typeof event.payload.approvalId === 'string'
-          && !sessionRef.current.activeRun?.respondedApprovalIds?.includes(event.payload.approvalId))
-          setPendingRunStart({ approvalId: event.payload.approvalId, runId: event.runId })
+        if (event.type === 'approval.requested')
+          handleApprovalRequestedRef.current(event, active.executionMode)
         if (event.type === 'approval.resolved') {
           const approvalId = event.payload.approvalId
           if (typeof approvalId === 'string' && sessionRef.current.activeRun?.respondedApprovalIds?.includes(approvalId)) setError(undefined)
@@ -179,6 +318,7 @@ export function useAgentSession(input: {
         }
         if (terminal(event, active.runId)) {
           settled = true
+          setConnectionLost(false)
           setPendingRunStart(undefined)
           if (event.type === 'run.failed') setError(stoppedMessage(event.payload.code))
           update(session => ({ ...session, activeRun: event.type === 'run.failed' ? session.activeRun : undefined,
@@ -189,7 +329,13 @@ export function useAgentSession(input: {
           runRef.current = undefined
         }
       },
-    }).catch(() => { if (!controller.signal.aborted) { setError('恢复连接失败；任务未重新提交，请重试连接。'); setPhase('error') } })
+    }).catch((cause) => {
+      if (controller.signal.aborted) return
+      const detail = cause instanceof Error ? cause.message : undefined
+      setConnectionLost(true)
+      setError(connectionInterruptedMessage(detail))
+      setPhase('error')
+    })
     return () =>{  controller.abort() }
     // Session admission is mount-scoped; ordinary cursor/UI changes must not reconnect the stream.
   }, [input.session.sessionId, input.projectId, input.spaceId, token, reconnectGeneration])
@@ -209,6 +355,13 @@ export function useAgentSession(input: {
         phase === 'cancelling'
       )
         return false
+      if (isBrowserOffline()) {
+        const offlineHint = sendBlockedOfflineMessage('网络已断开')
+        setConnectionLost(false)
+        setError(offlineHint)
+        setPhase('error')
+        return false
+      }
       const controller = new AbortController()
       cancelInFlight.current = false
       abortRef.current?.abort()
@@ -230,7 +383,14 @@ export function useAgentSession(input: {
         updatedAt: new Date().toISOString(),
       }))
       setError(undefined)
+      setConnectionLost(false)
       setPhase('authorizing')
+      // If grant/proxy hangs beyond connect budget, force the send path to surface a tip.
+      const admitWatchdog = window.setTimeout(() => {
+        if (sessionRef.current.activeRun !== undefined) return
+        if (phaseRef.current !== 'authorizing') return
+        controller.abort()
+      }, 12_000)
       let promptSynced = false
       const persistPrompt = async () => {
         if (token === null || promptSynced) return
@@ -267,9 +427,11 @@ export function useAgentSession(input: {
           sessionStorage.setItem(`shotgo-agent-capability-grant:${input.session.sessionId}`, next.grantToken)
           return next
         }
+        if (isBrowserOffline()) throw new Error('网络已断开')
         const grant = await obtainGrant()
         if (grant.sessionId !== input.session.sessionId || grant.agentMode !== input.session.mode)
           throw new Error('Agent 授权范围与当前会话不一致')
+        if (isBrowserOffline()) throw new Error('网络已断开')
         const accepted = await submitMessage({
           grant: grant.grantToken,
           sessionId: input.session.sessionId,
@@ -278,6 +440,7 @@ export function useAgentSession(input: {
           generationContext,
           signal: controller.signal,
         })
+        window.clearTimeout(admitWatchdog)
         runRef.current = { runId: accepted.runId, grant: grant.grantToken }
         setPhase('running')
         update(session => ({
@@ -308,6 +471,8 @@ export function useAgentSession(input: {
             if (controller.signal.aborted || settled || event.sessionId !== input.session.sessionId || event.runId !== accepted.runId
               || event.streamEpoch !== accepted.streamEpoch || event.cursor <= lastApplied) return
             lastApplied = event.cursor
+            setConnectionLost(false)
+            setError(undefined)
             const workflow = creativeWorkflow(event)
             if (workflow !== undefined)
               update(session =>
@@ -320,15 +485,8 @@ export function useAgentSession(input: {
               update(session => ({ ...session, revision, updatedAt: new Date().toISOString() }))
             const decision = exceptionDecision(event)
             if (decision !== undefined) recovery.current?.upsert(decision)
-            if (event.type === 'approval.requested' && input.executionMode === 'manual') {
-              const approvalId = event.payload.approvalId
-              if (typeof approvalId === 'string' && !sessionRef.current.activeRun?.respondedApprovalIds?.includes(approvalId))
-                setPendingRunStart({
-                  approvalId,
-                  runId: event.runId,
-                  ...(typeof event.payload.reason === 'string' ? { reason: event.payload.reason } : {}),
-                })
-            }
+            if (event.type === 'approval.requested')
+              handleApprovalRequested(event, input.executionMode)
             if (event.type === 'approval.resolved') {
               const approvalId = event.payload.approvalId
               if (typeof approvalId === 'string' && sessionRef.current.activeRun?.respondedApprovalIds?.includes(approvalId)) setError(undefined)
@@ -362,6 +520,7 @@ export function useAgentSession(input: {
             }
             if (terminal(event, accepted.runId)) {
               settled = true
+              setConnectionLost(false)
               setPendingRunStart(undefined)
               if (event.type === 'run.failed') setError(stoppedMessage(event.payload.code))
               const status =
@@ -376,12 +535,13 @@ export function useAgentSession(input: {
                       ...message,
                       status,
                       text:
-                          message.text ||
-                          (status === 'complete'
-                            ? '本轮处理已完成。'
+                          message.text.trim().length > 0
+                            ? message.text
                             : status === 'cancelled'
                               ? '本轮已取消。'
-                              : '本轮执行失败。'),
+                              : status === 'failed'
+                                ? '本轮执行失败。'
+                                : message.text,
                     }
                     : message,
                 ),
@@ -399,32 +559,72 @@ export function useAgentSession(input: {
         }
         return true
       } catch (cause) {
+        window.clearTimeout(admitWatchdog)
         try {
           await persistPrompt()
         } catch {
           // Keep going; generation error is the user-visible failure.
         }
-        if (controller.signal.aborted) return false
+        const runHang =
+          runRef.current !== undefined
+          || sessionRef.current.activeRun !== undefined
+        if (controller.signal.aborted) {
+          if (runHang) {
+            setConnectionLost(true)
+            setError(connectionInterruptedMessage(isBrowserOffline() ? '网络已断开' : undefined))
+            setPhase('error')
+            return false
+          }
+          const offlineHint = sendBlockedOfflineMessage(
+            isBrowserOffline() ? '网络已断开' : '连接超时，无法接通 Agent',
+          )
+          setConnectionLost(false)
+          setError(offlineHint)
+          setPhase('error')
+          update(session => ({
+            ...session,
+            messages: session.messages.map(item =>
+              item.id === assistantId
+                ? { ...item, status: 'failed', text: item.text.trim().length > 0 ? item.text : offlineHint }
+                : item,
+            ),
+            updatedAt: new Date().toISOString(),
+          }))
+          return false
+        }
         const message = cause instanceof Error ? cause.message : 'Agent 运行失败'
-        setError(message)
+        if (runHang) {
+          // Stream/network loss after admission: hang UI, never mark the Run failed or resubmit.
+          setConnectionLost(true)
+          setError(connectionInterruptedMessage(message))
+          setPhase('error')
+          return false
+        }
+        const offlineHint = sendBlockedOfflineMessage(message)
+        setConnectionLost(false)
+        setError(offlineHint)
         setPhase('error')
         update(session => ({
           ...session,
           messages: session.messages.map(item =>
-            item.id === assistantId ? { ...item, status: 'failed', text: item.text || message } : item,
+            item.id === assistantId
+              ? { ...item, status: 'failed', text: item.text.trim().length > 0 ? item.text : offlineHint }
+              : item,
           ),
           updatedAt: new Date().toISOString(),
         }))
         return message.includes('SESSION_BUSY') || message.includes('开新会话') ? 'session-busy' : false
       }
     },
-    [input, phase, token, update],
+    [handleApprovalRequested, input, phase, token, update],
   )
 
   const cancel = useCallback(async () => {
     const run = runRef.current
     if (run === undefined || cancelInFlight.current) return
     cancelInFlight.current = true
+    setPendingRunStart(undefined)
+    setConnectionLost(false)
     setPhase('cancelling')
     try {
       await cancelRun({ grant: run.grant, sessionId: input.session.sessionId, runId: run.runId })
@@ -438,49 +638,16 @@ export function useAgentSession(input: {
   const confirmRunStart = useCallback(
     async (outcome: 'allowed-once' | 'rejected') => {
       const pending = pendingRunStart
-      const run = runRef.current
-      const signal = abortRef.current?.signal
-      if (
-        pending === undefined ||
-        run === undefined ||
-        signal === undefined ||
-        run.runId !== pending.runId ||
-        runStartResponding || responseInFlight.current || sessionRef.current.activeRun?.respondedApprovalIds?.includes(pending.approvalId)
-      )
-        return
-      setRunStartResponding(true)
-      responseInFlight.current = true
-      try {
-        // Persist intent before sending: a lost response must never unlock a second approval POST.
-        update(session => ({ ...session,
-          activeRun: session.activeRun?.runId === pending.runId ? { ...session.activeRun,
-            respondedApprovalIds: [...new Set([...(session.activeRun.respondedApprovalIds ?? []), pending.approvalId])],
-          } : session.activeRun }))
-        setPendingRunStart(undefined)
-        await respondRunStart({
-          grant: run.grant,
-          sessionId: input.session.sessionId,
-          approvalId: pending.approvalId,
-          outcome,
-          signal,
-        })
-      } catch {
-        setPendingRunStart(undefined)
-        if (!signal.aborted) {
-          setError('开始确认结果未知；禁止重复确认，请恢复原任务连接。')
-          setPhase('error')
-        }
-      } finally {
-        setRunStartResponding(false)
-        responseInFlight.current = false
-      }
+      if (pending === undefined) return
+      await resolveRunStart(pending, outcome)
     },
-    [input.session.sessionId, pendingRunStart, runStartResponding, update],
+    [pendingRunStart, resolveRunStart],
   )
 
   return {
     phase,
     error,
+    connectionLost,
     decisions,
     decisionClient,
     pendingRunStart,
@@ -488,7 +655,16 @@ export function useAgentSession(input: {
     confirmRunStart,
     send,
     cancel,
-    reconnect: () => { cancelInFlight.current = false; setReconnectGeneration(value => value + 1) },
+    reconnect: () => {
+      cancelInFlight.current = false
+      setConnectionLost(true)
+      setError(current =>
+        connectionInterruptedMessage(
+          current && current.includes('正在重连') ? current : '连接已中断，正在重连原任务（不会重新提交）…',
+        ),
+      )
+      setReconnectGeneration(value => value + 1)
+    },
     setDecisions,
   }
 }

@@ -26,12 +26,101 @@ it('loads image assets, changes team scope and returns selected items', async ()
   })
 })
 
+it('centers the empty library state', async () => {
+  vi.stubGlobal('fetch', vi.fn<typeof fetch>(async () => new Response(JSON.stringify({
+    code: 0,
+    data: { list: [], pagination: { page: 1, per_page: 15, total: 0, last_page: 1 } },
+  }), { status: 200 })))
+  render(<MediaLibraryPicker open token="token" isTeam={false} initialIds={[]} maxSelection={9} onClose={() => undefined} onConfirm={() => undefined} />)
+  expect(await screen.findByText('当前范围暂无图片素材')).toHaveClass('media-picker-empty')
+})
+
+it('only shows a check mark on selected tiles', async () => {
+  vi.stubGlobal('fetch', vi.fn<typeof fetch>(async () => new Response(JSON.stringify({
+    code: 0,
+    data: {
+      list: [
+        { id: 1, mediaType: 'image', path: '1.png', thumbPath: null, originalName: '图片 1', visibility: 'private', createdAtMs: 1 },
+        { id: 2, mediaType: 'image', path: '2.png', thumbPath: null, originalName: '图片 2', visibility: 'private', createdAtMs: 1 },
+      ],
+      pagination: { page: 1, per_page: 15, total: 2, last_page: 1 },
+    },
+  }), { status: 200 })))
+  render(<MediaLibraryPicker open token="token" isTeam={false} initialIds={[]} maxSelection={9} onClose={() => undefined} onConfirm={() => undefined} />)
+  fireEvent.click(await screen.findByRole('button', { name: /图片 1/ }))
+  expect(screen.getByRole('button', { name: /图片 1/ })).toHaveAttribute('aria-pressed', 'true')
+  expect(screen.getByRole('button', { name: /图片 1/ }).querySelector('i')).toHaveTextContent('✓')
+  expect(screen.getByRole('button', { name: /图片 2/ }).querySelector('i')).toBeNull()
+})
+
 it('does not select more than the declared limit', async () => {
   vi.stubGlobal('fetch', vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ code: 0, data: { list: [1, 2].map(id => ({ id, mediaType: 'image', path: `${id}.png`, thumbPath: null, originalName: `图片 ${id}`, visibility: 'private', createdAtMs: 1 })), pagination: { page: 1, per_page: 15, total: 2, last_page: 1 } } }), { status: 200 })))
   render(<MediaLibraryPicker open token="token" isTeam={false} initialIds={[]} maxSelection={1} onClose={() => undefined} onConfirm={() => undefined} />)
   fireEvent.click(await screen.findByRole('button', { name: /图片 1/ }))
   fireEvent.click(screen.getByRole('button', { name: /图片 2/ }))
   expect(screen.getByText('已选 1/1 · 共 2 项 · 单文件不超过 30MB')).toBeInTheDocument()
+  expect(await screen.findByRole('alert')).toHaveTextContent('最多选择 1 项参考素材')
+})
+
+it('tells the user when uploads are truncated by the selection limit', async () => {
+  const fetchMock = vi.fn<typeof fetch>(async (_url, init) => {
+    if (init?.method === 'POST') {
+      return new Response(JSON.stringify({
+        code: 0,
+        data: { id: 51, mediaType: 'image', path: 'resource/51.png', thumbPath: null, originalName: 'a.png', visibility: 'private', createdAtMs: 1 },
+      }), { status: 200 })
+    }
+    return new Response(JSON.stringify({
+      code: 0,
+      data: { list: [], pagination: { page: 1, per_page: 15, total: 0, last_page: 1 } },
+    }), { status: 200 })
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  render(<MediaLibraryPicker open token="token" isTeam={false} initialIds={[]} maxSelection={1} onClose={() => undefined} onConfirm={() => undefined} />)
+  await screen.findByText('当前范围暂无图片素材')
+  fireEvent.change(screen.getByLabelText('上传图片或视频'), {
+    target: {
+      files: [
+        new File(['a'], 'a.png', { type: 'image/png' }),
+        new File(['b'], 'b.png', { type: 'image/png' }),
+      ],
+    },
+  })
+  const alert = await screen.findByRole('alert')
+  expect(alert).toHaveTextContent(/已加入 1 项（上限 1）/)
+  expect(alert).toHaveTextContent(/另有 1 项未上传/)
+  expect(fetchMock.mock.calls.filter(call => call[1]?.method === 'POST')).toHaveLength(1)
+  // Tip must survive the post-upload library reload.
+  await waitFor(() => {
+    expect(fetchMock.mock.calls.filter(call => call[1]?.method !== 'POST').length).toBeGreaterThan(1)
+  })
+  expect(screen.getByRole('alert')).toHaveTextContent(/另有 1 项未上传/)
+})
+
+it('keeps the first nine of twenty OS-picked files and reports the rest skipped', async () => {
+  let uploadSerial = 0
+  const fetchMock = vi.fn<typeof fetch>(async (_url, init) => {
+    if (init?.method === 'POST') {
+      uploadSerial += 1
+      const id = 100 + uploadSerial
+      return new Response(JSON.stringify({
+        code: 0,
+        data: { id, mediaType: 'image', path: `resource/${id}.png`, thumbPath: null, originalName: `${id}.png`, visibility: 'private', createdAtMs: 1 },
+      }), { status: 200 })
+    }
+    return new Response(JSON.stringify({
+      code: 0,
+      data: { list: [], pagination: { page: 1, per_page: 15, total: 0, last_page: 1 } },
+    }), { status: 200 })
+  })
+  vi.stubGlobal('fetch', fetchMock)
+  render(<MediaLibraryPicker open token="token" isTeam={false} initialIds={[]} maxSelection={9} onClose={() => undefined} onConfirm={() => undefined} />)
+  await screen.findByText('当前范围暂无图片素材')
+  const files = Array.from({ length: 20 }, (_, index) => new File([`f${index}`], `f${index}.png`, { type: 'image/png' }))
+  fireEvent.change(screen.getByLabelText('上传图片或视频'), { target: { files } })
+  expect(await screen.findByRole('alert')).toHaveTextContent(/已加入 9 项（上限 9），另有 11 项未上传/)
+  expect(fetchMock.mock.calls.filter(call => call[1]?.method === 'POST')).toHaveLength(9)
+  expect(screen.getByText(/已选 9\/9/)).toBeInTheDocument()
 })
 
 it('lists videos when the video tab is selected', async () => {

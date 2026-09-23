@@ -1,6 +1,13 @@
 import { useLayoutEffect, useMemo, useRef, useState } from 'react'
 import type { GenerationContext } from './agent-session.ts'
-import type { GenerationConfig, GenerationOption } from './generation.ts'
+import {
+  durationOptions,
+  durationRangeForModel,
+  optionsForModel,
+  updateGenerationContext,
+  type GenerationConfig,
+  type GenerationOption,
+} from './generation.ts'
 import { resolveMediaUrl, type MediaLibraryItem } from './media-library.ts'
 
 const MODEL_VALUE_MAX_PX = 300
@@ -24,6 +31,7 @@ function ChipSelect({
   options,
   onChange,
   fitLongestLabel = false,
+  disabled = false,
 }: {
   label: string
   value: string | undefined
@@ -31,6 +39,7 @@ function ChipSelect({
   onChange: (value: string) => void
   /** Size value to the longest option label, capped at 300px with ellipsis. */
   fitLongestLabel?: boolean
+  disabled?: boolean
 }) {
   const enabled = options.filter(item => item.enabled !== false)
   const text = optionLabel(enabled, value)
@@ -53,13 +62,14 @@ function ChipSelect({
 
   return (
     <label
-      className={`composer-chip${fitLongestLabel ? ' composer-chip--model' : ''}`}
+      className={`composer-chip${fitLongestLabel ? ' composer-chip--model' : ''}${disabled ? ' is-disabled' : ''}`}
       title={`${label}：${text}`}
     >
       <span className="composer-chip__label">{label}</span>
       <select
         aria-label={label}
         value={value}
+        disabled={disabled}
         onChange={(event) => {
           onChange(event.target.value)
         }}
@@ -86,17 +96,19 @@ export function ComposerAttachBar({
   referenceItems,
   onOpenReferences,
   onRemoveReference,
+  disabled = false,
 }: {
   referenceItems: MediaLibraryItem[]
   onOpenReferences: () => void
   onRemoveReference: (id: number) => void
+  disabled?: boolean
 }) {
   return (
-    <div className="composer-attach" aria-label="参考素材">
+    <div className={`composer-attach${disabled ? ' is-disabled' : ''}`} aria-label="参考素材">
       <button
         type="button"
         className="composer-attach__add"
-        disabled={referenceItems.length >= 9}
+        disabled={disabled || referenceItems.length >= 9}
         onClick={onOpenReferences}
       >
         <span className="composer-attach__plus" aria-hidden="true">＋</span>
@@ -118,6 +130,7 @@ export function ComposerAttachBar({
                 <button
                   type="button"
                   aria-label={`移除 ${item.originalName ?? item.id}`}
+                  disabled={disabled}
                   onClick={() => {
                     onRemoveReference(item.id)
                   }}
@@ -138,78 +151,96 @@ export function ComposerParamBar({
   context,
   config,
   onChange,
+  disabled = false,
 }: {
   context: GenerationContext
   config: GenerationConfig
   onChange: (context: GenerationContext) => void
+  disabled?: boolean
 }) {
   const section = config[context.kind]
+  const model = section.models.find(item => item.id === context.modelId)
+  const aspectRatios = optionsForModel(section.aspectRatios, model, 'aspect_ratio')
+  const resolutions = optionsForModel(section.resolutions, model, 'resolution')
+  const qualities = context.kind === 'image'
+    ? optionsForModel(config.image.qualities, model, 'quality')
+    : []
+  const durationRange = context.kind === 'video' ? durationRangeForModel(config, model) : undefined
+  const durations = durationRange === undefined ? [] : durationOptions(durationRange)
   const patch = (parameters: Partial<GenerationContext['parameters']>) => {
-    onChange({ ...context, parameters: { ...context.parameters, ...parameters } })
+    onChange(updateGenerationContext(context, { parameters }, config))
   }
   return (
-    <div className="generation-settings" aria-label="生成参数">
+    <div className={`generation-settings${disabled ? ' is-disabled' : ''}`} aria-label="生成参数">
       <div className="composer-plugins" role="toolbar" aria-label="生成参数插件">
         <ChipSelect
           label="模型"
           fitLongestLabel
           value={context.modelId}
           options={section.models}
+          disabled={disabled}
           onChange={(modelId) => {
-            onChange({ ...context, modelId })
+            onChange(updateGenerationContext(context, { modelId }, config))
           }}
         />
-        <ChipSelect
-          label="比例"
-          value={context.parameters.aspectRatioId}
-          options={section.aspectRatios}
-          onChange={(aspectRatioId) => {
-            patch({ aspectRatioId })
-          }}
-        />
-        <ChipSelect
-          label="清晰度"
-          value={context.parameters.resolutionId}
-          options={section.resolutions}
-          onChange={(resolutionId) => {
-            patch({ resolutionId })
-          }}
-        />
-        {context.kind === 'image' ? (
+        {aspectRatios.length > 0 ? (
           <ChipSelect
-            label="画质"
-            value={context.parameters.qualityId}
-            options={config.image.qualities}
-            onChange={(qualityId) => {
-              patch({ qualityId })
+            label="比例"
+            value={context.parameters.aspectRatioId}
+            options={aspectRatios}
+            disabled={disabled}
+            onChange={(aspectRatioId) => {
+              onChange(updateGenerationContext(context, { parameters: { aspectRatioId } }, config))
             }}
           />
+        ) : null}
+        {resolutions.length > 0 ? (
+          <ChipSelect
+            label="清晰度"
+            value={context.parameters.resolutionId}
+            options={resolutions}
+            disabled={disabled}
+            onChange={(resolutionId) => {
+              onChange(updateGenerationContext(context, { parameters: { resolutionId } }, config))
+            }}
+          />
+        ) : null}
+        {context.kind === 'image' ? (
+          qualities.length > 0 ? (
+            <ChipSelect
+              label="画质"
+              value={context.parameters.qualityId}
+              options={qualities}
+              disabled={disabled}
+              onChange={(qualityId) => {
+                onChange(updateGenerationContext(context, { parameters: { qualityId } }, config))
+              }}
+            />
+          ) : null
         ) : (
           <>
-            <label className="composer-chip composer-chip--duration" title="时长">
-              <span className="composer-chip__label">时长</span>
-              <input
-                aria-label="时长"
-                type="number"
-                min={config.video.duration.min}
-                max={config.video.duration.max}
-                step={config.video.duration.step}
-                value={context.parameters.duration}
-                onChange={(event) => {
-                  patch({ duration: Number(event.target.value) })
+            {durations.length > 0 ? (
+              <ChipSelect
+                label="时长"
+                value={String(context.parameters.duration ?? durationRange?.default ?? '')}
+                options={durations}
+                disabled={disabled}
+                onChange={(durationId) => {
+                  onChange(updateGenerationContext(context, {
+                    parameters: { duration: Number(durationId) },
+                  }, config))
                 }}
               />
-              <span className="composer-chip__value">
-                {context.parameters.duration ?? config.video.duration.min}s
-              </span>
-            </label>
+            ) : null}
             <label
-              className={`composer-chip composer-chip--toggle${context.parameters.audio ? ' is-on' : ''}`}
+              className={`composer-chip composer-chip--toggle${context.parameters.audio ? ' is-on' : ''}${disabled ? ' is-disabled' : ''}`}
               title="生成音频"
             >
               <input
                 type="checkbox"
+                aria-label="生成音频"
                 checked={context.parameters.audio ?? false}
+                disabled={disabled}
                 onChange={(event) => {
                   patch({ audio: event.target.checked })
                 }}

@@ -29,4 +29,24 @@ describe('ArtifactCards', () => {
     expect(screen.getByText('图片 · 已完成')).toBeInTheDocument()
     expect(screen.getAllByRole('link', { name: '打开成品' }).length).toBeGreaterThan(0)
   })
+
+  it('renders completed video cover without native controls', () => {
+    render(
+      <ArtifactCards
+        artifacts={[{
+          id: '718:1',
+          mediaType: 'video',
+          status: 'succeeded',
+          url: 'http://cdn.example/a.mp4',
+          thumbnailUrl: 'http://cdn.example/a.jpg',
+        }]}
+        generationRefs={[{ generationId: '718', clientRequestId: 'gen-cde', state: 'completed' }]}
+        scrollOnReveal={false}
+      />,
+    )
+    expect(screen.getByText('视频 · 已完成')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '播放视频' })).toBeInTheDocument()
+    expect(document.querySelector('video[controls]')).toBeNull()
+    expect(screen.getByRole('link', { name: '打开成品' })).toHaveAttribute('href', 'http://cdn.example/a.mp4')
+  })
 })

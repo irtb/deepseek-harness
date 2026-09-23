@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import type { GenerationArtifact, GenerationRef } from './agent-session.ts'
 import { generationIdFromArtifactId, statusLabel } from './message-artifacts.ts'
+import { VideoArtifactPreview } from './VideoArtifactPreview.tsx'
 
 async function copyText(value: string): Promise<boolean> {
   try {
@@ -99,15 +100,13 @@ export function ArtifactCards({
             }}
             data-generation-id={generationId}
           >
-            {ready ? (
+            {ready && item.url ? (
               item.mediaType === 'image' ? (
                 <a className="artifact-media" href={item.url} target="_blank" rel="noopener noreferrer" title="在新标签打开成品">
                   <img src={item.thumbnailUrl ?? item.url} alt="生成结果" />
                 </a>
               ) : (
-                <div className="artifact-media">
-                  <video src={item.url} poster={item.thumbnailUrl} controls playsInline />
-                </div>
+                <VideoArtifactPreview url={item.url} thumbnailUrl={item.thumbnailUrl} />
               )
             ) : (
               <div className="artifact-state" aria-live="polite">
@@ -121,7 +120,7 @@ export function ArtifactCards({
                 {item.mediaType === 'image' ? '图片' : '视频'} · {statusLabel(item.status, item.error)}
               </span>
               {ready ? (
-                <a href={item.url} target="_blank" rel="noopener noreferrer">
+                <a className="artifact-meta__open" href={item.url} target="_blank" rel="noopener noreferrer">
                   打开成品
                 </a>
               ) : null}

@@ -41,8 +41,34 @@ export function mediaTypeFromFile(file: File): ReferenceMediaKind | undefined {
   return undefined
 }
 
-function problemMessage(body: { msg?: unknown } | null, fallback: string): string {
-  return typeof body?.msg === 'string' && body.msg.length > 0 ? body.msg : fallback
+function firstProblem(body: { msg?: unknown; message?: unknown; errors?: unknown } | null): string | undefined {
+  if (typeof body?.msg === 'string' && body.msg.length > 0) return body.msg
+  if (body?.errors !== null && typeof body?.errors === 'object') {
+    for (const value of Object.values(body.errors as Record<string, unknown>)) {
+      if (Array.isArray(value) && typeof value[0] === 'string' && value[0].length > 0) return value[0]
+      if (typeof value === 'string' && value.length > 0) return value
+    }
+  }
+  if (typeof body?.message === 'string' && body.message.length > 0) return body.message
+  return undefined
+}
+
+function humanizeProblem(raw: string): string {
+  const normalized = raw.trim().toLowerCase()
+  if (
+    normalized === 'validation.uploaded'
+    || normalized.includes('failed to upload')
+    || normalized === '文件上传失败'
+    || normalized === '文件上传失败。'
+  ) {
+    return '文件超过服务器上传限制，请压缩到 30MB 以内后重试'
+  }
+  return raw
+}
+
+function problemMessage(body: { msg?: unknown; message?: unknown; errors?: unknown } | null, fallback: string): string {
+  const raw = firstProblem(body)
+  return raw === undefined ? fallback : humanizeProblem(raw)
 }
 
 export async function fetchMediaLibrary(input: {

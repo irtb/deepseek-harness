@@ -1,4 +1,5 @@
 import type { AgentMessage, AgentMode, AgentSessionRecord, GenerationArtifact } from './agent-session.ts'
+import { apiFetch } from './network-error.ts'
 
 export type CreativeSessionSummary = {
   sessionId: string
@@ -149,7 +150,7 @@ export async function appendUserPrompt(input: {
 }): Promise<void> {
   if (isSensitiveUserText(input.text)) return
   const post = () =>
-    fetch(`${apiBase()}/api/agent/v1/creative-sessions/${encodeURIComponent(input.session.sessionId)}/entries`, {
+    apiFetch(`${apiBase()}/api/agent/v1/creative-sessions/${encodeURIComponent(input.session.sessionId)}/entries`, {
       method: 'POST',
       headers: authHeaders(input.token, true),
       body: JSON.stringify({

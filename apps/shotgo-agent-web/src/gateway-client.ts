@@ -1,7 +1,7 @@
 import type { AgentMode, ExecutionMode, GatewayEvent, GenerationContext } from './agent-session.ts'
 import { parseGatewayEvent, terminal } from './agent-session.ts'
 import { streamGatewayExceptionDecisions } from './gateway-exception-stream.ts'
-import { gatewayFetch, gatewayStatusMessage } from './network-error.ts'
+import { apiFetch, gatewayFetch, gatewayStatusMessage } from './network-error.ts'
 
 const protocol = '2026-09-03.1'
 
@@ -33,7 +33,7 @@ export async function createGrant(input: {
   projectId?: string
   signal?: AbortSignal
 }) {
-  const response = await fetch(`${apiBase()}/api/agent/v1/grants`, {
+  const response = await apiFetch(`${apiBase()}/api/agent/v1/grants`, {
     method: 'POST',
     headers: { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${input.token}` },
     body: JSON.stringify({
@@ -155,6 +155,10 @@ export async function streamRun(input: {
       return
     } catch (cause) {
       if (input.signal.aborted) throw cause
+      const message = cause instanceof Error ? cause.message : ''
+      // Unreachable Gateway should surface hang UI immediately; soft retries stay for
+      // grant renewal and cursor catch-up after a prior Run's retained terminal frame.
+      if (!renewal && (/无法连接/i.test(message) || cause instanceof TypeError)) throw cause
       if (!renewal && reconnects >= 2) throw cause
       reconnects = renewal ? 0 : reconnects + 1
     } finally {

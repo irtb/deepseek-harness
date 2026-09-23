@@ -6,6 +6,7 @@ import { fetchSpaces, switchActiveTeam, type SpaceSummary } from './project-cont
 import { newSession, readSessions, sessionScope, writeSessions } from './session-store.ts'
 import { useAgentSession } from './useAgentSession.ts'
 import { AgentMarkdown } from './AgentMarkdown.tsx'
+import { AssistantTrace } from './AssistantTrace.tsx'
 import { ArtifactCards } from './ArtifactCards.tsx'
 import { GenerationIdActions } from './GenerationIdActions.tsx'
 import { ComposerAttachBar, ComposerParamBar } from './GenerationComposer.tsx'
@@ -233,9 +234,10 @@ export function AgentWorkspace({ mode }: { mode: AgentMode }) {
     if (sent === true) {
       setDraft('')
       setReferenceItems([])
-      setGenerationContext(current =>
-        current.kind === 'image' ? { ...current, parameters: { ...current.parameters, referenceAssets: [] } } : current,
-      )
+      setGenerationContext(current => ({
+        ...current,
+        parameters: { ...current.parameters, referenceAssets: [] },
+      }))
       return
     }
     if (sent === 'session-busy') await startNew()
@@ -246,6 +248,11 @@ export function AgentWorkspace({ mode }: { mode: AgentMode }) {
     applyUser(next)
     setSpaceId(undefined)
   }
+
+  const runLocked =
+    ['authorizing', 'running', 'cancelling'].includes(agent.phase)
+    || agent.pendingRunStart !== undefined
+  const canStop = agent.phase === 'running' || agent.phase === 'cancelling'
 
   return (
     <main className="workspace-shell">
@@ -334,8 +341,17 @@ export function AgentWorkspace({ mode }: { mode: AgentMode }) {
             <button
               type="button"
               className={executionMode === 'automatic' ? 'active' : ''}
+              disabled={runLocked}
+              title={runLocked ? '本轮已锁定，结束后可再切换' : undefined}
               onClick={() => {
+                if (runLocked) return
                 setExecutionMode('automatic')
+                // Automatic paid runs require a Space-scoped AutoExecutionPolicy.
+                if (spaceId === undefined) {
+                  const preferred =
+                    spaces.find(item => item.name === '线上测试') ?? spaces[0]
+                  if (preferred !== undefined) setSpaceId(preferred.uuid)
+                }
               }}
             >
               自动模式
@@ -343,7 +359,10 @@ export function AgentWorkspace({ mode }: { mode: AgentMode }) {
             <button
               type="button"
               className={executionMode === 'manual' ? 'active' : ''}
+              disabled={runLocked}
+              title={runLocked ? '本轮已锁定，结束后可再切换' : undefined}
               onClick={() => {
+                if (runLocked) return
                 setExecutionMode('manual')
               }}
             >
@@ -364,7 +383,7 @@ export function AgentWorkspace({ mode }: { mode: AgentMode }) {
             {session.messages.length === 0 ? (
               <div className="empty">
                 <h1>{mode === 'image' ? '想生成什么图片？' : '想制作什么视频？'}</h1>
-                <p>参考素材放在输入框上方。发送后会在开始生成前确认一次。</p>
+                <p>参考素材放在输入框上方。发送后 Agent 会整理参数；真正提交生成前会再确认一次。</p>
               </div>
             ) : (
               session.messages.map((message) => {
@@ -374,11 +393,37 @@ export function AgentWorkspace({ mode }: { mode: AgentMode }) {
                   <article key={message.id} className={`message ${message.role}`}>
                     <span>{message.role === 'user' ? '你' : 'Agent'}</span>
                     <div>
-                      <AgentMarkdown>{message.text || (message.status === 'streaming' ? '正在思考…' : '')}</AgentMarkdown>
+                      {message.role === 'assistant'
+                        ? (
+                          <AssistantTrace
+                            text={message.text}
+                            status={message.status}
+                            executionMode={executionMode}
+                            connectionLost={
+                              agent.connectionLost
+                                && message.status === 'streaming'
+                            }
+                          />
+                        )
+                        : <AgentMarkdown>{message.text}</AgentMarkdown>}
                       {message.generationContext ? (
                         <small>
-                          {message.generationContext.modelId} · {message.generationContext.parameters.aspectRatioId} ·{' '}
-                          {message.generationContext.parameters.resolutionId}
+                          {message.generationContext.modelId}
+                          {message.generationContext.parameters.aspectRatioId
+                            ? ` · ${message.generationContext.parameters.aspectRatioId}`
+                            : ''}
+                          {message.generationContext.parameters.resolutionId
+                            ? ` · ${message.generationContext.parameters.resolutionId}`
+                            : ''}
+                          {message.generationContext.kind === 'video'
+                            && message.generationContext.parameters.duration !== undefined
+                            ? ` · ${message.generationContext.parameters.duration}s`
+                            : ''}
+                          {message.generationContext.kind === 'video'
+                            ? ` · 音频${message.generationContext.parameters.audio ? '开' : '关'}`
+                            : message.generationContext.parameters.qualityId
+                              ? ` · ${message.generationContext.parameters.qualityId}`
+                              : ''}
                         </small>
                       ) : null}
                       {displayArtifacts.length > 0 ? (
@@ -399,7 +444,7 @@ export function AgentWorkspace({ mode }: { mode: AgentMode }) {
                 )
               })
             )}
-            {agent.pendingRunStart === undefined ? null : (
+            {agent.pendingRunStart === undefined || executionMode !== 'manual' ? null : (
               <article className="run-start-card">
                 <div>
                   <strong>开始本次生成</strong>
@@ -437,19 +482,24 @@ export function AgentWorkspace({ mode }: { mode: AgentMode }) {
           </section>
         </AgentScrollArea>
         <div className="agent-controls">
-          {agent.phase === 'error' && session.activeRun ? <button type="button" onClick={agent.reconnect}>恢复原任务连接（不重新提交）</button> : null}
+          {agent.connectionLost && session.activeRun ? (
+            <button type="button" onClick={agent.reconnect}>恢复原任务连接（不重新提交）</button>
+          ) : null}
           {agent.error === undefined ? null : (
-            <p className="run-error" role="alert">
+            <p className={`run-error${agent.connectionLost ? ' run-error--hang' : ''}`} role="alert">
               {agent.error}
             </p>
           )}
-          <form className="composer" onSubmit={event => void submit(event)}>
+          <form className={`composer${runLocked ? ' is-locked' : ''}`} onSubmit={event => void submit(event)}>
             <ComposerAttachBar
               referenceItems={referenceItems}
+              disabled={runLocked}
               onOpenReferences={() => {
+                if (runLocked) return
                 setReferencePickerOpen(true)
               }}
               onRemoveReference={(id) => {
+                if (runLocked) return
                 setReferenceItems(items => items.filter(item => item.id !== id))
                 setGenerationContext(current => ({
                   ...current,
@@ -466,6 +516,7 @@ export function AgentWorkspace({ mode }: { mode: AgentMode }) {
               aria-label="创作要求"
               maxLength={20_000}
               value={draft}
+              disabled={runLocked}
               onChange={(event) => {
                 setDraft(event.target.value)
               }}
@@ -473,35 +524,55 @@ export function AgentWorkspace({ mode }: { mode: AgentMode }) {
               onKeyDown={(event) => {
                 if (event.key !== 'Enter' || event.shiftKey) return
                 event.preventDefault()
-                if (['authorizing', 'running', 'cancelling'].includes(agent.phase)) return
+                if (runLocked) return
                 if (draft.trim().length === 0) return
+                if (executionMode === 'automatic' && spaceId === undefined) return
                 event.currentTarget.form?.requestSubmit()
               }}
             />
             <ComposerParamBar
               context={generationContext}
               config={generationConfig}
+              disabled={runLocked}
               onChange={(next) => {
+                if (runLocked) return
                 setGenerationContext(next)
               }}
             />
             <div className="composer-footer">
               <span>
-                {executionMode === 'automatic'
-                  ? '自动模式：例外动作才会暂停'
-                  : '手动模式：每轮开始前确认一次'}
+                {runLocked
+                  ? '本轮已锁定：结束后可改模式与参数'
+                  : executionMode === 'automatic'
+                    ? spaceId === undefined
+                      ? '自动模式需要先选择项目（Space）'
+                      : '自动模式：例外动作才会暂停'
+                    : '手动模式：每轮开始前确认一次'}
               </span>
               <div className="composer-footer__actions">
                 <em>Enter 发送 · Shift+Enter 换行</em>
-                {agent.phase === 'running' || agent.phase === 'cancelling' ? (
-                  <button type="button" onClick={() => void agent.cancel()}>
+                {canStop ? (
+                  <button
+                    type="button"
+                    disabled={agent.phase === 'cancelling'}
+                    onClick={() => void agent.cancel()}
+                  >
                     {agent.phase === 'cancelling' ? '取消中…' : '停止'}
                   </button>
                 ) : (
                   <button
                     className="primary"
                     type="submit"
-                    disabled={agent.phase === 'authorizing' || draft.trim().length === 0}
+                    disabled={
+                      agent.phase === 'authorizing'
+                      || draft.trim().length === 0
+                      || (executionMode === 'automatic' && spaceId === undefined)
+                    }
+                    title={
+                      executionMode === 'automatic' && spaceId === undefined
+                        ? '自动模式请先选择项目（Space）'
+                        : undefined
+                    }
                   >
                     {agent.phase === 'authorizing' ? '正在连接…' : '发送'}
                   </button>

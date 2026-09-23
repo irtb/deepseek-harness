@@ -55,6 +55,8 @@ export function MediaLibraryPicker({
   const [loading, setLoading] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [error, setError] = useState<string>()
+  /** Selection/upload cap tips must survive list reload after a partial upload. */
+  const [limitNotice, setLimitNotice] = useState<string>()
   const initialKey = useMemo(() => initialIds.join(','), [initialIds])
 
   useEffect(() => {
@@ -64,6 +66,7 @@ export function MediaLibraryPicker({
     setPage(1)
     setSelected(new Map())
     setError(undefined)
+    setLimitNotice(undefined)
   }, [defaultKind, initialKey, open])
   useEffect(() => {
     if (!open) return
@@ -103,8 +106,17 @@ export function MediaLibraryPicker({
   function toggle(item: MediaLibraryItem) {
     setSelected((current) => {
       const next = new Map(current)
-      if (next.has(item.id)) next.delete(item.id)
-      else if (next.size < maxSelection) next.set(item.id, item)
+      if (next.has(item.id)) {
+        next.delete(item.id)
+        setLimitNotice(undefined)
+        return next
+      }
+      if (next.size >= maxSelection) {
+        setLimitNotice(`最多选择 ${maxSelection} 项参考素材`)
+        return current
+      }
+      setLimitNotice(undefined)
+      next.set(item.id, item)
       return next
     })
   }
@@ -117,24 +129,44 @@ export function MediaLibraryPicker({
     if (queue.length === 0) return
     setUploading(true)
     setError(undefined)
+    setLimitNotice(undefined)
+    const accepted: MediaLibraryItem[] = []
+    let skippedForLimit = 0
     try {
       let remaining = maxSelection - selected.size
       for (const file of queue) {
-        if (remaining <= 0) break
+        if (remaining <= 0) {
+          skippedForLimit += 1
+          continue
+        }
         if (file.size > MAX_LIBRARY_UPLOAD_BYTES) throw new Error('请上传小于 30MB 的文件')
         if (mediaTypeFromFile(file) === undefined) throw new Error('仅支持图片或视频（jpg/png/webp/gif、mp4/webm/mov）')
         const item = await uploadMediaLibraryFile({ token, file })
-        const nextKind = item.mediaType === 'video' ? 'video' : 'image'
-        setKind(nextKind)
+        accepted.push(item)
+        remaining -= 1
+      }
+      if (accepted.length > 0) {
+        const last = accepted.at(-1)
+        if (!last) return
+        setKind(last.mediaType === 'video' ? 'video' : 'image')
         setPage(1)
-        setReload(value => value + 1)
         setSelected((current) => {
-          if (current.has(item.id) || current.size >= maxSelection) return current
           const next = new Map(current)
-          next.set(item.id, item)
+          for (const item of accepted) {
+            if (next.has(item.id) || next.size >= maxSelection) continue
+            next.set(item.id, item)
+          }
           return next
         })
-        remaining -= 1
+        setReload(value => value + 1)
+      }
+      if (skippedForLimit > 0) {
+        const joined = accepted.length
+        setLimitNotice(
+          joined > 0
+            ? `已加入 ${joined} 项（上限 ${maxSelection}），另有 ${skippedForLimit} 项未上传`
+            : `已达上限 ${maxSelection} 项，其余未加入`,
+        )
       }
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : '上传失败')
@@ -144,6 +176,7 @@ export function MediaLibraryPicker({
     }
   }
   const emptyLabel = kind === 'video' ? '当前范围暂无视频素材' : '当前范围暂无图片素材'
+  const alertText = error ?? limitNotice
   return (
     <div className="media-picker-backdrop" role="presentation" onMouseDown={(event) => {
       if (event.target === event.currentTarget) onClose()
@@ -210,7 +243,7 @@ export function MediaLibraryPicker({
             ))}
           </nav>
         ) : null}
-        {error ? <p className="media-picker-error" role="alert">{error}</p> : null}
+        {alertText ? <p className="media-picker-error" role="alert">{alertText}</p> : null}
         <div
           className="media-picker-grid"
           onDragOver={(event) => {
@@ -221,7 +254,7 @@ export function MediaLibraryPicker({
             void uploadFiles(event.dataTransfer.files)
           }}
         >
-          {loading ? <p>正在加载素材…</p> : items.length === 0 ? <p>{emptyLabel}</p> : items.map((item) => {
+          {loading ? <p className="media-picker-empty">正在加载素材…</p> : items.length === 0 ? <p className="media-picker-empty">{emptyLabel}</p> : items.map((item) => {
             const checked = selected.has(item.id)
             return (
               <button
@@ -235,7 +268,7 @@ export function MediaLibraryPicker({
               >
                 <TilePreview item={item} />
                 <strong>{item.originalName ?? `素材 ${item.id}`}</strong>
-                <i>{checked ? '✓' : ''}</i>
+                {checked ? <i aria-hidden="true">✓</i> : null}
               </button>
             )
           })}
