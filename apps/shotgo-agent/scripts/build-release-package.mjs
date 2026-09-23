@@ -8,11 +8,17 @@ import { fileURLToPath } from 'node:url'
 
 const appRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 const repoRoot = resolve(appRoot, '../..')
+const webRoot = resolve(repoRoot, 'apps/shotgo-agent-web')
 const artifactsRoot = resolve(repoRoot, '.artifacts')
 const packageRoot = resolve(artifactsRoot, 'shotgo-agent-release')
 
 rmSync(packageRoot, { recursive: true, force: true })
 mkdirSync(artifactsRoot, { recursive: true })
+
+execFileSync('pnpm', ['--filter', '@shotgo/agent-web', 'build'], {
+  cwd: repoRoot,
+  stdio: 'inherit',
+})
 
 execFileSync('pnpm', [
   '--config.inject-workspace-packages=true',
@@ -24,6 +30,7 @@ execFileSync('pnpm', [
 ], { cwd: repoRoot, stdio: 'inherit' })
 
 cpSync(resolve(appRoot, 'dist'), resolve(packageRoot, 'dist'), { recursive: true })
+cpSync(resolve(webRoot, 'dist'), resolve(packageRoot, 'web'), { recursive: true })
 
 const requiredFiles = [
   'dist/gateway-bin.js',
@@ -37,6 +44,7 @@ const requiredFiles = [
   'dist/tools/canvas-plan-preview.js',
   'dist/tools/canvas-plan-quote.js',
   'dist/tools/canvas-ops-apply.js',
+  'web/index.html',
   'node_modules/@deepseek-ai/cordis-plugin-group/package.json',
   'node_modules/@deepseek-ai/dsh-agent-presets/package.json',
   'node_modules/@deepseek-ai/dsh-home-paths/package.json',
@@ -115,6 +123,7 @@ execFileSync('tar', [
   '-C',
   packageRoot,
   'dist',
+  'web',
   'node_modules',
   'package.json',
 ], { stdio: 'inherit' })
