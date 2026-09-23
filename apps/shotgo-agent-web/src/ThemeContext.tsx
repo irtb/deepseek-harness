@@ -3,7 +3,11 @@ import { createContext, useContext, useLayoutEffect, useState, type ReactNode } 
 type Theme = 'light' | 'dark'
 
 const storageKey = 'shotgo-agent-theme'
-const ThemeContext = createContext<{ theme: Theme; toggleTheme: () => void } | null>(null)
+const ThemeContext = createContext<{
+  theme: Theme
+  setTheme: (theme: Theme) => void
+  toggleTheme: () => void
+} | null>(null)
 
 function savedTheme(): Theme {
   try {
@@ -27,7 +31,13 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   }, [theme])
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme: () => setTheme(current => current === 'light' ? 'dark' : 'light') }}>
+    <ThemeContext.Provider
+      value={{
+        theme,
+        setTheme,
+        toggleTheme: () => setTheme(current => (current === 'light' ? 'dark' : 'light')),
+      }}
+    >
       {children}
     </ThemeContext.Provider>
   )

@@ -1,4 +1,5 @@
 import type { AuthUser } from './auth.tsx'
+import { parseAuthUser } from './auth.tsx'
 
 export interface SpaceSummary {
   uuid: string
@@ -39,5 +40,11 @@ export async function fetchSpaces(token: string): Promise<SpaceSummary[]> {
 }
 
 export async function switchActiveTeam(token: string, teamId: number | null): Promise<AuthUser> {
-  return request<AuthUser>('/api/teams/active', token, { method: 'POST', body: JSON.stringify({ team_id: teamId }) })
+  const raw = await request<AuthUser>('/api/teams/active', token, {
+    method: 'POST',
+    body: JSON.stringify({ team_id: teamId }),
+  })
+  const user = parseAuthUser(raw)
+  if (user === null) throw new Error('切换团队失败')
+  return user
 }

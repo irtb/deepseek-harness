@@ -1,4 +1,5 @@
 import type { AuthUser } from './auth.tsx'
+import { parseAuthUser } from './auth.tsx'
 
 function apiBaseUrl(): string {
   return String(import.meta.env.VITE_SHOTGO_API_BASE_URL ?? 'https://api.shotgo.cn').replace(/\/$/, '')
@@ -16,7 +17,10 @@ export async function exchangeHandoff(code: string): Promise<{ token: string; us
     body: JSON.stringify({ code }),
   })
   if (!response.ok) throw new Error(await problemMessage(response, '登录凭证兑换失败'))
-  return await response.json() as { token: string; user: AuthUser }
+  const body = await response.json() as { token: string; user: unknown }
+  const user = parseAuthUser(body.user)
+  if (user === null || typeof body.token !== 'string') throw new Error('登录凭证兑换失败')
+  return { token: body.token, user }
 }
 
 export function hrefWithoutHandoffParam(href: string): string {
