@@ -363,10 +363,21 @@ export function assistantDelta(event: GatewayEvent): string | undefined {
   if (event.type !== 'session.event') return undefined
   const sessionEvent = record(event.payload.event)
   const data = record(sessionEvent?.data)
-  const chunk = record(data?.chunk)
-  return sessionEvent?.type === 'assistant/chunk' && chunk?.type === 'text-delta' && typeof chunk.text === 'string'
-    ? chunk.text
-    : undefined
+  if (sessionEvent?.type === 'assistant/chunk') {
+    const chunk = record(data?.chunk)
+    return chunk?.type === 'text-delta' && typeof chunk.text === 'string' ? chunk.text : undefined
+  }
+  if (sessionEvent?.type !== 'assistant/message') return undefined
+  const message = record(data?.message)
+  const content = message?.content
+  if (!Array.isArray(content)) return undefined
+  const text = content
+    .map((block) => {
+      const item = record(block)
+      return item?.type === 'text' && typeof item.text === 'string' ? item.text : ''
+    })
+    .join('')
+  return text.length > 0 ? text : undefined
 }
 
 export function generationArtifacts(event: GatewayEvent): GenerationArtifact[] | undefined {
