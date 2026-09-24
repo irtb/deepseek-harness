@@ -9,6 +9,7 @@ import { errorMessage, TeamError } from './error.ts'
 import { TeamJournal } from './journal.ts'
 import { TeamRuntimeLifecycle } from './lifecycle.ts'
 import { TeamMailbox } from './mailbox.ts'
+import { teamProjectionDefinition } from './projection.ts'
 import { TeamRoster } from './roster.ts'
 import type { TeamMembership } from './roster.ts'
 import { TeamTaskBoard } from './task-board.ts'
@@ -30,7 +31,6 @@ export type * from './types.ts'
 export type { TeamMembership } from './roster.ts'
 export { TeamId, TeamMessageId, TeamTaskId } from './types.ts'
 export { TeamError } from './error.ts'
-export { foldTeam } from './fold.ts'
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
@@ -38,7 +38,7 @@ declare module '@deepseek-ai/cordis' {
   }
 }
 
-const DEFAULT_MAX_MEMBERS = 8
+const DEFAULT_MAX_MEMBERS = 16
 const DEFAULT_MAX_TASKS = 256
 const DEFAULT_MAX_PENDING_MESSAGES = 64
 const DEFAULT_MAX_MESSAGE_BYTES = 65_536
@@ -54,7 +54,7 @@ function positiveLimit(name: string, value: number): number {
 
 /** Agent Teams service backed by the exact live Lead Session log. */
 export class TeamService extends Service {
-  static inject = ['agents', 'sessions', 'sessionPersistence', 'subagents']
+  static inject = ['agents', 'sessions', 'sessionPersistence', 'sessionProjections', 'subagents']
 
   static Config: z<Config> = z.object({
     maxMembers: z.number().step(1).min(1).default(DEFAULT_MAX_MEMBERS),
@@ -105,12 +105,21 @@ export class TeamService extends Service {
     this.tasks = new TeamTaskBoard(this.journal, this.config.maxTasks)
 
     ctx.on('session/event', (session, event) => { this.mailbox.observeSessionEvent(session, event) })
-    ctx.on('agent/session-start', ({ agent }) => { this.scheduleRecovery(agent) })
+    ctx.on('agent/created', ({ agent }) => { this.scheduleRecovery(agent) })
     ctx.on('agent/status', ({ agent }) => {
       const membership = this.roster.tryMembership(agent)
       if (membership !== undefined) this.activity.notify(membership.id)
     })
-    ctx.effect(() => () => this.disposeRuntime(), 'agentTeams.runtimeLifecycle()')
+    ctx.effect(() => {
+      const disposeProjection = ctx.root.sessionProjections.register(teamProjectionDefinition)
+      return async () => {
+        try {
+          await this.disposeRuntime()
+        } finally {
+          disposeProjection()
+        }
+      }
+    }, 'agentTeams.runtimeLifecycle()')
     for (const agent of ctx.agents.list()) this.scheduleRecovery(agent)
   }
 
@@ -145,7 +154,7 @@ export class TeamService extends Service {
   /**
    * Queue one durable peer message, then attempt immediate delivery.
    * @param caller - exact live sending Team member.
-   * @param request - target name, content, scheduling mode, and pre-queue cancellation.
+   * @param request - target name, content, and pre-queue cancellation.
    * @returns durable message identity and immediate-delivery observation.
    */
   async sendMessage(caller: Agent, request: SendTeamMessageRequest): Promise<SendTeamMessageResult> {
@@ -209,7 +218,7 @@ export class TeamService extends Service {
    * @param targetName - durable teammate name.
    * @returns the target status sampled before cancellation.
    */
-  interrupt(caller: Agent, targetName: string): { previousStatus: 'running' | 'idle' | 'inactive' } {
+  interrupt(caller: Agent, targetName: string): { previousStatus: 'running' | 'inactive' } {
     return this.roster.interrupt(caller, targetName)
   }
 

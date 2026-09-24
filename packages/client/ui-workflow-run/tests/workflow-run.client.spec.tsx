@@ -1,16 +1,27 @@
 // @vitest-environment jsdom
-import { Context, Service } from '@deepseek-ai/cordis'
+import { createSnapshotStore } from '@deepseek-ai/dsh-client-store'
+import type { GlobalStandardProps } from '@deepseek-ai/dsh-client-ui-slots'
+import { Context } from '@deepseek-ai/cordis'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
-  ConversationEventRegistry, ConversationNodeAssembler, SlotRegistry,
-} from '@deepseek-ai/dsh-client-runtime/client'
+  ConversationNodeAssembler, UiConversation,
+} from '@deepseek-ai/dsh-client-ui-conversation/client'
 import type {
-  ChatConversationViewNode, ConversationEventInput, ConversationMatch, ConversationNodeDefinition,
-  ConversationViewDefinition, SessionId, SessionListState,
-} from '@deepseek-ai/dsh-client-runtime/client'
+  ConversationMatch, ConversationNodeDefinition, ConversationStartMatch,
+  ConversationViewDefinition,
+} from '@deepseek-ai/dsh-client-ui-conversation/client'
+import type { ChatConversationViewNode } from '@deepseek-ai/dsh-client-ui-chat/client'
+import { SlotRegistry } from '@deepseek-ai/dsh-client-ui-renderer/client'
+import type {
+  SessionListState, SessionLiveEventEntry,
+} from '@deepseek-ai/dsh-api-session-controller/client'
+import type { SessionEvent, SessionId } from '@deepseek-ai/dsh-session/types'
 import { apply as applyLocale, inject as localeInject } from '@deepseek-ai/dsh-client-locale/client'
-import { makeTranslate, stubSettingsScope } from '@deepseek-ai/dsh-client-test-runtime'
+import {
+  chatSnapshot as emptyChatSnapshot, conversationSnapshot, makeTranslate, sessionSnapshot,
+  stubConfigForm, TestSessions, workspaceSnapshot,
+} from '@deepseek-ai/dsh-client-test-runtime'
 import {
   WorkflowRunPanel, type WorkflowRunInjected, type WorkflowRunPanelProps,
 } from '../src/client/WorkflowRunPanel.tsx'
@@ -20,14 +31,34 @@ import {
   workflowRunDefinition, type WorkflowRunChatData,
 } from '../src/client/workflow-definition.ts'
 import { apply as applyNode } from '../src/index.ts'
-import { apply as applyInvariant } from '../src/invariant.ts'
 import type {} from '../src/client/index.ts'
 
+// Every session-scope fixture carries the resource hook the resources plugin merges into GlobalStandardProps.
+const useResource = (() => ({ status: 'none' as const, value: undefined, failure: undefined, reload: () => {} })) as GlobalStandardProps['useResource']
+const usePanelInfo: GlobalStandardProps['usePanelInfo'] = selector => selector({ activePanelId: null })
+
 afterEach(cleanup)
+
 
 const PARENT_ID = 'parent' as SessionId
 const CHILD_ID = 'child-1' as SessionId
 const SECOND_ID = 'child-2' as SessionId
+
+type TrajectoryState = Parameters<Parameters<WorkflowRunPanelProps['useTrajectory']>[0]>[0]
+
+const panelSession = sessionSnapshot(PARENT_ID)
+const panelAttention = new Map<SessionId, never>()
+const panelWorkspace = workspaceSnapshot()
+const panelConversation = conversationSnapshot()
+const panelChat = emptyChatSnapshot()
+const panelTrajectory: TrajectoryState = {
+  eventNodes: [],
+  eventLocations: new Map(),
+  requests: [],
+  callSchemas: new Map(),
+  partial: null,
+  runningCalls: [],
+}
 
 interface ChatSnapshot {
   readonly nodes: ReadonlyMap<string, ChatConversationViewNode>
@@ -62,18 +93,20 @@ const chatViewDefinition: ConversationViewDefinition<ChatConversationViewNode, C
   },
 }
 
-function at(seq: number, type: string, data: unknown): ConversationEventInput {
-  return { event: { seq, time: seq * 100, type, data } as ConversationEventInput['event'], view: undefined }
+function at(seq: number, type: string, data: unknown): SessionLiveEventEntry {
+  return { type: 'event', event: { seq, time: seq * 100, type, data } as SessionEvent }
 }
 
-function matched(input: ConversationEventInput, role: ConversationMatch['role']): ConversationMatch {
-  return { ...input, role, location: { kind: 'unresolved' } }
+function matched(input: SessionLiveEventEntry, role: 'start'): ConversationStartMatch
+function matched(input: SessionLiveEventEntry, role: 'update'): ConversationMatch
+function matched(input: SessionLiveEventEntry, role: ConversationMatch['role']): ConversationMatch {
+  return { event: input.event, role, location: { kind: 'unresolved' } }
 }
 
-function assembler(entries: readonly ConversationEventInput[], hasMore = false): ConversationNodeAssembler {
+function assembler(entries: readonly SessionLiveEventEntry[], hasMore = false): ConversationNodeAssembler {
   const value = new ConversationNodeAssembler(new TestEventDefinitions(), new TestViewDefinitions())
   value.replaceWindow(entries, hasMore)
-  value.flush()
+  value.activateTarget('chat')
   return value
 }
 
@@ -82,7 +115,7 @@ function workflowData(value: ConversationNodeAssembler): WorkflowRunChatData | u
   return [...snapshot.nodes.values()][0]?.data as WorkflowRunChatData | undefined
 }
 
-function completeEvents(): ConversationEventInput[] {
+function completeEvents(): SessionLiveEventEntry[] {
   return [
     at(1, 'turn/start', { turn: 1 }),
     at(2, 'step/start', { turn: 1, step: 1 }),
@@ -263,18 +296,17 @@ const listState = (overrides: Partial<SessionListState> = {}): SessionListState 
   ids: [PARENT_ID, CHILD_ID],
   byId: {
     [PARENT_ID]: {
-      id: PARENT_ID, displayTitle: 'parent', running: true, blank: false, updatedAt: 0,
+      id: PARENT_ID, displayTitle: 'parent', running: true, retainedBy: {}, blank: false, updatedAt: 0,
     },
     [CHILD_ID]: {
       id: CHILD_ID, displayTitle: 'child', parentId: PARENT_ID, origin: 'subagent',
-      running: true, blank: false, updatedAt: 0,
+      running: true, retainedBy: {}, blank: false, updatedAt: 0,
     },
   },
-  current: PARENT_ID,
   phase: 'ready',
-  subagentsByParent: {},
-  jobsBySession: {},
-  currentAddress: undefined,
+  projectionsBySession: { [PARENT_ID]: { state: 'ready', error: null, values: { subagentCatalog: [
+    { createdAt: 1, id: CHILD_ID, mode: 'one-shot' },
+  ] } } },
   ...overrides,
 })
 
@@ -283,17 +315,32 @@ function panelProps(data: WorkflowRunChatData, sessions = listState(), openSessi
     node: node(data),
     sessionId: PARENT_ID,
     useSessions: selector => selector(sessions),
-    useSession: (() => undefined) as WorkflowRunPanelProps['useSession'],
+    usePanelInfo, useResource,
+    useSessionStatus: selector => selector(panelAttention),
+    useSessionRetainInfo: () => undefined,
+    useSession: selector => selector(panelSession),
     useProjection: () => undefined,
+    useConversation: selector => selector(panelConversation),
+    useChat: selector => selector(panelChat),
+    useTrajectory: selector => selector(panelTrajectory),
     useInput: () => { throw new Error('unused') },
-    inputActions: { setDraft: () => {}, submit: () => {} } as unknown as WorkflowRunPanelProps['inputActions'],
-    useWorkspaces: (() => undefined) as WorkflowRunPanelProps['useWorkspaces'],
+    inputActions: {
+      captureInsertion: () => ({ start: 0, end: 0, draftRev: 0 }),
+      insertText: () => false,
+      setDraft: () => {},
+      addAttachments: () => false,
+      removeAttachment: () => {},
+      pruneAttachments: () => {},
+      submit: () => {},
+    },
+    useWorkspaces: selector => selector(panelWorkspace),
     useTurnData: () => undefined,
-    selectedCallId: undefined,
-    cwd: undefined,
+    useDisclosure: () => { throw new Error('unused') },
+    openSkill: vi.fn(),
     openFile: () => {},
     inspectCall: () => {},
     forkAt: () => {},
+    loadImage: () => Promise.reject(new Error('not used')),
     renderMessageImages: () => null,
     fileMentions: () => undefined,
     openSession,
@@ -621,6 +668,10 @@ describe('WorkflowRunPanel', () => {
   it('defers normal completion collapse until focused member content loses focus', () => {
     const sessions = listState({
       ids: [PARENT_ID, CHILD_ID, SECOND_ID],
+      projectionsBySession: { [PARENT_ID]: { state: 'ready', error: null, values: { subagentCatalog: [
+        { createdAt: 1, id: CHILD_ID, mode: 'one-shot' },
+        { createdAt: 1, id: SECOND_ID, mode: 'one-shot' },
+      ] } } },
       byId: {
         ...listState().byId,
         [SECOND_ID]: {
@@ -782,40 +833,55 @@ describe('WorkflowRunPanel', () => {
     expect(screen.getByRole('button', { name: /未分阶段/ }).getAttribute('aria-expanded')).toBe('true')
   })
 
-  it('opens only a running ordinary-list subagent proven to have this parent', () => {
+  it('opens a running member confirmed by the direct parent catalog', () => {
     const data: WorkflowRunChatData = {
       name: 'audit', status: 'running', phases: [phase()],
     }
     const openSession = vi.fn()
-    render(<WorkflowRunPanel {...panelProps(data, listState(), openSession)} />)
+    const sessions = listState()
+    render(<WorkflowRunPanel {...panelProps(data, sessions, openSession)} />)
     fireEvent.click(screen.getByRole('button', { name: '打开 worker' }))
-    expect(openSession).toHaveBeenCalledWith('child-1')
+    expect(openSession).toHaveBeenCalledWith({
+      parentSessionId: PARENT_ID,
+      childSessionId: CHILD_ID,
+      mode: 'one-shot',
+    })
   })
 
-  it('promotes a running member when its ordinary Session row arrives', () => {
+  it('uses observed running state for a catalog-only member', () => {
+    const data: WorkflowRunChatData = { name: 'audit', status: 'running', phases: [phase()] }
+    const sessions = listState({
+      ids: [PARENT_ID],
+      byId: { ...listState().byId, [CHILD_ID]: { ...listState().byId[CHILD_ID]!, running: false } },
+    })
+    const openSession = vi.fn()
+    let statuses = new Map([[CHILD_ID, { running: true, pendingInteraction: undefined, completionUnread: false }]])
+    const props: WorkflowRunPanelProps = { ...panelProps(data, sessions, openSession),
+      useSessionStatus: select => select(statuses),
+    }
+    const view = render(<WorkflowRunPanel {...props} />)
+    fireEvent.click(screen.getByRole('button', { name: '打开 worker' }))
+    expect(openSession).toHaveBeenCalledWith({ parentSessionId: PARENT_ID, childSessionId: CHILD_ID, mode: 'one-shot' })
+    statuses = new Map([[CHILD_ID, { running: false, pendingInteraction: undefined, completionUnread: false }]])
+    view.rerender(<WorkflowRunPanel {...props} />)
+    expect(screen.queryByRole('button', { name: '打开 worker' })).toBeNull()
+  })
+
+  it('promotes a running member when its parent catalog arrives', () => {
     const data: WorkflowRunChatData = {
       name: 'audit', status: 'running', phases: [phase()],
     }
-    const view = render(<WorkflowRunPanel {...panelProps(data, listState({ ids: [PARENT_ID] }))} />)
+    const view = render(<WorkflowRunPanel {...panelProps(data, listState({ projectionsBySession: {} }))} />)
     expect(screen.queryByRole('button', { name: '打开 worker' })).toBeNull()
     view.rerender(<WorkflowRunPanel {...panelProps(data, listState())} />)
     expect(screen.getByRole('button', { name: '打开 worker' })).toBeTruthy()
   })
 
   it.each([
-    ['not in ordinary list', listState({ ids: [PARENT_ID] }), 'running'],
-    ['remote row', listState({ byId: {
-      ...listState().byId,
-      [CHILD_ID]: { ...listState().byId[CHILD_ID]!, origin: undefined },
-    } }), 'running'],
-    ['wrong parent', listState({ byId: {
-      ...listState().byId,
-      [CHILD_ID]: { ...listState().byId[CHILD_ID]!, parentId: 'other' as SessionId },
-    } }), 'running'],
-    ['list terminal', listState({ byId: {
-      ...listState().byId,
-      [CHILD_ID]: { ...listState().byId[CHILD_ID]!, running: false },
-    } }), 'running'],
+    ['catalog absent', listState({ projectionsBySession: {} }), 'running'],
+    ['catalog empty', listState({ projectionsBySession: { [PARENT_ID]: { state: 'ready', error: null, values: { subagentCatalog: [] } } } }), 'running'],
+    ['wrong parent', listState({ projectionsBySession: { ['other' as SessionId]: { state: 'ready', error: null, values: { subagentCatalog: [{ createdAt: 1, id: CHILD_ID, mode: 'one-shot' }] } } } }), 'running'],
+    ['child inactive', listState({ byId: { ...listState().byId, [CHILD_ID]: { ...listState().byId[CHILD_ID]!, running: false } } }), 'running'],
     ['member terminal', listState(), 'completed'],
   ] as const)('does not navigate when %s', (_name, sessions, memberStatus) => {
     const data: WorkflowRunChatData = {
@@ -832,21 +898,18 @@ describe('WorkflowRunPanel', () => {
   })
 })
 
-class TestSessions extends Service {
-  readonly opened: SessionId[] = []
-  constructor(ctx: Context) { super(ctx, 'sessions') }
-  open(id: SessionId): void { this.opened.push(id) }
-}
-
 describe('plugin lifecycle', () => {
   it('registers and removes the Definition and keyed renderer with its fiber', async () => {
     const ctx = new Context()
     await ctx.plugin(SlotRegistry).await()
     ctx.provide('connection', { api: { settings: {} }, isLoopback: false } as never)
     ctx.provide('remote', { $on: () => () => {} } as never)
-    ctx.provide('settingsScope', { bind: () => stubSettingsScope().scope } as never)
-    await ctx.plugin(ConversationEventRegistry).await()
-    await ctx.plugin(TestSessions).await()
+    ctx.provide('configForms', { developerTools: { enabled: createSnapshotStore(true) }, get: () => stubConfigForm().scope } as never)
+    const sessions = new TestSessions(async (action) => { await action() }, ctx)
+    ctx.provide('sessions', sessions)
+    const openSession = vi.fn(async () => {})
+    ctx.provide('uiWorkspace', { openSession } as never)
+    const conversationEvents = new UiConversation(ctx, ctx.sessions).events
     ctx.slots.register({
       name: 'root',
       children: { 'conversation.chat.node': { kind: 'keyed', scope: 'session' } },
@@ -854,32 +917,24 @@ describe('plugin lifecycle', () => {
     await ctx.plugin({ inject: localeInject, apply: applyLocale }).await()
     const fiber = ctx.plugin({ inject: [...inject], apply })
     await fiber.await()
-    expect(ctx.conversationEvents.entries().map(entry => entry.kind)).toEqual(['workflow-run'])
+    expect(conversationEvents.entries().map(entry => entry.kind)).toEqual(['workflow-run'])
     expect(ctx.slots.entries('conversation.chat.node')).toHaveLength(1)
     const entry = ctx.slots.entries('conversation.chat.node')[0]!
     const face = entry.inject?.() as unknown as WorkflowRunInjected
     face.openSession(CHILD_ID)
-    expect((ctx.sessions as unknown as TestSessions).opened).toEqual([CHILD_ID])
+    expect(openSession).toHaveBeenCalledExactlyOnceWith(CHILD_ID)
     await fiber.dispose()
-    expect(ctx.conversationEvents.entries()).toEqual([])
+    expect(conversationEvents.entries()).toEqual([])
     expect(ctx.slots.entries('conversation.chat.node')).toEqual([])
 
     const replacement = ctx.plugin({ inject: [...inject], apply })
     await replacement.await()
-    expect(ctx.conversationEvents.entries().map(entry => entry.kind)).toEqual(['workflow-run'])
+    expect(conversationEvents.entries().map(entry => entry.kind)).toEqual(['workflow-run'])
     expect(ctx.slots.entries('conversation.chat.node')).toHaveLength(1)
     await replacement.dispose()
   })
 
-  it('keeps the node half inert and registers invariant ownership', async () => {
+  it('keeps the node half inert', () => {
     applyNode()
-    const registered: string[] = []
-    const ctx = new Context()
-    ctx.provide('invariants')
-    ctx.set('invariants', {
-      register: (pkg: string) => { registered.push(pkg); return () => {} },
-    } as never)
-    await applyInvariant(ctx)
-    expect(registered).toEqual(['@deepseek-ai/dsh-client-ui-workflow-run'])
   })
 })

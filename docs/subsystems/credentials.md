@@ -34,13 +34,17 @@ interface ResolvedCredential {
 `describe(ref)` answers configuration surfaces without ever exposing a value: whether the reference resolves, from which layer, and whether `set` would currently succeed. The local provider reports a reference supplied by the live process environment as `writable: false` — a write would appear to succeed while resolution kept returning the shadowing value, so the seam rejects it and the UI can render the reference read-only up front.
 
 ```ts type-equiv
-/** Source and writability facts for one reference, safe for configuration UIs — never the value. */
+/**
+ * Source and writability facts for one reference, safe for configuration UIs —
+ * never the value. The view has no slot a value could ride in, which is what
+ * lets the whole read half cross the Remote wire.
+ */
 interface CredentialInfo {
-  /** Whether {@link CredentialProvider.resolve} would currently return a value. */
+  /** Whether resolving the reference would currently return a value. */
   configured: boolean
   /** Source layer currently supplying the value; absent while unconfigured. */
   source?: string
-  /** Whether {@link CredentialProvider.set} would currently succeed for this reference. */
+  /** Whether the active provider can write this reference. */
   writable: boolean
 }
 ```
@@ -48,6 +52,12 @@ interface CredentialInfo {
 ## Change commits
 
 `credentials/reference-updated (ref)` fires after a committed change to a provider-managed source — a `set`, an `unset`, or an external edit observed in storage. Ambient process-environment changes are not observable and never emit. Consumers do not need the event (they re-resolve per operation); it exists for configuration surfaces refreshing a "configured" badge.
+
+## Embedded Platform credentials
+
+PlatformSession is a Host-only snapshot from getPlatformSession: origin names the configured Platform issuer and token contains its stored account credential. Signed-out accounts return null; a mismatched issuer fails. Native consumers own document invalidation when credentials change. This snapshot is excluded from account-controller RPC, AccountView, and AccountDetails.
+
+AccountDetails.balance projects recharge wallets in value and promotional wallets in bonusWallets, with independent currency and decimal balance strings. Failed queries contain no wallet arrays.
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
@@ -212,6 +222,113 @@ abstract deleteRecord(key: CredentialKey): Promise<void>
 
 Source: [`packages/credentials/credentials/src/index.ts`](../../packages/credentials/credentials/src/index.ts)
 
+<a id="ctxcredentialscontroller--credentialscontroller"></a>
+
+### `ctx.credentialsController` — `CredentialsController`
+
+Host service backing the generated `ctx.remote.credentials` namespace. It carries every wire obligation the credential seam itself does not: the batch fan-out bound, the field-by-field view projection, the reference-grammar guard, and the refusal mapping. Secret values cross in one direction only — no method here returns one.
+
+```ts cordis-catalog
+/**
+ * Describe several references for one configuration surface. Batched because
+ * a settings page describes every reference its rows name at once, and one
+ * round trip keeps those rows from settling separately.
+ * @param refs - reference names, at most {@link MAX_DESCRIBE_REFS}; a name outside the grammar
+ *   rejects the whole call as `gateway/bad-request`.
+ * @returns one view per requested name, keyed by that name.
+ * @throws RemoteError when the request is invalid or no credential provider is mounted.
+ */
+@Remote async describe(refs: string[]): Promise<Record<string, CredentialInfo>>
+
+/**
+ * Store one value from a configuration surface. The value crosses the wire in
+ * this direction only: no read path returns it.
+ * @param ref - reference name to store under.
+ * @param value - the non-empty secret value.
+ * @throws RemoteError when the request is invalid, no provider is mounted, or the provider refuses the write.
+ */
+@Remote async set(ref: string, value: string): Promise<void>
+
+/**
+ * Remove one reference from a configuration surface.
+ * @param ref - reference name to remove.
+ * @throws RemoteError when the request is invalid, no provider is mounted, or the provider refuses the write.
+ */
+@Remote async unset(ref: string): Promise<void>
+```
+
+Source: [`packages/api/settings-controller/src/credentials.ts`](../../packages/api/settings-controller/src/credentials.ts)
+
+<a id="ctxdeepseekaccount--deepseekaccount-abstract-seam"></a>
+
+### `ctx.deepseekAccount` — `DeepSeekAccount` (abstract seam)
+
+Account operations; only Host consumers can obtain a request credential.
+
+```ts cordis-catalog
+/**
+ * Read stored-account presence and the latest login attempt.
+ * @returns a snapshot without credentials or PKCE secrets.
+ */
+abstract getState(): Promise<AccountView>
+
+/**
+ * Query Platform profile independently of wallet balances.
+ * @returns profile outcome, or null if signed out or the grant changed during the query.
+ */
+abstract getProfile(): Promise<AccountDetails['profile'] | null>
+
+/**
+ * Query Platform recharge and bonus wallet balances independently of profile data.
+ * @returns balance outcome, or null if signed out or the grant changed during the query.
+ */
+abstract getBalance(): Promise<AccountDetails['balance'] | null>
+
+/**
+ * Join an active attempt or start browser authorization.
+ * @param locale - active UI language for a new attempt; joining retains its original language.
+ * @param callbackOrigin - browser-accessible loopback HTTP origin, including any SSH local port.
+ * @param loginSource - initiating UI, used to return from a failed exchange.
+ * @returns the initial snapshot without waiting for browser approval.
+ */
+abstract startSignIn(locale: string, callbackOrigin: string, loginSource: 'web' | 'desktop'): Promise<AccountView>
+
+/**
+ * Cancel only the named attempt; committing attempts settle before returning.
+ * @param id - attempt identity from this Host.
+ * @returns state after cancellation or an already-started commit.
+ */
+abstract cancelSignIn(id: SignInAttemptId): Promise<AccountView>
+
+/**
+ * Remove the local grant while retaining API keys and tasks; the provider revokes it in the background.
+ * @returns the signed-out state after local removal; remote failures never restore the grant.
+ */
+abstract signOut(): Promise<AccountView>
+
+/**
+ * Subscribe to snapshots including a complete initial state.
+ * @param signal - subscription lifetime; ending it never cancels login.
+ * @returns complete snapshots as account state changes.
+ */
+abstract watch(signal: AbortSignal): AsyncIterable<AccountView>
+
+/**
+ * Resolve a credential only for the inference origin allowed by the provider.
+ * @param url - actual request destination or API base URL.
+ * @returns stored token, or undefined for other origins or a signed-out account.
+ */
+abstract resolveToken(url: string): Promise<string | undefined>
+
+/**
+ * Read credentials for the configured Platform origin, bound to their issuing environment.
+ * @returns a Host-only snapshot, or null while signed out.
+ */
+abstract getPlatformSession(): Promise<PlatformSession | null>
+```
+
+Source: [`packages/credentials/deepseek-account/src/index.ts`](../../packages/credentials/deepseek-account/src/index.ts)
+
 <a id="authorization-events"></a>
 
 ### `authorization/*` events
@@ -286,3 +403,5 @@ Committed change to a provider-managed credential source: a `set`, an `unset`, o
 
 Source: [`packages/credentials/credentials/src/types.ts`](../../packages/credentials/credentials/src/types.ts)
 <!-- END GENERATED cordis-surface -->
+
+The account Service Definition exposes getState, getProfile, getBalance, startSignIn, cancelSignIn, signOut, watch, and Host-only resolveToken and getPlatformSession. The platform provider implements it with an AuthorizationFlow and a private GrantRecord. AccountView distinguishes stored presence from server validation; attempt IDs bind cancellation to one local flow. See [the account package](../../packages/credentials/deepseek-account/README.md).

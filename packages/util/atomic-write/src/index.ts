@@ -14,6 +14,33 @@ import { randomBytes } from 'node:crypto'
 import { lstat, mkdir, rename, rm, writeFile } from 'node:fs/promises'
 import { dirname } from 'node:path'
 
+const WINDOWS_TRANSIENT_RENAME_ERRORS: ReadonlySet<string> = new Set(['EACCES', 'EBUSY', 'EPERM'])
+const WINDOWS_RENAME_RETRY_INITIAL_MS = 20
+const WINDOWS_RENAME_RETRY_MAX_MS = 200
+const WINDOWS_RENAME_RETRY_LIMIT = 8
+
+/** Whether Windows reported temporary interference with an atomic replacement. */
+function isTransientWindowsRenameError(error: unknown): boolean {
+  if (process.platform !== 'win32') return false
+  return WINDOWS_TRANSIENT_RENAME_ERRORS.has((error as NodeJS.ErrnoException | null)?.code ?? '')
+}
+
+/** Replace the target after bounded retries for transient Windows interference. */
+async function renameAtomicTemp(temp: string, filename: string): Promise<void> {
+  let delay = WINDOWS_RENAME_RETRY_INITIAL_MS
+  for (let retries = 0;; retries += 1) {
+    try {
+      await rename(temp, filename)
+      return
+    } catch (error) {
+      if (!isTransientWindowsRenameError(error)) throw error
+      if (retries >= WINDOWS_RENAME_RETRY_LIMIT) throw error
+    }
+    await new Promise(resolve => setTimeout(resolve, delay))
+    delay = Math.min(delay * 2, WINDOWS_RENAME_RETRY_MAX_MS)
+  }
+}
+
 /**
  * Filesystem options for {@link writeFileAtomic}; `mode` is required so the
  * permission decision stays visible at every call site.
@@ -40,8 +67,10 @@ export interface WriteFileAtomicOptions {
  * rename, so replacing a wider-permission file narrows it without a chmod
  * race. The rename also replaces a symlinked target itself instead of writing
  * through to its referent, and the same-directory sibling keeps the rename on
- * one filesystem. On any failure the temp file is removed and the failure
- * rethrown. Crash durability (fsync) is out of scope.
+ * one filesystem. Windows replacement retries transient `EACCES`, `EBUSY`,
+ * and `EPERM` failures for a bounded interval while the complete temp file
+ * remains the rename source. On any remaining failure the temp file is
+ * removed and the failure rethrown. Crash durability (fsync) is out of scope.
  * @param filename - final path receiving the content.
  * @param content - complete next file content.
  * @param options - permission bits for the replacement inode.
@@ -56,7 +85,7 @@ export async function writeFileAtomic(filename: string, content: string, options
   const temp = `${filename}.${randomBytes(6).toString('hex')}.tmp`
   try {
     await writeFile(temp, content, { mode: options.mode, flag: 'wx' })
-    await rename(temp, filename)
+    await renameAtomicTemp(temp, filename)
   } catch (error) {
     await rm(temp, { force: true })
     throw error
@@ -115,8 +144,9 @@ export interface FileLockOptions {
  * rename-based commit of {@link writeFileAtomic}, readers stay lock-free and
  * only writers contend. `EEXIST` is contention directly; an `EPERM` is
  * contention only when a fresh `lstat` confirms the lock path exists, covering
- * Windows exclusive-create behavior without hiding an unrelated permission
- * failure. Contention backs off exponentially and fails with a timed-out error
+ * Windows exclusive-create behavior. Windows retries one unconfirmed EPERM
+ * because the holder can release before the probe; a repeated unconfirmed
+ * permission error is rethrown. Contention backs off exponentially and times out
  * after the deadline. The contender never removes an existing lock because
  * file age cannot prove that its owner stopped; orphan recovery is an operator
  * action. The parent directory must exist.
@@ -133,12 +163,19 @@ export async function withFileLock<T>(
   const lockPath = `${filename}.lock`
   const deadline = Date.now() + (options?.waitMs ?? DEFAULT_LOCK_WAIT_MS)
   let delay = LOCK_RETRY_INITIAL_MS
+  let retriedUnconfirmedPermissionError = false
   for (;;) {
     try {
       await writeFile(lockPath, `${process.pid}\n`, { mode: 0o600, flag: 'wx' })
       break
     } catch (error) {
-      if (!await isLockContention(error, lockPath)) throw error
+      if (!await isLockContention(error, lockPath)) {
+        // Windows can release the competing lock between exclusive create and lstat.
+        if (process.platform !== 'win32'
+          || (error as NodeJS.ErrnoException | null)?.code !== 'EPERM'
+          || retriedUnconfirmedPermissionError) throw error
+        retriedUnconfirmedPermissionError = true
+      }
     }
     if (Date.now() >= deadline) {
       throw new Error(`atomic-write: timed out waiting for the writer lock at ${lockPath}`)

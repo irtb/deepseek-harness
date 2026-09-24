@@ -46,7 +46,8 @@ const requiredFiles = [
   'dist/tools/canvas-ops-apply.js',
   'web/index.html',
   'node_modules/@deepseek-ai/cordis-plugin-group/package.json',
-  'node_modules/@deepseek-ai/dsh-agent-presets/package.json',
+  'node_modules/@deepseek-ai/dsh-agent-preset-registry/package.json',
+  'node_modules/@deepseek-ai/dsh-agent-preset/package.json',
   'node_modules/@deepseek-ai/dsh-home-paths/package.json',
 ]
 for (const relativePath of requiredFiles) {

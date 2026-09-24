@@ -34,13 +34,17 @@ interface ResolvedCredential {
 `describe(ref)` 在绝不暴露值的前提下回应配置界面：引用当前是否可解析、来自哪一层、`set` 当前能否成功。本地提供方把由当前进程环境供值的引用报告为 `writable: false`——那样的写入会表面成功而解析持续返回遮蔽值，因此 seam 直接拒绝，界面也得以提前把该引用渲染为只读。
 
 ```ts type-equiv
-/** Source and writability facts for one reference, safe for configuration UIs — never the value. */
+/**
+ * Source and writability facts for one reference, safe for configuration UIs —
+ * never the value. The view has no slot a value could ride in, which is what
+ * lets the whole read half cross the Remote wire.
+ */
 interface CredentialInfo {
-  /** Whether {@link CredentialProvider.resolve} would currently return a value. */
+  /** Whether resolving the reference would currently return a value. */
   configured: boolean
   /** Source layer currently supplying the value; absent while unconfigured. */
   source?: string
-  /** Whether {@link CredentialProvider.set} would currently succeed for this reference. */
+  /** Whether the active provider can write this reference. */
   writable: boolean
 }
 ```
@@ -48,6 +52,12 @@ interface CredentialInfo {
 ## 已提交的变更
 
 `credentials/reference-updated (ref)` 在提供方管理的来源发生已提交变更后发出——`set`、`unset` 或在存储中观察到的外部编辑。进程环境自身的变化不可观测，永不发出事件。消费方不需要该事件（它们按操作重新解析）；它服务于配置界面刷新「已配置」徽标。
+
+## 内嵌 Platform 凭证
+
+PlatformSession 是 getPlatformSession 返回的仅限 Host 快照：origin 指定所配置的 Platform 签发来源，token 包含其已存账号凭证。退登账号返回 null；签发来源不匹配时失败。原生使用方负责在凭证变化时使文档失效。账号控制器 RPC、AccountView 和 AccountDetails 均不包含此快照。
+
+AccountDetails.balance 将充值钱包投影为 value、赠送钱包投影为 bonusWallets，分别保留币种和十进制余额字符串。查询失败不包含钱包数组。
 
 <!-- BEGIN GENERATED cordis-surface (gen-cordis-catalog.ts) — do not edit between markers -->
 
@@ -212,6 +222,113 @@ abstract deleteRecord(key: CredentialKey): Promise<void>
 
 Source: [`packages/credentials/credentials/src/index.ts`](../../packages/credentials/credentials/src/index.ts)
 
+<a id="ctxcredentialscontroller--credentialscontroller"></a>
+
+### `ctx.credentialsController` — `CredentialsController`
+
+Host service backing the generated `ctx.remote.credentials` namespace. It carries every wire obligation the credential seam itself does not: the batch fan-out bound, the field-by-field view projection, the reference-grammar guard, and the refusal mapping. Secret values cross in one direction only — no method here returns one.
+
+```ts cordis-catalog
+/**
+ * Describe several references for one configuration surface. Batched because
+ * a settings page describes every reference its rows name at once, and one
+ * round trip keeps those rows from settling separately.
+ * @param refs - reference names, at most {@link MAX_DESCRIBE_REFS}; a name outside the grammar
+ *   rejects the whole call as `gateway/bad-request`.
+ * @returns one view per requested name, keyed by that name.
+ * @throws RemoteError when the request is invalid or no credential provider is mounted.
+ */
+@Remote async describe(refs: string[]): Promise<Record<string, CredentialInfo>>
+
+/**
+ * Store one value from a configuration surface. The value crosses the wire in
+ * this direction only: no read path returns it.
+ * @param ref - reference name to store under.
+ * @param value - the non-empty secret value.
+ * @throws RemoteError when the request is invalid, no provider is mounted, or the provider refuses the write.
+ */
+@Remote async set(ref: string, value: string): Promise<void>
+
+/**
+ * Remove one reference from a configuration surface.
+ * @param ref - reference name to remove.
+ * @throws RemoteError when the request is invalid, no provider is mounted, or the provider refuses the write.
+ */
+@Remote async unset(ref: string): Promise<void>
+```
+
+Source: [`packages/api/settings-controller/src/credentials.ts`](../../packages/api/settings-controller/src/credentials.ts)
+
+<a id="ctxdeepseekaccount--deepseekaccount-abstract-seam"></a>
+
+### `ctx.deepseekAccount` — `DeepSeekAccount` (abstract seam)
+
+Account operations; only Host consumers can obtain a request credential.
+
+```ts cordis-catalog
+/**
+ * Read stored-account presence and the latest login attempt.
+ * @returns a snapshot without credentials or PKCE secrets.
+ */
+abstract getState(): Promise<AccountView>
+
+/**
+ * Query Platform profile independently of wallet balances.
+ * @returns profile outcome, or null if signed out or the grant changed during the query.
+ */
+abstract getProfile(): Promise<AccountDetails['profile'] | null>
+
+/**
+ * Query Platform recharge and bonus wallet balances independently of profile data.
+ * @returns balance outcome, or null if signed out or the grant changed during the query.
+ */
+abstract getBalance(): Promise<AccountDetails['balance'] | null>
+
+/**
+ * Join an active attempt or start browser authorization.
+ * @param locale - active UI language for a new attempt; joining retains its original language.
+ * @param callbackOrigin - browser-accessible loopback HTTP origin, including any SSH local port.
+ * @param loginSource - initiating UI, used to return from a failed exchange.
+ * @returns the initial snapshot without waiting for browser approval.
+ */
+abstract startSignIn(locale: string, callbackOrigin: string, loginSource: 'web' | 'desktop'): Promise<AccountView>
+
+/**
+ * Cancel only the named attempt; committing attempts settle before returning.
+ * @param id - attempt identity from this Host.
+ * @returns state after cancellation or an already-started commit.
+ */
+abstract cancelSignIn(id: SignInAttemptId): Promise<AccountView>
+
+/**
+ * Remove the local grant while retaining API keys and tasks; the provider revokes it in the background.
+ * @returns the signed-out state after local removal; remote failures never restore the grant.
+ */
+abstract signOut(): Promise<AccountView>
+
+/**
+ * Subscribe to snapshots including a complete initial state.
+ * @param signal - subscription lifetime; ending it never cancels login.
+ * @returns complete snapshots as account state changes.
+ */
+abstract watch(signal: AbortSignal): AsyncIterable<AccountView>
+
+/**
+ * Resolve a credential only for the inference origin allowed by the provider.
+ * @param url - actual request destination or API base URL.
+ * @returns stored token, or undefined for other origins or a signed-out account.
+ */
+abstract resolveToken(url: string): Promise<string | undefined>
+
+/**
+ * Read credentials for the configured Platform origin, bound to their issuing environment.
+ * @returns a Host-only snapshot, or null while signed out.
+ */
+abstract getPlatformSession(): Promise<PlatformSession | null>
+```
+
+Source: [`packages/credentials/deepseek-account/src/index.ts`](../../packages/credentials/deepseek-account/src/index.ts)
+
 <a id="authorization-events"></a>
 
 ### `authorization/*` events
@@ -286,3 +403,5 @@ Committed change to a provider-managed credential source: a `set`, an `unset`, o
 
 Source: [`packages/credentials/credentials/src/types.ts`](../../packages/credentials/credentials/src/types.ts)
 <!-- END GENERATED cordis-surface -->
+
+账号服务定义提供 getState、getProfile、getBalance、startSignIn、cancelSignIn、signOut、watch 及仅限 Host 的 resolveToken 和 getPlatformSession。平台提供者使用 AuthorizationFlow 和私有 GrantRecord 实现这些操作。AccountView 区分本地存在与服务器验证；尝试 ID 将取消绑定到单次本地流程。参见[账号包](../../packages/credentials/deepseek-account/README.zh.md)。

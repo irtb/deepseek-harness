@@ -1,6 +1,6 @@
 import { Context } from '@deepseek-ai/cordis'
 import type { Agent, AgentHandle } from '@deepseek-ai/dsh-agent'
-import { CallId, type GenerateOptions, type LlmResolvedModelInfo, type StreamChunk } from '@deepseek-ai/dsh-llm'
+import { ToolCallId, type GenerateOptions, type LlmResolvedModelInfo, type StreamChunk } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import ApprovalService from '@deepseek-ai/dsh-user-approval'
 import { mkdtemp, rm } from 'node:fs/promises'
@@ -48,13 +48,13 @@ describe('Gateway to Harness session composition', () => {
       type: 'tool-call-chunks',
       data: { id: 'call-1', name: 'generation_submit', args: ['encrypted-fragment'] },
     } as unknown as SessionEvent
-    const reasoningChunk = {
-      type: 'assistant/chunk',
-      data: { chunk: { type: 'reasoning-delta', text: 'private reasoning' } },
+    const reasoningAttempt = {
+      type: 'assistant/attempt',
+      data: { stream: [{ type: 'reasoning-chunks', time0: 1, index: 0, dt: [], texts: ['private reasoning'] }] },
     } as unknown as SessionEvent
-    const textChunk = {
-      type: 'assistant/chunk',
-      data: { chunk: { type: 'text-delta', text: '可见回复' } },
+    const textAttempt = {
+      type: 'assistant/attempt',
+      data: { stream: [{ type: 'text-chunks', time0: 1, index: 0, dt: [], texts: ['可见回复'] }] },
     } as unknown as SessionEvent
     const toolCall = {
       type: 'tool/call',
@@ -70,8 +70,8 @@ describe('Gateway to Harness session composition', () => {
     } as unknown as SessionEvent
 
     expect(shouldForwardSessionEvent(toolChunk)).toBe(false)
-    expect(shouldForwardSessionEvent(reasoningChunk)).toBe(false)
-    expect(shouldForwardSessionEvent(textChunk)).toBe(true)
+    expect(shouldForwardSessionEvent(reasoningAttempt)).toBe(false)
+    expect(shouldForwardSessionEvent(textAttempt)).toBe(false)
     expect(shouldForwardSessionEvent(assistantMessage)).toBe(true)
     expect(shouldForwardSessionEvent(toolCall)).toBe(true)
     expect(shouldForwardSessionEvent(toolResult)).toBe(true)
@@ -117,9 +117,16 @@ describe('Gateway to Harness session composition', () => {
       text: 'second turn',
     })
     expect(next.streamEpoch).not.toBe(initial.streamEpoch)
+    for await (const _event of await resumed.events({
+      capabilityGrant: 'grant-a',
+      sessionId: 'recovery-session',
+      afterCursor: 0,
+    })) {
+      if (_event.type === 'run.completed' || _event.type === 'run.cancelled' || _event.type === 'run.failed') break
+    }
     const live = (resumed as unknown as { sessions: Map<string, { handle: AgentHandle }> })
       .sessions.get('recovery-session')
-    expect(live?.handle.agent.session.events.filter(event => event.type === 'user/message')).toHaveLength(2)
+    expect(live?.handle.agent.session.snapshotEvents().filter(event => event.type === 'user/message')).toHaveLength(2)
     await expect(resumed.events({
       capabilityGrant: 'other-scope',
       sessionId: 'recovery-session',
@@ -140,11 +147,14 @@ describe('Gateway to Harness session composition', () => {
         return { ...authorization('approval-context'), sessionId }
       },
     }, mountTestPreset)
-    const events: SessionEvent[] = [{ type: 'turn/start' } as SessionEvent]
+    const events: SessionEvent[] = []
+    events.push({ type: 'turn/start', data: { turn: 1 }, seq: 0, time: 0 } as SessionEvent)
     const agent = {
       session: {
         id: 'approval-session',
-        events,
+        get seq() { return events.length },
+        ownEvents() { return events },
+        eventAt(seq: number) { return events[seq] },
         append(type: string, data: unknown) {
           const event = { type, data, seq: events.length, time: Date.now() } as SessionEvent
           events.push(event)
@@ -172,7 +182,7 @@ describe('Gateway to Harness session composition', () => {
     const decision = ctx.approval.request({
       agent,
       toolName,
-      callId: CallId(`${toolName}-call`),
+      callId: ToolCallId(`${toolName}-call`),
       reason,
     })
     await Promise.resolve()

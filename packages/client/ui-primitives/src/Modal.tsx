@@ -1,46 +1,46 @@
-// Modal: controlled full-viewport dialog (create-workspace and similar).
-// The overlay portals to this document's body so ancestor stacking contexts
-// cannot leave sticky page controls above the mask. This is still an in-page
-// WebUI dialog; it never creates or targets another browser/native window.
-
 import { useEffect } from 'react'
-import type { ReactNode } from 'react'
+import type { KeyboardEventHandler, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import clsx from 'clsx'
-import { IconCloseOutline16 } from './icons/index.tsx'
+import { IconCloseOutlineRegular } from './icons/index.tsx'
 import css from './Modal.module.css'
 
-/**
- * Render a centered modal over a blurred page mask.
- * @param props.open - whether the dialog is showing.
- * @param props.onClose - Escape or mask click.
- * @param props.title - dialog heading (aria-label in every mode).
- * @param props.closeLabel - accessible close-button label.
- * @param props.description - optional supporting sentence under the title.
- * @param props.children - body (inputs, etc.).
- * @param props.footer - action row (Cancel / Create).
- * @param props.contentClassName - optional class for a scrollable content region.
- * @param props.headless - render children directly in the card (no default
- * header/close/body chrome) for dialogs whose figma frame owns its own
- * header structure; mask, card, Escape, and aria-label remain.
- * @param props.closeLabel - close-button aria label; the owner passes
- * localized copy (this package is cordis-free, so copy arrives via props).
- * @returns null when closed; otherwise the overlay tree.
- */
-export function Modal({
-  open, onClose, title, closeLabel = 'Close', description, children, footer, className, contentClassName, headless = false,
-}: {
+interface ModalBaseProps {
   open: boolean
   onClose: () => void
   title: string
-  closeLabel?: string
   description?: string
   children?: ReactNode
   footer?: ReactNode
   className?: string
   contentClassName?: string
-  headless?: boolean
-}) {
+  onKeyDownCapture?: KeyboardEventHandler<HTMLDivElement>
+}
+
+type ModalProps = ModalBaseProps & (
+  | { headless: true; closeLabel?: never }
+  | { headless?: false; closeLabel: string }
+)
+
+/**
+ * Render a centered, body-portaled modal over a blurred page mask.
+ * @param props.open - whether the dialog is showing.
+ * @param props.onClose - Escape or mask click; while a menu is open inside the
+ * dialog, Escape belongs to that menu first.
+ * @param props.title - dialog heading (aria-label in every mode).
+ * @param props.closeLabel - localized accessible close-button label.
+ * @param props.description - optional supporting sentence under the title.
+ * @param props.children - body (inputs, etc.).
+ * @param props.footer - action row (Cancel / Create).
+ * @param props.contentClassName - optional class for a scrollable content region.
+ * @param props.headless - render children directly in the card (no default
+ * header/close/body chrome); mask, card, Escape, and aria-label remain.
+ * @param props.onKeyDownCapture - handle a nested dialog's keys before the document Escape listeners.
+ * @returns null when closed; otherwise the overlay tree.
+ */
+export function Modal({
+  open, onClose, title, closeLabel, description, children, footer, className, contentClassName, onKeyDownCapture, headless = false,
+}: ModalProps) {
   useEffect(() => {
     if (!open) return
     const onKeyDown = (e: KeyboardEvent) => {
@@ -53,7 +53,7 @@ export function Modal({
   if (!open) return null
 
   return createPortal((
-    <div className={css.root} role="presentation">
+    <div className={css.root} role="presentation" onKeyDownCapture={onKeyDownCapture}>
       <div className={css.mask} aria-hidden="true" onClick={onClose} />
       <div
         className={clsx(css.dialog, className)}
@@ -69,7 +69,7 @@ export function Modal({
                 <div className={css.header}>
                   <h2 className={css.title}>{title}</h2>
                   <button type="button" className={css.close} aria-label={closeLabel} onClick={onClose}>
-                    <IconCloseOutline16 size={14} />
+                    <IconCloseOutlineRegular size={14} />
                   </button>
                 </div>
                 {description !== undefined && description !== '' && (

@@ -5,7 +5,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { boot, installFailLoud } from '@deepseek-ai/dsh-app-boot'
 import type {} from '@deepseek-ai/dsh-agent'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
-import { SessionId } from '@deepseek-ai/dsh-session'
+import { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import { SHOTGO_MOCK_MODEL, SHOTGO_MOCK_PROVIDER } from './llm/mock.ts'
 import { fileURLToPath } from 'node:url'
 
@@ -53,10 +53,13 @@ try {
     const sessions = runtimeEntry.ctx.get('sessions')
     if (sessions === undefined) throw new Error(`${NAME}: session store is unavailable`)
     await sessions.flush(handle.agent.session)
-    const final = handle.agent.session.events.findLast(event => event.type === 'assistant/message')
-    const answer = final?.type === 'assistant/message'
-      ? final.data.message.content.filter(block => block.type === 'text').map(block => block.text).join('')
-      : ''
+    const final = handle.agent.session.ownEvents().findLast(
+      (event): event is Extract<SessionEvent, { type: 'assistant/message' }> =>
+        event.type === 'assistant/message',
+    )
+    const answer = final === undefined
+      ? ''
+      : final.data.message.content.filter(block => block.type === 'text').map(block => block.text).join('')
     process.stdout.write(`${JSON.stringify({
       answer,
       availableProviders: llm.listProviders().map(provider => provider.id).sort(),

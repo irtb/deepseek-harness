@@ -1,6 +1,6 @@
 import { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
 import { describe, expect, it } from 'vitest'
@@ -17,7 +17,7 @@ async function execute(argumentsValue: Record<string, unknown>) {
   await ctx.plugin(canvasPlanPreview)
   return ctx.tools.execute({
     agent: agent(),
-    callId: CallId('canvas-plan-call'),
+    callId: ToolCallId('canvas-plan-call'),
     name: 'canvas_plan_preview',
     arguments: argumentsValue,
     signal: new AbortController().signal,

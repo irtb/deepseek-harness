@@ -6,7 +6,7 @@ English | [中文](2026-08-10-child-agents-join-their-parent-preset.zh.md)
 
 ## Problem
 
-Tool and prompt-section visibility is inherited along `dsh-scope`'s parent chain, and an agent's scope key is minted with no parent. [Per-session agent presets](../architecture/2026-08-03-per-session-agent-presets.md) moved every model-facing row onto the agent plane and made `AgentPresets.mount()` the one thing that binds that parent link — from the api-proxy's session create, resume, and fork paths. The two in-process subagent drivers compose their children through `applyChildComposition()`, which installed only the per-child persona and tool filter, so a child's scope chain had length one and its registry view resolved the global layer alone.
+Tool and prompt-section visibility is inherited along `dsh-scope`'s parent chain, and an agent's scope key is minted with no parent. [Per-session agent presets](../architecture/2026-09-18-declarative-agent-presets.md) moved every model-facing row onto the agent plane and made `AgentPresets.mount()` the one thing that binds that parent link — from the api-proxy's session create, resume, and fork paths. The two in-process subagent drivers compose their children through `applyChildComposition()`, which installed only the per-child persona and tool filter, so a child's scope chain had length one and its registry view resolved the global layer alone.
 
 That layer is now empty in any deployment with a preset roster: the web-app patch layer disables every host-plane tool row. A one-shot child therefore reached the model with zero tools, a continuable child with only the host-plane `report`, and neither carried its parent's persona, workspace context, plan-mode section, or skill catalog. The fork path had already been given the same treatment for the same reason; delegation had not.
 
@@ -22,7 +22,7 @@ This is a bind, not a mount, and both differences are load-bearing. The child ge
 
 `dsh-subagent` reaches the roster through `ctx.get('agentPresets')` with a type-only import and an optional peer dependency — the documented opportunistic-consumption pattern it already uses for `sandboxPolicy` and `approval`.
 
-Giving the child its parent's tools exposed a second defect the same agent-plane move introduced: `ToolRuntime` exempted SCOPED registrations from a restriction and filtered only the global layer, so once every model-facing row became an ancestor contribution, a child's `toolFilter` stopped constraining anything — and, with the global layer empty, `restrict()` rejected every name it was given as unknown, failing the child outright. The exempt set is the tools a scope registers ITSELF, not the tools that happen to live in the global layer; reading it the second way held only while those two sets coincided. `view()` now filters everything a scope inherits — the global layer and every ancestor layer — and exempts only its own. The own-layer exemption is load-bearing rather than incidental: the delegation runtime registers a child's `report` and structured-output tools into the child's own layer, and a filter naming the capabilities the child may use must not strip the machinery it answers through.
+Giving the child its parent's tools exposed a second defect the same agent-plane move introduced: `ToolRuntime` exempted SCOPED registrations from a restriction and filtered only the global layer, so once every model-facing row became an ancestor contribution, a child's `toolFilter` stopped constraining anything — and, with the global layer empty, `restrict()` rejected every name it was given as unknown, failing the child outright. The exempt set is the tools a scope registers ITSELF, not the tools that happen to live in the global layer; reading it the second way held only while those two sets coincided. `view()` now filters everything a scope inherits — the global layer and every ancestor layer — and exempts only its own. The own-layer exemption is load-bearing rather than incidental: the delegation runtime registers a child's structured-output tool into the child's own layer, and a filter naming the capabilities the child may use must not strip the machinery it answers through.
 
 ## Alternatives considered
 
@@ -30,17 +30,17 @@ Giving the child its parent's tools exposed a second defect the same agent-plane
 
 **Bind the child's key to the PARENT's key rather than to the standing mount.** Rejected because it changes what a child inherits: the parent's own scope layer carries its per-agent restrictions, which would then intersect into every descendant, and a child outliving its parent would hang off a disposed agent's key. Joining the standing mount gives the child its parent's composition and nothing else.
 
-**Extend the continuable activation setup registry to cover one-shot children.** Rejected because that registry's contribution type is synchronous `(childCtx) => () => void` with per-installation revocation, modelling deployment capabilities that come and go, while a preset join is a one-time bind with no revocation of its own. Widening it would have made the omission possible again for any driver that skipped the registry.
+**Introduce one shared child-setup registry for both drivers.** Rejected because a synchronous, revocable contribution models deployment capabilities that come and go, while a preset join is a one-time bind with no revocation of its own. Routing composition through an optional registry would make the omission possible again for any driver that skipped it.
 
 **Let `dsh-subagent` import `resolveSessionPreset` and mount by the resolved id.** Rejected because it makes the preset roster a hard module edge for a package that must work without one, and it lands back on the remount semantics above.
 
-**Filter every layer on the chain, including the scope's own.** Rejected because it makes a per-child capability filter delete that child's reporting and structured-output tools, which the delegation runtime registers into the child's own layer — an `allow` naming the capabilities a child may use would leave it unable to answer at all.
+**Filter every layer on the chain, including the scope's own.** Rejected because it makes a per-child capability filter delete that child's structured-output tool, which the delegation runtime registers into the child's own layer — an `allow` naming the capabilities a child may use would leave it unable to produce the requested result.
 
 **Leave the durable header alone and fix only the live join.** Rejected because the live child and the same child read cold would then disagree about which composition produced its history — the same class of defect, moved rather than fixed.
 
 ## Testing
 
-`packages/preset/agent-presets/tests/mount.spec.ts` covers the join against real fixture compositions: the child sees its parent's tools and prompt sections, no second generation is mounted, the join survives the parent's disposal (a background child outliving its parent), the reported id matches, a parent without a preset joins nothing, and an unscoped context is refused.
+`packages/preset/agent-preset-registry/tests/mount.spec.ts` covers the join against real fixture compositions: the child sees its parent's tools and prompt sections, no second generation is mounted, the join survives the parent's disposal (a background child outliving its parent), the reported id matches, a parent without a preset joins nothing, and an unscoped context is refused.
 
 `packages/core/tools/tests/scoped.spec.ts` covers the restriction rule directly: a child's filter removes a tool it inherited from an ancestor scope, the child's own registrations survive its own filter, and an ancestor's restriction still reaches every scope nested inside it.
 

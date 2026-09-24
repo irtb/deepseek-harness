@@ -2,8 +2,8 @@
 
 import type { Context } from '@deepseek-ai/cordis'
 import {
-  CallId,
   LlmAdapter,
+  ToolCallId,
   type GenerateOptions,
   type LlmResolvedModelInfo,
   type StreamChunk,
@@ -28,10 +28,11 @@ export class ShotGoMockLlmAdapter extends LlmAdapter {
       return
     }
 
-    const toolResult = options.messages.at(-1)?.content.find(block => block.type === 'tool-result')
+    const last = options.messages.at(-1)
+    const toolResult = last?.role === 'tool' ? last : undefined
     if (toolResult === undefined) {
       const argumentsJson = JSON.stringify({ kind: 'image' })
-      const id = CallId('shotgo-generation-config-read')
+      const id = ToolCallId('shotgo-generation-config-read')
       yield { type: 'block-start', index: 0, blockType: 'tool-call' }
       yield { type: 'tool-call-delta', index: 0, id, name: 'generation_config_read', argumentsDelta: argumentsJson }
       yield {

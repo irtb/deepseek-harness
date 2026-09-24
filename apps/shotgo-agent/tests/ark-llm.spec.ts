@@ -12,7 +12,7 @@ import { SHOTGO_PROTOCOL_VERSION, type InferenceRuntimeConfig } from '../src/con
 const userId = '00000000-0000-4000-8000-000000000001' as AnonymousUserId
 const messages = [createUserMessage({
   content: [{ type: 'text', text: 'plan an image' }],
-  source: { kind: 'plugin', plugin: 'shotgo-test' },
+  source: { kind: 'user' },
 })]
 const runtimeConfiguration: InferenceRuntimeConfig = {
   protocolVersion: SHOTGO_PROTOCOL_VERSION,
@@ -32,6 +32,10 @@ async function drain(stream: AsyncIterable<unknown>): Promise<unknown[]> {
   return chunks
 }
 
+function messagesSse(events: Array<{ type: string } & Record<string, unknown>>): string {
+  return events.map(event => `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`).join('')
+}
+
 afterEach(() => vi.unstubAllGlobals())
 
 describe('ShotGo Ark LLM adapter', () => {
@@ -49,14 +53,18 @@ describe('ShotGo Ark LLM adapter', () => {
   })
 
   it('streams directly through the Ark OpenAI-compatible endpoint', async () => {
-    const events = [
-      '{"choices":[{"delta":{"role":"assistant","content":null,"reasoning_content":"think"}}]}',
-      '{"choices":[{"delta":{"content":"done"}}]}',
-      '{"choices":[{"delta":{"content":""},"finish_reason":"stop"}],"usage":{"prompt_tokens":3,"completion_tokens":2}}',
-      '[DONE]',
-    ]
     const request = vi.fn<typeof fetch>().mockResolvedValue(new Response(
-      events.map(event => `data: ${event}\n\n`).join(''),
+      messagesSse([
+        { type: 'message_start', message: { id: 'msg_1', model: 'endpoint-flash', usage: { input_tokens: 3, output_tokens: 0 } } },
+        { type: 'content_block_start', index: 0, content_block: { type: 'thinking', thinking: '' } },
+        { type: 'content_block_delta', index: 0, delta: { type: 'thinking_delta', thinking: 'think' } },
+        { type: 'content_block_stop', index: 0 },
+        { type: 'content_block_start', index: 1, content_block: { type: 'text', text: '' } },
+        { type: 'content_block_delta', index: 1, delta: { type: 'text_delta', text: 'done' } },
+        { type: 'content_block_stop', index: 1 },
+        { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 2 } },
+        { type: 'message_stop' },
+      ]),
       { headers: { 'content-type': 'text/event-stream', 'x-request-id': 'ark-request-1' } },
     ))
     vi.stubGlobal('fetch', request)
@@ -69,28 +77,33 @@ describe('ShotGo Ark LLM adapter', () => {
     }))
 
     expect(request).toHaveBeenCalledOnce()
-    expect(request.mock.calls[0]?.[0]).toBe('https://ark.example.test/api/v3/chat/completions')
+    expect(request.mock.calls[0]?.[0]).toBe('https://ark.example.test/api/v3/v1/messages')
     const init = request.mock.calls[0]?.[1]
-    expect(new Headers(init?.headers).get('authorization')).toBe('Bearer ark-test-key')
+    expect(new Headers(init?.headers).get('x-api-key')).toBe('ark-test-key')
     if (typeof init?.body !== 'string') throw new Error('Expected JSON request body')
     expect(JSON.parse(init.body)).toMatchObject({
       model: 'endpoint-flash',
-      reasoning_effort: 'high',
       stream: true,
-      stream_options: { include_usage: true },
+      thinking: { type: 'enabled' },
+      output_config: { effort: 'high' },
     })
-    expect(chunks).toContainEqual(expect.objectContaining({ type: 'usage', usage: { inputTokens: 3, outputTokens: 2 } }))
+    expect(chunks).toContainEqual(expect.objectContaining({
+      type: 'usage',
+      usage: expect.objectContaining({ inputTokens: 3, outputTokens: 2 }),
+    }))
     expect(chunks).toContainEqual(expect.objectContaining({ type: 'finish', reason: { kind: 'stop' } }))
   })
 
   it('reports metadata-only token usage for a session request', async () => {
-    const events = [
-      '{"choices":[{"delta":{"content":"done"}}]}',
-      '{"choices":[{"delta":{"content":""},"finish_reason":"stop"}],"usage":{"prompt_tokens":7,"completion_tokens":3}}',
-      '[DONE]',
-    ]
     vi.stubGlobal('fetch', vi.fn<typeof fetch>().mockResolvedValue(new Response(
-      events.map(event => `data: ${event}\n\n`).join(''),
+      messagesSse([
+        { type: 'message_start', message: { id: 'msg_1', model: 'endpoint-flash', usage: { input_tokens: 7, output_tokens: 0 } } },
+        { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
+        { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'done' } },
+        { type: 'content_block_stop', index: 0 },
+        { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 3 } },
+        { type: 'message_stop' },
+      ]),
       { headers: { 'content-type': 'text/event-stream' } },
     )))
     const reportUsage = vi.fn()
@@ -109,7 +122,7 @@ describe('ShotGo Ark LLM adapter', () => {
       provider: 'volcengine-ark',
       model: 'deepseek-v4-flash',
       status: 'completed',
-      usage: { inputTokens: 7, outputTokens: 3 },
+      usage: expect.objectContaining({ inputTokens: 7, outputTokens: 3 }),
     }))
     expect(reportUsage.mock.calls[0]?.[0]).not.toHaveProperty('prompt')
   })

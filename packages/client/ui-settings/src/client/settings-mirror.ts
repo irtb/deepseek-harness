@@ -1,18 +1,17 @@
 /**
  * Client mirror of the Host settings document: the one `settings.describe`
  * reader in the browser. Every settings consumer derives from this store —
- * per-namespace scopes through `SettingsScopeBinder.bind`, cross-namespace
- * surfaces through the binder's shared describe face — so startup cost and
+ * shared entry forms through `ConfigForms.get`, cross-namespace
+ * surfaces through the provider's shared describe face — so startup cost and
  * freshness are properties of this class, not of how many features own a
  * preference. The Host stays the fact source: the mirror re-reads on the
  * invalidations its owning plugin subscribes to and folds write answers in
  * through {@link SettingsDescribeMirror.acceptView}.
  */
 
-import type { IApiClient, SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
-import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-runtime/client'
-
-type SettingsFace = Pick<IApiClient, 'settings'>
+import type { Context as ClientContext } from '@deepseek-ai/cordis'
+import type { SettingsNamespaceView } from '@deepseek-ai/dsh-api-remotes/client'
+import { createSnapshotStore, type SnapshotStore } from '@deepseek-ai/dsh-client-store'
 
 /** The full `settings.describe` answer the mirror serves. */
 export interface SettingsDescribeView {
@@ -78,11 +77,12 @@ export class SettingsDescribeMirror implements SettingsDescribeFace {
   private generation = 0
 
   /**
-   * @param api - settings wire face.
-   * @param persistence - remote browsers stay process-local because settings RPCs are loopback-only.
+   * @param ctx - the providing plugin's context, whose `remote.settings`
+   * namespace answers the describe read.
+   * @param persistence - client-selected Host persistence; non-loopback pages may remain process-local.
    */
   constructor(
-    private readonly api: SettingsFace,
+    private readonly ctx: ClientContext,
     private readonly persistence: 'host' | 'memory' = 'host',
   ) {
     this.store = createSnapshotStore<SettingsMirrorSnapshot>({
@@ -180,10 +180,10 @@ export class SettingsDescribeMirror implements SettingsDescribeFace {
         const generation = ++this.generation
         let outcome: { view: SettingsDescribeView } | { failure: string }
         try {
-          const response = await this.api.settings.describe({})
-          outcome = response.result.ok
-            ? { view: response.result.value }
-            : { failure: response.result.error.message }
+          const response = await this.ctx.remote.settings.describe()
+          outcome = response.ok
+            ? { view: response.value }
+            : { failure: response.error.message }
         } catch (error) {
           outcome = { failure: error instanceof Error ? error.message : String(error) }
         }

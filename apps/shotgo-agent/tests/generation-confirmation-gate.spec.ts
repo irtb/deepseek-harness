@@ -1,6 +1,6 @@
 import { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
-import { CallId } from '@deepseek-ai/dsh-llm'
+import { ToolCallId } from '@deepseek-ai/dsh-llm'
 import type { SessionEvent } from '@deepseek-ai/dsh-session'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime, { defineTool } from '@deepseek-ai/dsh-tools'
@@ -11,11 +11,14 @@ import * as quoteRegistry from '../src/generation-quote-registry.ts'
 import * as canvasPlanQuoteRegistry from '../src/canvas-plan-quote-registry.ts'
 
 function activeAgent(): Agent {
-  const events: SessionEvent[] = [{ type: 'turn/start' } as SessionEvent]
+  const events: SessionEvent[] = []
+  events.push({ type: 'turn/start', data: { turn: 1 }, seq: 0, time: 0 } as SessionEvent)
   return {
     session: {
       id: 'confirmation-session',
-      events,
+      get seq() { return events.length },
+      ownEvents() { return events },
+      eventAt(seq: number) { return events[seq] },
       append(type: string, data: unknown) {
         const event = { type, data, seq: events.length, time: Date.now() } as SessionEvent
         events.push(event)
@@ -73,7 +76,7 @@ describe('generation confirmation gate', () => {
 
     const result = await ctx.tools.execute({
       agent: activeAgent(),
-      callId: CallId('generation-call'),
+      callId: ToolCallId('generation-call'),
       name: 'generation_submit',
       arguments: { quoteId: 'quote-real', quoteVersion: 1, kind: 'video', modelId: 'fake', credits: 1 },
       signal: new AbortController().signal,
@@ -85,7 +88,7 @@ describe('generation confirmation gate', () => {
 
     const replay = await ctx.tools.execute({
       agent: activeAgent(),
-      callId: CallId('generation-call-replay'),
+      callId: ToolCallId('generation-call-replay'),
       name: 'generation_submit',
       arguments: { quoteId: 'quote-real', quoteVersion: 1 },
       signal: new AbortController().signal,
@@ -109,7 +112,7 @@ describe('generation confirmation gate', () => {
 
     const result = await ctx.tools.execute({
       agent: activeAgent(),
-      callId: CallId(`generation-${outcome}`),
+      callId: ToolCallId(`generation-${outcome}`),
       name: 'generation_submit',
       arguments: { quoteId: 'quote-real', quoteVersion: 1 },
       signal: new AbortController().signal,
@@ -136,7 +139,7 @@ describe('generation confirmation gate', () => {
 
     const result = await ctx.tools.execute({
       agent: activeAgent(),
-      callId: CallId('quote-call'),
+      callId: ToolCallId('quote-call'),
       name: 'generation_quote',
       arguments: {},
       signal: new AbortController().signal,
@@ -158,7 +161,7 @@ describe('generation confirmation gate', () => {
     }))
     const result = await ctx.tools.execute({
       agent: activeAgent(),
-      callId: CallId('missing-quote'),
+      callId: ToolCallId('missing-quote'),
       name: 'generation_submit',
       arguments: { quoteId: 'missing', quoteVersion: 1 },
       signal: new AbortController().signal,
@@ -187,7 +190,7 @@ describe('generation confirmation gate', () => {
 
     const result = await ctx.tools.execute({
       agent: activeAgent(),
-      callId: CallId('cancel-call'),
+      callId: ToolCallId('cancel-call'),
       name: 'generation_cancel',
       arguments: { generationId: '42' },
       signal: new AbortController().signal,
@@ -221,7 +224,7 @@ describe('generation confirmation gate', () => {
     ctx.on('approval/request', (request) => { reason = request.reason ?? ''; return Promise.resolve<ApprovalOutcome>('allowed-once') })
 
     const result = await ctx.tools.execute({
-      agent: activeAgent(), callId: CallId('canvas-apply'), name: 'canvas_ops_apply',
+      agent: activeAgent(), callId: ToolCallId('canvas-apply'), name: 'canvas_ops_apply',
       arguments: { quoteId: 'canvas-quote', quoteVersion: 1, summary: '伪造计划', credits: 999 },
       signal: new AbortController().signal,
     })

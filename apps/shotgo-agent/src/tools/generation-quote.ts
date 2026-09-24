@@ -1,7 +1,7 @@
 /** Read-only authoritative generation quote tool. */
 
 import type { Context } from '@deepseek-ai/cordis'
-import { snapshotJsonValue, type JsonValue } from '@deepseek-ai/dsh-session'
+import { snapshotJsonValue, type JsonValue } from '@deepseek-ai/dsh-util-values'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { GenerationQuoteParameters, GenerationQuoteResponse } from '../contracts/laravel-v1.ts'
 import type {} from '../generation-quote.ts'

@@ -1,7 +1,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { createHash, randomUUID } from 'node:crypto'
 import type { AgentHandle } from '@deepseek-ai/dsh-agent'
-import type {} from '@deepseek-ai/dsh-agent-presets/types'
+import type {} from '@deepseek-ai/dsh-agent-preset-registry/types'
 import { createUserMessage, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import type { ApprovalOutcome, ApprovalRequestId } from '@deepseek-ai/dsh-user-approval'
@@ -148,7 +148,6 @@ function generationMessage(text: string, context: GatewayGenerationContext | und
  * connected (one encrypted quote argument may contain thousands of chunks).
  */
 export function shouldForwardSessionEvent(event: SessionEvent): boolean {
-  if (event.type === 'assistant/chunk') return event.data.chunk.type === 'text-delta'
   return event.type === 'assistant/message' || event.type === 'tool/call' || event.type === 'tool/result'
 }
 
@@ -368,7 +367,7 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
         if (request.signal?.aborted === true) return Promise.resolve<ApprovalOutcome>('cancelled')
         const live = this.sessions.get(request.agent.session.id)
         if (live === undefined || live.handle.agent !== request.agent || live.activeRunId === undefined) return next()
-        const approvalId = this.findPendingApprovalId(request.agent.session.events, request.callId)
+        const approvalId = this.findPendingApprovalId(request.agent.session.ownEvents(), request.callId)
         if (approvalId === undefined) return next()
         const runId = live.activeRunId
         // approval/asked and approval/decided are log-only audit records. Some
@@ -395,7 +394,7 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
             resolve(outcome)
             setImmediate(() => {
               if (this.disposed || live.disposed) return
-              const decided = request.agent.session.events.findLast(
+              const decided = request.agent.session.ownEvents().findLast(
                 (event): event is Extract<SessionEvent, { type: 'approval/decided' }> =>
                   event.type === 'approval/decided' && event.data.id === approvalId,
               )
@@ -515,7 +514,7 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
       this.sessions.set(input.sessionId, live)
     }
 
-    const runId = crypto.randomUUID()
+    const runId = randomUUID()
     live.activeRunId = runId
     if (input.generationContext === undefined) {
       delete live.activeGenerationContext

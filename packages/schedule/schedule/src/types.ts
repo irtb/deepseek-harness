@@ -5,6 +5,8 @@
 
 import type { Branded } from '@deepseek-ai/dsh-brand'
 import type {} from '@deepseek-ai/dsh-session/types'
+// Type-only: the Workspace registry's archive-admission family map this plugin merges `schedule` into.
+import type {} from '@deepseek-ai/dsh-workspace/types'
 
 /** Stable reminder identity that is unique and never reused within one session. */
 export type ScheduleId = Branded<'ScheduleId'>
@@ -210,6 +212,13 @@ export type ScheduleDeleteResult =
 /** Canonical `schedule_delete` value. */
 export type ScheduleDeleteValue = ScheduleDeleteResult | ScheduleToolError
 
+declare module '@deepseek-ai/dsh-workspace/types' {
+  interface SessionActivityKindMap {
+    /** A scheduled follow-up for this session is still active. */
+    schedule: true
+  }
+}
+
 declare module '@deepseek-ai/dsh-session/types' {
   interface SessionEventMap {
     /**
@@ -217,5 +226,12 @@ declare module '@deepseek-ai/dsh-session/types' {
      * session-local transition stream before accepting a candidate event.
      */
     'schedule/change': ScheduleChange
+  }
+}
+
+declare module '@deepseek-ai/dsh-session-projection/types' {
+  interface SessionProjectionMap {
+    /** Complete active reminders owned by this Session's post-fork suffix. */
+    schedule: readonly ScheduleRecord[]
   }
 }

@@ -1,6 +1,6 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import { snapshotJsonValue, type JsonValue } from '@deepseek-ai/dsh-session'
+import { snapshotJsonValue, type JsonValue } from '@deepseek-ai/dsh-util-values'
 import type {} from '../canvas-plan.ts'
 import type {} from '../canvas-plan-quote-registry.ts'
 

@@ -2,5 +2,5 @@
 # side as of the last confirmed-consistent state. Both languages carry equal authority;
 # after editing either side, bring the other along and re-record with:
 #   pnpm run verify-translation-pairing --write .agents/notes/implemented/architecture/2026-08-10-host-plane-ownership-after-presets.md
-2026-08-10-host-plane-ownership-after-presets.md: f6a2604cdd8be59296fada148f47dea7503356a7
-2026-08-10-host-plane-ownership-after-presets.zh.md: 6e9b078c9cc46b1167b9fa92c9d8222ecc492530
+2026-08-10-host-plane-ownership-after-presets.md: daf48f27c2228b71319d6f5410e6cabe3bc02b39
+2026-08-10-host-plane-ownership-after-presets.zh.md: 56babf5e715584b4ee061a334158d46e59b0d350

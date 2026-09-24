@@ -16,6 +16,8 @@ import {
 } from '@deepseek-ai/dsh-llm'
 import {
   DeepSeekAdapter,
+  resolveAdapterOptions,
+  type DeepSeekAdapterOptions,
   type DeepSeekConnectionOptions,
 } from '@deepseek-ai/dsh-llm-deepseek'
 import z from '@deepseek-ai/schemastery'
@@ -45,11 +47,20 @@ function resolveConnection(
 ): DeepSeekConnectionOptions {
   const maxTokens = options.maxTokens ?? 16_384
   if (!Number.isSafeInteger(maxTokens) || maxTokens <= 0) throw new Error('shotgo-ark.maxTokens must be positive')
+  const resolved = resolveAdapterOptions({
+    maxTokens,
+    streamIdleTimeoutMs: 300_000,
+    maxInlineRequestImageBytes: 20 * 1024 * 1024,
+    ...(options.retryPolicy === undefined ? {} : { retryPolicy: options.retryPolicy }),
+  })
   return {
+    ...resolved,
     baseURL: configuration.baseURL,
     apiKeyEnv: LARAVEL_CREDENTIAL_REF,
-    defaults: { thinking: options.reasoningEffort === 'off' ? 'disabled' : 'enabled', reasoningEffort: options.reasoningEffort ?? 'high' },
-    maxTokens,
+    defaults: {
+      thinking: options.reasoningEffort === 'off' ? 'disabled' : 'enabled',
+      reasoningEffort: options.reasoningEffort ?? 'high',
+    },
     defaultContextWindow: 1_000_000,
     models: [
       {
@@ -65,24 +76,27 @@ function resolveConnection(
         maxTokens,
       },
     ],
-    streamIdleTimeoutMs: 300_000,
-    maxRequestImageBytes: 20 * 1024 * 1024,
     retryPolicy: resolveRetryPolicy(options.retryPolicy, 'shotgo-ark.retryPolicy'),
+  }
+}
+
+function adapterDependencies(shotgoOptions: ArkAdapterOptions, wireModels = false): DeepSeekAdapterOptions {
+  return {
+    options: () => resolveConnection(shotgoOptions, shotgoOptions.resolveRuntimeConfig(), wireModels),
+    resolveApiKey: () => Promise.resolve(assertUsableApiKey(
+      shotgoOptions.resolveRuntimeConfig().apiKey,
+      'shotgo-ark',
+      LARAVEL_CREDENTIAL_REF,
+    )),
+    resolveUserId: shotgoOptions.resolveUserId ?? (() => getOrCreateAnonymousUserId()),
+    prepareExtensions: async () => ({ fields: {}, accept: async () => {} }),
   }
 }
 
 /** Product-owned policy wrapper around the upstream OpenAI-compatible transport. */
 export class ShotGoArkLlmAdapter extends DeepSeekAdapter {
   constructor(private readonly shotgoOptions: ArkAdapterOptions) {
-    super({
-      options: () => resolveConnection(shotgoOptions, shotgoOptions.resolveRuntimeConfig()),
-      resolveApiKey: () => Promise.resolve(assertUsableApiKey(
-        shotgoOptions.resolveRuntimeConfig().apiKey,
-        'shotgo-ark',
-        LARAVEL_CREDENTIAL_REF,
-      )),
-      resolveUserId: shotgoOptions.resolveUserId ?? (() => getOrCreateAnonymousUserId()),
-    })
+    super(adapterDependencies(shotgoOptions))
   }
 
   override providerInfo(provider: string): LlmProviderInfo {
@@ -102,15 +116,7 @@ export class ShotGoArkLlmAdapter extends DeepSeekAdapter {
     this.assertAllowedModel(options.model)
     const configuration = this.shotgoOptions.resolveRuntimeConfig()
     const logicalModel = options.model as InferenceModel
-    const delegate = new DeepSeekAdapter({
-      options: () => resolveConnection(this.shotgoOptions, configuration, true),
-      resolveApiKey: () => Promise.resolve(assertUsableApiKey(
-        configuration.apiKey,
-        'shotgo-ark',
-        LARAVEL_CREDENTIAL_REF,
-      )),
-      resolveUserId: this.shotgoOptions.resolveUserId ?? (() => getOrCreateAnonymousUserId()),
-    })
+    const delegate = new DeepSeekAdapter(adapterDependencies(this.shotgoOptions, true))
     const startedAt = new Date()
     const llmRequestId = randomUUID()
     let usage: InferenceUsageReport['usage'] = { inputTokens: 0, outputTokens: 0 }

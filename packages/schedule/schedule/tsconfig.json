@@ -36,6 +36,12 @@
       "path": "../../session/session-persistence-jsonl"
     },
     {
+      "path": "../../session/session-projection"
+    },
+    {
+      "path": "../../workspace/workspace"
+    },
+    {
       "path": "../../runtime-diagnostics/invariants"
     }
   ]

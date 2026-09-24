@@ -11,11 +11,11 @@
 import type { ReactNode, RefObject } from 'react'
 import { useCallback, useEffect, useState } from 'react'
 import {
-  Button, IconFolderClose16, IconPlusOutline16, Menu, Modal, type MenuEntry,
+  Button, IconFolderCloseRegular, IconPlusOutlineRegular, Menu, Modal, type MenuEntry,
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import type {
-  WorkspaceId, WorkspaceListState, WorkspaceView,
-} from '@deepseek-ai/dsh-client-runtime/client'
+  WorkspaceId, WorkspaceSnapshot, WorkspaceView,
+} from '@deepseek-ai/dsh-api-workspace-controller/client'
 import type { SnapshotSelectorHook } from '@deepseek-ai/dsh-client-ui-slots'
 import type { DirectoryFlowOwnerProps, WorkspacePickerProps } from './contract/slots.ts'
 import css from './WorkspacePicker.module.css'
@@ -31,7 +31,7 @@ export interface WorkspacePickFlowProps {
   /** The anchor button element — the popover's placement anchor. */
   anchorRef?: RefObject<HTMLElement | null> | undefined
   /** Selector hook over the workspace list (framework standard hook). */
-  useWorkspaces: <S>(selector: (state: WorkspaceListState) => S) => S
+  useWorkspaces: <S>(selector: (state: WorkspaceSnapshot) => S) => S
   /** Adopt a picked host directory as a real Workspace. */
   createWorkspace: (input: { path: string }) => Promise<WorkspaceView>
   /** Bound occupancy selector hook for this surface's directory-flow hole (empty leaves the surface with no add action). */
@@ -99,7 +99,7 @@ export function WorkspacePickFlow({
     if (flowOpen && !flowAvailable) setFlowOpen(false)
   }, [flowOpen, flowAvailable])
   const addEntries: MenuEntry[] = flowAvailable
-    ? [{ id: ADD_WORKSPACE, label: t('menu.addWorkspace'), icon: <IconPlusOutline16 size={16} />, disabled: flowBusy }]
+    ? [{ id: ADD_WORKSPACE, label: t('menu.addWorkspace'), icon: <IconPlusOutlineRegular size={16} />, disabled: flowBusy }]
     : []
   // With workspaces listed, the add action pins below the scroll region
   // (divider + always visible); otherwise it IS the menu.
@@ -108,7 +108,7 @@ export function WorkspacePickFlow({
     ? workspaces.map(workspace => ({
       id: workspace.workspaceId,
       label: workspace.title,
-      icon: <IconFolderClose16 size={16} />,
+      icon: <IconFolderCloseRegular size={16} />,
       disabled: flowBusy,
     }))
     : addEntries
