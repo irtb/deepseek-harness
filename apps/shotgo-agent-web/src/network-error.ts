@@ -31,6 +31,12 @@ export function gatewayStatusMessage(status: number, code: string | undefined, f
   if (code === 'ORIGIN_NOT_ALLOWED') return '当前页面来源未被 Agent 网关允许。本机请把 Gateway 的 SHOTGO_CANVAS_ORIGIN 设为 http://localhost:3011。'
   if (code === 'CREATIVE_RUN_ADMISSION_UNAVAILABLE') return '当前工作台走普通图/视频生成，不经过 Creative Project 准入。请刷新后再发送。'
   if (code === 'SESSION_BUSY') return '上一轮还占着会话。已为你开新会话，请再发送一次。'
+  if (code === 'SESSION_RECOVERY_LOG_MISSING') {
+    return '原 Agent 会话记录未完整保存，无法恢复连接；系统不会自动重提。请先到生成记录核对是否已有任务，再新建创作会话。'
+  }
+  if (code === 'SESSION_RECOVERY_BINDING_INVALID' || code === 'SESSION_RECOVERY_FAILED') {
+    return '原 Agent 会话无法安全恢复；系统不会自动重提。请先到生成记录核对原任务，再新建创作会话。'
+  }
   if (code === 'GENERATION_CONTEXT_INVALID') return '参考素材或生成参数不被当前网关接受。请确认已选参考素材后重试。'
   if (code === 'GATEWAY_PROTOCOL_UNSUPPORTED') {
     return 'Agent 前后端协议版本不一致。请刷新后重试；若仍失败需发布对齐的 Gateway 与 Web。'

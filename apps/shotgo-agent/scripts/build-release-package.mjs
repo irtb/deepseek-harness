@@ -49,6 +49,7 @@ const requiredFiles = [
   'node_modules/@deepseek-ai/dsh-agent-preset-registry/package.json',
   'node_modules/@deepseek-ai/dsh-agent-preset/package.json',
   'node_modules/@deepseek-ai/dsh-home-paths/package.json',
+  'node_modules/@deepseek-ai/dsh-session-checkpoint-policy/package.json',
   // dsh-tools peerDependencies resolved at module load; omit → Gateway crash
   'node_modules/@deepseek-ai/dsh-sandbox/package.json',
   'node_modules/@deepseek-ai/dsh-sandbox-policy/package.json',

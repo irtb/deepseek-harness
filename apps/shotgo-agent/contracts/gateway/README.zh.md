@@ -24,4 +24,4 @@
 
 每个 Harness Session 事件封装为 `session.event`，并保留原始 `sessionSeq`。`run.completed`、`run.cancelled` 或 `run.failed` 之一结束当前 Run 的事件流。`DELETE /api/agent/v1/sessions/{sessionId}/runs/{runId}` 只请求取消；其 `202` 响应不是最终结果，因为取消可能与完成竞争。Harness Run 的终态以 SSE 终止帧为准；Tool 已提交的业务生成仍以 Laravel 状态为准。
 
-Session 持久化保存权威的 Harness 日志。日志旁的带版本、模型不可见绑定会记录授权作用域、Agent 模式、preset 和 runtime 版本，但不保存 Grant 或凭据。新的 Laravel 授权与绑定完全一致后，Gateway 会通过 `agents.resume()` 冷恢复并开启新的 stream epoch。中断的推理与审批会被关闭而不是继续，下一条用户消息开始新的 Run。Gateway 重放仍是单个 epoch 内的进程内投递状态。
+Session 持久化保存权威的 Harness 日志。Gateway 会在写入带版本、模型不可见绑定前刷新新 Session，并在消息接口返回前刷新每条已受理的用户消息。绑定记录授权作用域、Agent 模式、preset 和 runtime 版本，但不保存 Grant 或凭据。新的 Laravel 授权与绑定完全一致后，Gateway 会通过 `agents.resume()` 冷恢复并开启新的 stream epoch。绑定缺少权威日志时会返回 `SESSION_RECOVERY_LOG_MISSING`；Canvas 不会自动重连永久恢复拒绝，也不会重提消息。中断的推理与审批会被关闭而不是继续；用户须先核对生成记录，再新建 Session。Gateway 重放仍是单个 epoch 内的进程内投递状态。

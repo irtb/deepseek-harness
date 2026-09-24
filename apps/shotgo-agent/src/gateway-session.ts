@@ -4,6 +4,7 @@ import type { AgentHandle } from '@deepseek-ai/dsh-agent'
 import type {} from '@deepseek-ai/dsh-agent-preset-registry/types'
 import { createUserMessage, ReasoningEffortId } from '@deepseek-ai/dsh-llm'
 import { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
+import { SessionPersistenceNotFoundError } from '@deepseek-ai/dsh-session-persistence'
 import type { ApprovalOutcome, ApprovalRequestId } from '@deepseek-ai/dsh-user-approval'
 import type { AgentMode, AgentSessionCapability, InferenceReasoningEffort } from './contracts/laravel-v1.ts'
 import type { LaravelGenerationConfigClient } from './laravel/generation-config-client.ts'
@@ -476,6 +477,21 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
         ...(input.signal === undefined ? {} : { signal: input.signal }),
       })
       await handle.agent.whenIdle()
+      const sessions = this.ctx.get('sessions')
+      if (sessions === undefined) {
+        await handle.dispose()
+        throw new GatewaySessionError('SESSION_PERSISTENCE_UNAVAILABLE', 503)
+      }
+      try {
+        await sessions.flush(handle.agent.session)
+      } catch (error) {
+        await handle.dispose()
+        throw new GatewaySessionError(
+          'SESSION_DURABILITY_CHECKPOINT_FAILED',
+          503,
+          error instanceof Error ? error.message : undefined,
+        )
+      }
       const binding: GatewayRecoveryBinding = {
         version: SHOTGO_GATEWAY_RECOVERY_VERSION,
         runtimeVersion: SHOTGO_GATEWAY_RUNTIME_VERSION,
@@ -527,6 +543,26 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
       content: [{ type: 'text', text: generationMessage(input.text, input.generationContext) }],
       source: { kind: 'user' },
     }))
+    const sessions = this.ctx.get('sessions')
+    if (sessions === undefined) throw new GatewaySessionError('SESSION_PERSISTENCE_UNAVAILABLE', 503)
+    try {
+      await sessions.flush(live.handle.agent.session)
+    } catch (error) {
+      live.handle.agent.cancel({ kind: 'hook', reason: 'session durability checkpoint failed' })
+      try {
+        await live.handle.agent.whenIdle()
+      } catch (_settleError) {
+        // The checkpoint failure returned below owns this rejected submission.
+      }
+      this.requestIds.delete(requestKey)
+      delete live.activeRunId
+      delete live.activeGenerationContext
+      throw new GatewaySessionError(
+        'SESSION_DURABILITY_CHECKPOINT_FAILED',
+        503,
+        error instanceof Error ? error.message : undefined,
+      )
+    }
     void this.settle(live, runId)
     return { runId, streamEpoch: live.streamEpoch }
   }
@@ -570,6 +606,9 @@ export class HarnessGatewaySessionService implements GatewaySessionService {
         ...(signal === undefined ? {} : { signal }),
       })
     } catch (error) {
+      if (error instanceof SessionPersistenceNotFoundError) {
+        throw new GatewaySessionError('SESSION_RECOVERY_LOG_MISSING', 409)
+      }
       throw new GatewaySessionError('SESSION_RECOVERY_FAILED', 409, error instanceof Error ? error.message : undefined)
     }
     await handle.agent.whenIdle()

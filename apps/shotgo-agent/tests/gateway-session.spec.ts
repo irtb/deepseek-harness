@@ -1,7 +1,7 @@
 import { Context } from '@deepseek-ai/cordis'
 import type { Agent, AgentHandle } from '@deepseek-ai/dsh-agent'
 import { ToolCallId, type GenerateOptions, type LlmResolvedModelInfo, type StreamChunk } from '@deepseek-ai/dsh-llm'
-import type { SessionEvent } from '@deepseek-ai/dsh-session'
+import { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import ApprovalService from '@deepseek-ai/dsh-user-approval'
 import { mkdtemp, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
@@ -9,6 +9,11 @@ import { join } from 'node:path'
 import { afterEach, describe, expect, it } from 'vitest'
 import { SHOTGO_MOCK_MODEL, SHOTGO_MOCK_PROVIDER, ShotGoMockLlmAdapter } from '../src/llm/mock.ts'
 import { HarnessGatewaySessionService, shouldForwardSessionEvent } from '../src/gateway-session.ts'
+import {
+  GatewayRecoveryStore,
+  SHOTGO_GATEWAY_RECOVERY_VERSION,
+  SHOTGO_GATEWAY_RUNTIME_VERSION,
+} from '../src/gateway-recovery-store.ts'
 import { LaravelGenerationConfigClient } from '../src/laravel/generation-config-client.ts'
 import { LaravelGenerationQuoteClient } from '../src/laravel/generation-quote-client.ts'
 import { LaravelGenerationSubmitClient } from '../src/laravel/generation-submit-client.ts'
@@ -95,6 +100,7 @@ describe('Gateway to Harness session composition', () => {
       clientRequestId: 'recovery-request-1',
       text: 'first turn',
     })
+    expect(await ctx.sessionPersistence.stat(SessionId('recovery-session'))).toBeDefined()
     for await (const _event of await first.events({
       capabilityGrant: 'grant-a',
       sessionId: 'recovery-session',
@@ -132,6 +138,53 @@ describe('Gateway to Harness session composition', () => {
       sessionId: 'recovery-session',
       afterCursor: 0,
     })).rejects.toMatchObject({ code: 'SESSION_ACCESS_DENIED', status: 403 })
+  })
+
+  it('rejects a recovery binding whose canonical session log is missing', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'shotgo-gateway-missing-log-'))
+    const previousRoot = process.env.SHOTGO_AGENT_SESSION_ROOT
+    process.env.SHOTGO_AGENT_SESSION_ROOT = root
+    const ctx = new Context()
+    await ctx.plugin(runtime)
+    const recoveryStore = new GatewayRecoveryStore(join(root, '.gateway'))
+    const sessionId = 'missing-log-session'
+    const boundAuthorization = { ...authorization('missing-log-context'), sessionId }
+    await recoveryStore.write({
+      version: SHOTGO_GATEWAY_RECOVERY_VERSION,
+      runtimeVersion: SHOTGO_GATEWAY_RUNTIME_VERSION,
+      sessionId,
+      authorizationContextId: boundAuthorization.authorizationContextId,
+      userId: boundAuthorization.userId,
+      teamId: boundAuthorization.teamId,
+      spaceId: boundAuthorization.spaceId,
+      projectId: boundAuthorization.projectId,
+      agentMode: boundAuthorization.agentMode,
+      presetId: 'shotgo-image-v1',
+      createdAt: new Date().toISOString(),
+    })
+    const service = new HarnessGatewaySessionService(
+      ctx,
+      { authorize: async () => boundAuthorization },
+      mountTestPreset,
+      undefined,
+      undefined,
+      undefined,
+      undefined,
+      recoveryStore,
+    )
+    cleanup.push(async () => {
+      await service.dispose()
+      await ctx.fiber.dispose()
+      if (previousRoot === undefined) delete process.env.SHOTGO_AGENT_SESSION_ROOT
+      else process.env.SHOTGO_AGENT_SESSION_ROOT = previousRoot
+      await rm(root, { recursive: true, force: true })
+    })
+
+    await expect(service.events({
+      capabilityGrant: 'grant-a',
+      sessionId,
+      afterCursor: 0,
+    })).rejects.toMatchObject({ code: 'SESSION_RECOVERY_LOG_MISSING', status: 409 })
   })
 
   it.each([

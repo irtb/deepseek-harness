@@ -22,7 +22,7 @@ Phase 6 为已完成任务的状态结果增加稳定资产描述。Laravel 只�
 
 Phase 4A 使用 Gateway 协议 `2026-08-26.2` 传递结构化生成意图。图片上下文可以包含最多九个有序且不重复的 `parameters.referenceAssets`，每项只含正整数 `mediaLibraryItemId`；视频引用、原始 URL、路径、名称、字节和额外字段均被拒绝。Gateway 把 UI 选择写入 Harness Session，并用该选择替换模型提供的报价选项，同时保留 Agent 整理后的最终提示词。Laravel 解析素材归属与执行路径，并继续独占校验、定价、扣分、退款和幂等；模型可见的报价 Tool 有意不暴露引用字段，Gateway 会自动注入可信 UI 选择，Agent 不得据此误判参考图不受支持。滚动发布顺序为 Agent、API、Canvas：明确声明 Gateway `2026-08-26.1` 的标量客户端与未声明版本的 `2026-08-25.1` 旧客户端保持兼容；Laravel 请求声明 `2026-08-26.1`，并在受限过渡期接受 `2026-08-25.1` 响应。
 
-Phase 4B 只会在新 Laravel Grant 与模型不可见的 Gateway 恢复绑定中的用户、团队、空间、项目、模式、preset 和 runtime 版本完全一致时冷恢复持久 Session。绑定原子写入 Harness 日志旁，绝不包含 Grant 或凭据。每次在线实例化都有新的 `streamEpoch`，Canvas 因此会在重启后重置陈旧的进程内 cursor。中断的推理与审批会被关闭而不是恢复，下一条用户消息开始新的 Run。
+Phase 4B 只会在新 Laravel Grant 与模型不可见的 Gateway 恢复绑定中的用户、团队、空间、项目、模式、preset 和 runtime 版本完全一致时冷恢复持久 Session。Gateway 会在写入绑定前刷新 Session，并在返回 Run 前刷新已受理的用户消息；绑定绝不包含 Grant 或凭据。绑定缺少权威日志时会永久失败，不自动重连，也不重提消息。每次在线实例化都有新的 `streamEpoch`，Canvas 因此会在重启后重置陈旧的进程内 cursor。中断的推理与审批会被关闭而不是恢复；用户须先核对生成记录，再新建 Session。
 
 Phase 4C 读取绑定到 Grant 的紧凑 Canvas 快照并展示只读工作流计划。`canvas_plan_preview` 只接受一到十二个具有唯一标识的节点、最多二十四条唯一且非自环的依赖、长度受限的非空文本，以及非负整数积分估算。该估算仅用于说明；计划既不写入 Canvas，也不能替代 Laravel 的报价和确认流程。
 

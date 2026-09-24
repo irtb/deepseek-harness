@@ -23,7 +23,17 @@ import { appendUserPrompt } from './server-session-index.ts'
 import { ExceptionDecisionClient } from './exception-decision-client.ts'
 import { ExceptionDecisionRecovery } from './exception-decision-recovery.ts'
 import type { ExceptionDecisionState } from './exception-decision.ts'
+import { isPermanentGatewayStreamError } from './gateway-exception-stream.ts'
 import { connectionInterruptedMessage, isBrowserOffline, sendBlockedOfflineMessage } from './network-error.ts'
+
+function newMessageId(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  const hex = Array.from(bytes, (byte, index) => {
+    const pinned = index === 6 ? (byte & 0x0f) | 0x40 : index === 8 ? (byte & 0x3f) | 0x80 : byte
+    return pinned.toString(16).padStart(2, '0')
+  }).join('')
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+}
 
 function stoppedMessage(code: unknown): string {
   if (code === 'AUTO_POLICY_HARD_BUDGET_EXCEEDED') return '预算不足，任务已停止；未自动重提。'
@@ -329,9 +339,15 @@ export function useAgentSession(input: {
           runRef.current = undefined
         }
       },
-    }).catch((cause) => {
+    }).catch((cause: unknown) => {
       if (controller.signal.aborted) return
       const detail = cause instanceof Error ? cause.message : undefined
+      if (isPermanentGatewayStreamError(cause)) {
+        setConnectionLost(false)
+        setError(detail)
+        setPhase('error')
+        return
+      }
       setConnectionLost(true)
       setError(connectionInterruptedMessage(detail))
       setPhase('error')
@@ -366,9 +382,9 @@ export function useAgentSession(input: {
       cancelInFlight.current = false
       abortRef.current?.abort()
       abortRef.current = controller
-      const assistantId = crypto.randomUUID()
+      const assistantId = newMessageId()
       const userMessage: AgentMessage = {
-        id: crypto.randomUUID(),
+        id: newMessageId(),
         role: 'user',
         text,
         status: 'complete',
@@ -594,6 +610,12 @@ export function useAgentSession(input: {
         }
         const message = cause instanceof Error ? cause.message : 'Agent 运行失败'
         if (runHang) {
+          if (isPermanentGatewayStreamError(cause)) {
+            setConnectionLost(false)
+            setError(message)
+            setPhase('error')
+            return false
+          }
           // Stream/network loss after admission: hang UI, never mark the Run failed or resubmit.
           setConnectionLost(true)
           setError(connectionInterruptedMessage(message))

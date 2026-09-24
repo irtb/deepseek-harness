@@ -912,6 +912,75 @@ describe('Agent workspace', () => {
     }
   })
 
+  it('stops reconnecting when the Gateway reports that the recovery log is missing', async () => {
+    cleanup()
+    localStorage.clear()
+    localStorage.setItem('shotgo-agent-access-token', 'synthetic-token')
+    const user = { id: 7, name: 'fixture', email: 'fixture@example.test', credits: 100 }
+    localStorage.setItem('shotgo-agent-user', JSON.stringify(user))
+    let session: AgentSessionRecord = {
+      ...newSession('image'),
+      sessionId: 'missing-recovery-log-session',
+      streamEpoch: 'epoch',
+      activeRun: {
+        runId: 'missing-run',
+        assistantId: 'assistant',
+        executionMode: 'automatic',
+        projectId: 'project',
+        spaceId: 'space',
+      },
+      messages: [{ id: 'assistant', role: 'assistant', text: '正在思考中…', status: 'streaming' }],
+    }
+    let eventFetches = 0
+    const fetcher = vi.fn<typeof fetch>(async (input) => {
+      const url = requestUrl(input)
+      if (url.endsWith('/api/me')) return new Response(JSON.stringify({ user }))
+      if (url.endsWith('/grants')) {
+        return new Response(JSON.stringify({
+          grantToken: 'synthetic-grant',
+          expiresAt: new Date(Date.now() + 300_000).toISOString(),
+          sessionId: session.sessionId,
+          agentMode: 'image',
+        }))
+      }
+      if (url.endsWith('/events')) {
+        eventFetches += 1
+        return new Response(JSON.stringify({ code: 'SESSION_RECOVERY_LOG_MISSING' }), {
+          status: 409,
+          headers: { 'Content-Type': 'application/json' },
+        })
+      }
+      if (url.includes('exception-decisions')) return new Response(JSON.stringify({ decisions: [] }))
+      throw new Error(`UNEXPECTED_FIXTURE_REQUEST ${url}`)
+    })
+    vi.stubGlobal('fetch', fetcher)
+    const hook = renderHook(
+      () => useAgentSession({
+        session,
+        executionMode: 'automatic',
+        spaceId: 'space',
+        projectId: 'project',
+        onSessionChange: (next) => {
+          session = next
+        },
+      }),
+      { wrapper: AuthProvider },
+    )
+    try {
+      await waitFor(() => {
+        expect(hook.result.current.phase).toBe('error')
+      })
+      expect(hook.result.current.connectionLost).toBe(false)
+      expect(hook.result.current.error).toContain('无法恢复连接')
+      expect(eventFetches).toBe(1)
+      expect(session.activeRun?.runId).toBe('missing-run')
+    } finally {
+      hook.unmount()
+      vi.unstubAllGlobals()
+      localStorage.clear()
+    }
+  })
+
   it('hangs mid-send stream loss without finishing copy and without resubmit', async () => {
     cleanup()
     localStorage.clear()

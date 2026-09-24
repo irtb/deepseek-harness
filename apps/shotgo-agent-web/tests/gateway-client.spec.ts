@@ -65,6 +65,31 @@ describe('Gateway client current Creative Run protocol', () => {
     expect(fetchMock.mock.calls.every(([, init]) => init?.method === undefined)).toBe(true)
   })
 
+  it('does not retry a permanent missing recovery log response', async () => {
+    const fetchMock = vi.fn<typeof fetch>(async () => new Response(
+      JSON.stringify({ code: 'SESSION_RECOVERY_LOG_MISSING' }),
+      { status: 409, headers: { 'Content-Type': 'application/json' } },
+    ))
+    vi.stubGlobal('fetch', fetchMock)
+    const getGrant = vi.fn(async () => ({
+      grantToken: 'synthetic-grant',
+      expiresAt: new Date(Date.now() + 300_000).toISOString(),
+    }))
+
+    await expect(streamRun({
+      getGrant,
+      sessionId: 'missing-session',
+      runId: 'missing-run',
+      streamEpoch: 'old',
+      afterCursor: 0,
+      signal: new AbortController().signal,
+      onEvent: vi.fn(),
+      onCursor: vi.fn(),
+    })).rejects.toThrow('无法恢复连接')
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(getGrant).toHaveBeenCalledOnce()
+  })
+
   it('advances past a prior Run terminal event before streaming the current Run', async () => {
     const frame = (cursor: number, runId: string) => new TextEncoder().encode(`id: ${cursor}\ndata: ${JSON.stringify({
       protocolVersion: SHOTGO_GATEWAY_PROTOCOL_VERSION, cursor, streamEpoch: 'epoch', type: 'run.completed',

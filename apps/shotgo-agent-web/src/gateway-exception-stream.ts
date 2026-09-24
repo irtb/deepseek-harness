@@ -2,6 +2,33 @@ import {
   SHOTGO_GATEWAY_PROTOCOL_HEADER,
   SHOTGO_GATEWAY_PROTOCOL_VERSION,
 } from './gateway-protocol.ts'
+import { gatewayStatusMessage } from './network-error.ts'
+
+const RETRYABLE_GATEWAY_STATUSES = new Set([500, 502, 503, 504])
+
+/** Structured stream failure used to distinguish transient transport faults from permanent recovery refusal. */
+export class GatewayStreamError extends Error {
+  readonly retryable: boolean
+
+  /**
+   * @param status - HTTP status returned by the Gateway stream endpoint.
+   * @param code - Optional structured Gateway error code.
+   */
+  constructor(readonly status: number, readonly code?: string) {
+    super(gatewayStatusMessage(status, code, `Gateway stream unavailable (${status})`))
+    this.name = 'GatewayStreamError'
+    this.retryable = RETRYABLE_GATEWAY_STATUSES.has(status)
+  }
+}
+
+/**
+ * Test whether reconnecting the same stream cannot recover the failure.
+ * @param cause - Failure raised while opening or consuming a Gateway stream.
+ * @returns Whether the Gateway returned a non-retryable structured response.
+ */
+export function isPermanentGatewayStreamError(cause: unknown): cause is GatewayStreamError {
+  return cause instanceof GatewayStreamError && !cause.retryable
+}
 
 export interface GatewayExceptionStreamOptions {
   gatewayBaseUrl: string
@@ -31,7 +58,11 @@ export async function streamGatewayExceptionDecisions(options: GatewayExceptionS
     },
     ...(options.signal === undefined ? {} : { signal: options.signal }),
   })
-  if (!response.ok || response.body === null) throw new Error(`Gateway stream unavailable (${response.status})`)
+  if (!response.ok || response.body === null) {
+    const body = await response.json().catch(() => null) as { code?: unknown } | null
+    const code = typeof body?.code === 'string' ? body.code : undefined
+    throw new GatewayStreamError(response.status, code)
+  }
 
   const reader = response.body.pipeThrough(new TextDecoderStream()).getReader()
   let buffer = ''

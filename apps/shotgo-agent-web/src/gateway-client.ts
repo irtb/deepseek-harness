@@ -1,6 +1,6 @@
 import type { AgentMode, ExecutionMode, GatewayEvent, GenerationContext } from './agent-session.ts'
 import { parseGatewayEvent, terminal } from './agent-session.ts'
-import { streamGatewayExceptionDecisions } from './gateway-exception-stream.ts'
+import { isPermanentGatewayStreamError, streamGatewayExceptionDecisions } from './gateway-exception-stream.ts'
 import {
   SHOTGO_GATEWAY_PROTOCOL_HEADER,
   SHOTGO_GATEWAY_PROTOCOL_VERSION,
@@ -167,6 +167,7 @@ export async function streamRun(input: {
       return
     } catch (cause) {
       if (input.signal.aborted) throw cause
+      if (isPermanentGatewayStreamError(cause)) throw cause
       const message = cause instanceof Error ? cause.message : ''
       // Unreachable Gateway should surface hang UI immediately; soft retries stay for
       // grant renewal and cursor catch-up after a prior Run's retained terminal frame.

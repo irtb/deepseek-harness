@@ -26,6 +26,7 @@
     { "path": "../../packages/llm/llm-deepseek" },
     { "path": "../../packages/llm/llm-retry" },
     { "path": "../../packages/preset/persona" },
+    { "path": "../../packages/session/session-checkpoint-policy" },
     { "path": "../../packages/session/session-persistence-jsonl" },
     { "path": "../../packages/session/session-title" }
   ]

@@ -7,8 +7,9 @@ import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import LlmRuntime from '@deepseek-ai/dsh-llm'
 import * as llmRetry from '@deepseek-ai/dsh-llm-retry'
 import SessionStore from '@deepseek-ai/dsh-session'
-import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
+import * as SessionCheckpointPolicy from '@deepseek-ai/dsh-session-checkpoint-policy'
 import JsonlSessionPersistence from '@deepseek-ai/dsh-session-persistence-jsonl'
+import SessionProjectionRegistry from '@deepseek-ai/dsh-session-projection'
 import SessionTitleService from '@deepseek-ai/dsh-session-title'
 import SystemPrompt from '@deepseek-ai/dsh-system-prompt'
 import ToolRuntime from '@deepseek-ai/dsh-tools'
@@ -114,4 +115,5 @@ export async function apply(ctx: Context): Promise<void> {
     root: resolveSessionRoot(),
     compression: 'none',
   })
+  await ctx.plugin(SessionCheckpointPolicy)
 }

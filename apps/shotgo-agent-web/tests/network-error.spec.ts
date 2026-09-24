@@ -23,6 +23,8 @@ describe('gateway network errors', () => {
     expect(gatewayStatusMessage(403, 'ORIGIN_NOT_ALLOWED', 'x')).toContain('SHOTGO_CANVAS_ORIGIN')
     expect(gatewayStatusMessage(503, 'CREATIVE_RUN_ADMISSION_UNAVAILABLE', 'x')).toContain('普通图/视频')
     expect(gatewayStatusMessage(409, 'SESSION_BUSY', 'x')).toContain('开新会话')
+    expect(gatewayStatusMessage(409, 'SESSION_RECOVERY_LOG_MISSING', 'x')).toContain('无法恢复连接')
+    expect(gatewayStatusMessage(409, 'SESSION_RECOVERY_LOG_MISSING', 'x')).toContain('不会自动重提')
     expect(gatewayStatusMessage(422, 'GENERATION_CONTEXT_INVALID', 'x')).toContain('参考素材')
     expect(gatewayStatusMessage(426, 'GATEWAY_PROTOCOL_UNSUPPORTED', 'x')).toContain('协议版本不一致')
     expect(gatewayStatusMessage(422, 'INVALID_MESSAGE_REQUEST', 'x')).toContain('不被当前网关接受')
