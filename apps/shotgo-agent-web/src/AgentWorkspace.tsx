@@ -29,6 +29,7 @@ import {
 } from './server-session-index.ts'
 import { WorkflowPanel } from './WorkflowPanel.tsx'
 import { ThemeToggle } from './ThemeToggle.tsx'
+import { buildCanvasAppUrl } from './canvas-app-url.ts'
 import { AgentScrollArea } from './AgentScrollArea.tsx'
 import { useGenerationLifecyclePoll } from './useGenerationLifecyclePoll.ts'
 import { artifactsForMessage, resolvedGenerationRefs } from './message-artifacts.ts'
@@ -283,14 +284,16 @@ export function AgentWorkspace({ mode }: { mode: AgentMode }) {
       </aside>
       <section className="agent-main">
         <header>
-          <div className="mode-tabs">
+          <nav className="mode-tabs" aria-label="产品导航">
+            <a href={buildCanvasAppUrl('/projects')}>无限画布</a>
             <a className={mode === 'image' ? 'active' : ''} href="/ai-tool/image-generator">
               图片生成
             </a>
             <a className={mode === 'video' ? 'active' : ''} href="/ai-tool/video-generator">
               视频生成
             </a>
-          </div>
+            <a href={buildCanvasAppUrl('/ai-tool/batch-image')}>AI卡片生成</a>
+          </nav>
           <div className="account">
             <ThemeToggle />
             <span>
