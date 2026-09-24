@@ -49,9 +49,10 @@ Short SHA: first 12 hex characters of the full SHA (older releases may use 10; n
 ## 2. Preconditions
 
 1. Target commit is on GitLab `master` and equals the frozen SHA.
-2. The **same SHA** passed focused checks locally/CI.
+2. The **same SHA** passed focused checks locally/CI (include `pnpm --filter @shotgo/agent-runtime run test:protocol-sync`).
 3. Restart **only** `agent-shotgo`. Do not touch Nginx, Laravel queues, Reverb, Canvas, or Console.
 4. No `scp` over `current`. No `git init` / `git pull` in the runtime root.
+5. Gateway ↔ Web protocol is owned solely by `apps/shotgo-agent/src/contracts/gateway-protocol.ts`; never redefine protocol literals in Web.
 
 Replace `SHA=` below with the frozen full hash.
 

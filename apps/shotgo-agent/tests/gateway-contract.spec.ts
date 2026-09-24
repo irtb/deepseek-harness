@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises'
 import { describe, expect, it } from 'vitest'
-import { SHOTGO_GATEWAY_PROTOCOL_VERSION } from '../src/contracts/gateway-v1.ts'
+import { SHOTGO_GATEWAY_PROTOCOL_VERSION, SHOTGO_GATEWAY_SUPPORTED_PROTOCOL_VERSIONS } from '../src/contracts/gateway-v1.ts'
 
 interface OpenApiOperation {
   security?: Array<Record<string, unknown[]>>
@@ -41,7 +41,7 @@ describe('Agent Gateway protocol', () => {
 
     expect(document.components.parameters.GatewayProtocolVersion).toMatchObject({
       required: false,
-      schema: { enum: ['2026-08-26.2', '2026-08-26.1', '2026-08-25.1'] },
+      schema: { enum: [...SHOTGO_GATEWAY_SUPPORTED_PROTOCOL_VERSIONS] },
     })
     const imageContext = document.components.schemas.ImageGenerationContext
     expect(JSON.stringify(imageContext)).toContain('referenceAssets')

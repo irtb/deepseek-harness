@@ -27,7 +27,7 @@ describe('session history', () => {
 
   it('parses an assistant text delta from the versioned Gateway event', () => {
     const value = {
-      protocolVersion: '2026-09-01.1', cursor: 2, streamEpoch: 'epoch', sessionId: 'session', runId: 'run',
+      protocolVersion: '2026-08-26.1', cursor: 2, streamEpoch: 'epoch', sessionId: 'session', runId: 'run',
       agentMode: 'image', occurredAt: '2026-09-01T00:00:00Z', type: 'session.event',
       payload: { event: { type: 'assistant/chunk', data: { chunk: { type: 'text-delta', text: '正在编排' } } } },
     }
@@ -62,7 +62,7 @@ describe('Agent workspace', () => {
     writeSessions(localStorage, scope, [session])
     let controller: ReadableStreamDefaultController<Uint8Array> | undefined
     const push = (cursor: number) => controller?.enqueue(new TextEncoder().encode(`id: ${cursor}\ndata: ${JSON.stringify({
-      protocolVersion: '2026-09-03.1', cursor, streamEpoch: 'epoch', sessionId: session.sessionId, runId: 'run', agentMode: 'video',
+      protocolVersion: '2026-08-26.2', cursor, streamEpoch: 'epoch', sessionId: session.sessionId, runId: 'run', agentMode: 'video',
       occurredAt: '2026-09-08T00:00:00.000Z', type: 'approval.requested', payload: { approvalId: 'approval-1' },
     })}\n\n`))
     let posts = 0
@@ -137,7 +137,7 @@ describe('Agent workspace', () => {
       controller?.enqueue(
         new TextEncoder().encode(
           `id: ${cursor}\ndata: ${JSON.stringify({
-            protocolVersion: '2026-09-03.1',
+            protocolVersion: '2026-08-26.2',
             cursor,
             streamEpoch: 'epoch',
             sessionId: 'auto-session',
@@ -229,7 +229,7 @@ describe('Agent workspace', () => {
       controller?.enqueue(
         new TextEncoder().encode(
           `id: ${cursor}\ndata: ${JSON.stringify({
-            protocolVersion: '2026-09-03.1',
+            protocolVersion: '2026-08-26.2',
             cursor,
             streamEpoch: 'epoch',
             sessionId: session.sessionId,
@@ -325,7 +325,7 @@ describe('Agent workspace', () => {
       controller?.enqueue(
         new TextEncoder().encode(
           `id: ${cursor}\ndata: ${JSON.stringify({
-            protocolVersion: '2026-09-03.1',
+            protocolVersion: '2026-08-26.2',
             cursor,
             streamEpoch: 'epoch',
             sessionId: session.sessionId,
@@ -423,7 +423,7 @@ describe('Agent workspace', () => {
       controller?.enqueue(
         new TextEncoder().encode(
           `id: ${cursor}\ndata: ${JSON.stringify({
-            protocolVersion: '2026-09-03.1',
+            protocolVersion: '2026-08-26.2',
             cursor,
             streamEpoch: 'epoch',
             sessionId: session.sessionId,
@@ -522,7 +522,7 @@ describe('Agent workspace', () => {
       messages: [{ id: 'assistant', role: 'assistant', text: '', status: 'streaming' }] }
     let controller: ReadableStreamDefaultController<Uint8Array> | undefined
     const push = (cursor: number, type: string, epoch = 'epoch') => controller?.enqueue(new TextEncoder().encode(`id: ${cursor}\ndata: ${JSON.stringify({
-      protocolVersion: '2026-09-03.1', cursor, streamEpoch: epoch, sessionId: 'manual-session', runId: 'run', agentMode: 'video',
+      protocolVersion: '2026-08-26.2', cursor, streamEpoch: epoch, sessionId: 'manual-session', runId: 'run', agentMode: 'video',
       occurredAt: '2026-09-08T00:00:00.000Z', type, payload: { approvalId: 'approval-1' },
     })}\n\n`))
     const fetcher = vi.fn<typeof fetch>(async (input) => {
@@ -590,7 +590,7 @@ describe('Agent workspace', () => {
       if (url.endsWith('/events')) {
         expect(new Headers(init?.headers).get('Last-Event-ID')).toBe('7')
         if (outcome === 'connection-failed') throw new Error('SYNTHETIC_CONNECTION_FAILURE')
-        const event = { protocolVersion: '2026-09-03.1', cursor: 8, streamEpoch: outcome === 'cold-epoch' ? 'restarted-epoch' : 'epoch', sessionId: session.sessionId,
+        const event = { protocolVersion: '2026-08-26.2', cursor: 8, streamEpoch: outcome === 'cold-epoch' ? 'restarted-epoch' : 'epoch', sessionId: session.sessionId,
           runId: 'existing-run', agentMode: 'video', occurredAt: '2026-09-08T00:00:00.000Z',
           type: ['outcome-unknown', 'budget-stop', 'capability-stop'].includes(outcome) ? 'run.failed'
             : outcome === 'cancelled' ? 'run.cancelled' : 'run.completed',
@@ -848,7 +848,7 @@ describe('Agent workspace', () => {
         eventFetches += 1
         if (!allowStream) throw new TypeError('Failed to fetch')
         const event = {
-          protocolVersion: '2026-09-03.1',
+          protocolVersion: '2026-08-26.2',
           cursor: 8,
           streamEpoch: 'epoch',
           sessionId: session.sessionId,

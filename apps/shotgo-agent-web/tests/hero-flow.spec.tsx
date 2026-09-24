@@ -74,7 +74,7 @@ describe('Synthetic Skill to Gateway to Web acceptance', () => {
       mutate(invalid as unknown as Corruptible)
       expect(parseCreativeWorkflow(invalid)).toBeUndefined()
     }
-    const event: GatewayEvent = { protocolVersion: '2026-09-03.1', type: 'session.event', sessionId: 'other-session',
+    const event: GatewayEvent = { protocolVersion: '2026-08-26.2', type: 'session.event', sessionId: 'other-session',
       runId: 'run', cursor: 1, streamEpoch: 'epoch', agentMode: 'video', occurredAt: '2026-09-08T00:00:00.000Z', payload: { workflow: parsed } }
     expect(creativeWorkflow(event)).toBeUndefined()
     const result = captured.result

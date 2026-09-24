@@ -1,12 +1,16 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { streamRun, submitMessage } from '../src/gateway-client.ts'
+import {
+  SHOTGO_GATEWAY_PROTOCOL_HEADER,
+  SHOTGO_GATEWAY_PROTOCOL_VERSION,
+} from '../src/gateway-protocol.ts'
 
 describe('Gateway client current Creative Run protocol', () => {
   beforeEach(() => vi.restoreAllMocks())
 
   it.each(['error', 'clean-eof'] as const)('rebinds each authenticated recovery connection after %s and ignores stale terminal cursors', async (closure) => {
     const frame = (cursor: number, streamEpoch: string, type = 'session.event') => new TextEncoder().encode(`id: ${cursor}\ndata: ${JSON.stringify({
-      protocolVersion: '2026-09-03.1', cursor, streamEpoch, type, sessionId: 'session', runId: 'run',
+      protocolVersion: SHOTGO_GATEWAY_PROTOCOL_VERSION, cursor, streamEpoch, type, sessionId: 'session', runId: 'run',
       agentMode: 'video', occurredAt: '2026-09-08T00:00:00.000Z', payload: {},
     })}\n\n`)
     let first: ReadableStreamDefaultController<Uint8Array> | undefined
@@ -63,7 +67,7 @@ describe('Gateway client current Creative Run protocol', () => {
 
   it('advances past a prior Run terminal event before streaming the current Run', async () => {
     const frame = (cursor: number, runId: string) => new TextEncoder().encode(`id: ${cursor}\ndata: ${JSON.stringify({
-      protocolVersion: '2026-09-03.1', cursor, streamEpoch: 'epoch', type: 'run.completed',
+      protocolVersion: SHOTGO_GATEWAY_PROTOCOL_VERSION, cursor, streamEpoch: 'epoch', type: 'run.completed',
       sessionId: 'session', runId, agentMode: 'image', occurredAt: '2026-09-16T00:00:00.000Z', payload: {},
     })}\n\n`)
     const fetchMock = vi.fn<typeof fetch>()
@@ -94,7 +98,7 @@ describe('Gateway client current Creative Run protocol', () => {
     vi.stubGlobal('fetch', fetchMock)
     await submitMessage({ grant: 'grant', sessionId: 'session', mode: 'automatic', text: '脚本', generationContext: { schemaVersion: 1, kind: 'video', modelId: 'seedance', parameters: { aspectRatioId: '16:9', resolutionId: '720P', duration: 5, audio: true } }, creativeRun: { schemaVersion: 1, creativeRunId: 'creative-run', objective: '脚本', deliveryTargets: ['16:9 视频'], sourceRef: 'agent-web:message', businessInput: { script: '脚本', assets: [41] } } })
     const init = fetchMock.mock.calls[0]![1]!
-    expect(new Headers(init.headers).get('X-ShotGo-Gateway-Protocol-Version')).toBe('2026-09-03.1')
+    expect(new Headers(init.headers).get(SHOTGO_GATEWAY_PROTOCOL_HEADER)).toBe(SHOTGO_GATEWAY_PROTOCOL_VERSION)
     expect(JSON.parse(String(init.body))).toMatchObject({ executionMode: 'automatic', creativeRun: { creativeRunId: 'creative-run', businessInput: { assets: [41] } } })
   })
 })

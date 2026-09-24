@@ -1,4 +1,6 @@
 import type { ExceptionDecision } from './exception-decision.ts'
+import type { ShotGoGatewayProtocolVersion } from './gateway-protocol.ts'
+import { isShotGoGatewayProtocolVersion } from './gateway-protocol.ts'
 
 export type AgentMode = 'image' | 'video'
 export type ExecutionMode = 'automatic' | 'manual'
@@ -148,7 +150,7 @@ export interface CreativeRevisionLifecycleProjection {
 }
 
 export interface GatewayEvent {
-  protocolVersion: '2026-09-03.1' | '2026-09-01.1'
+  protocolVersion: ShotGoGatewayProtocolVersion
   cursor: number
   streamEpoch: string
   sessionId: string
@@ -176,7 +178,7 @@ export function parseGatewayEvent(value: unknown): GatewayEvent | undefined {
   const event = record(value)
   if (
     event === undefined ||
-    !['2026-09-03.1', '2026-09-01.1'].includes(String(event.protocolVersion)) ||
+    !isShotGoGatewayProtocolVersion(event.protocolVersion) ||
     !Number.isSafeInteger(event.cursor) ||
     typeof event.streamEpoch !== 'string' ||
     typeof event.sessionId !== 'string' ||

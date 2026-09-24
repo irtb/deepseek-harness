@@ -9,7 +9,7 @@ afterEach(cleanup)
 
 describe('Workflow panel', () => {
   it('parses and renders non-blocking revision lifecycle metadata', () => {
-    const revision = creativeRevisionLifecycle(parseGatewayEvent({ protocolVersion: '2026-09-03.1', cursor: 7, streamEpoch: 'epoch', sessionId: 'session', runId: 'run', agentMode: 'video', occurredAt: '2026-09-03T10:00:00.000Z', type: 'session.event', payload: { eventType: 'creative-project.revision-lifecycle', fixtureId: 'r0', sourceCreativeRunId: 'source', revisionCreativeRunId: 'revision', sourceEvaluationDigest: 'a'.repeat(64), revisionPlanDigest: 'b'.repeat(64), status: 'revision-running', confirmationRequired: false } })!)
+    const revision = creativeRevisionLifecycle(parseGatewayEvent({ protocolVersion: '2026-08-26.2', cursor: 7, streamEpoch: 'epoch', sessionId: 'session', runId: 'run', agentMode: 'video', occurredAt: '2026-09-03T10:00:00.000Z', type: 'session.event', payload: { eventType: 'creative-project.revision-lifecycle', fixtureId: 'r0', sourceCreativeRunId: 'source', revisionCreativeRunId: 'revision', sourceEvaluationDigest: 'a'.repeat(64), revisionPlanDigest: 'b'.repeat(64), status: 'revision-running', confirmationRequired: false } })!)
     expect(revision).toBeDefined()
     render(<WorkflowPanel workflow={undefined} revision={revision!} />)
     expect(screen.getByRole('status')).toHaveTextContent('正在自动返修')
@@ -17,7 +17,7 @@ describe('Workflow panel', () => {
   })
 
   it('parses the current Gateway projection and renders workflow progress without confirmations', () => {
-    const event = parseGatewayEvent({ protocolVersion: '2026-09-03.1', cursor: 3, streamEpoch: 'epoch', sessionId: 'session', runId: 'run', agentMode: 'video', occurredAt: '2026-09-03T00:00:00.000Z', type: 'session.event', payload: { eventType: 'creative-project.orchestration', workflow } })
+    const event = parseGatewayEvent({ protocolVersion: '2026-08-26.2', cursor: 3, streamEpoch: 'epoch', sessionId: 'session', runId: 'run', agentMode: 'video', occurredAt: '2026-09-03T00:00:00.000Z', type: 'session.event', payload: { eventType: 'creative-project.orchestration', workflow } })
     const parsed = creativeWorkflow(event!)
     expect(parsed).toEqual(workflow)
     render(<WorkflowPanel workflow={parsed} />)
@@ -30,7 +30,7 @@ describe('Workflow panel', () => {
   })
 
   it('rejects partial workflow payloads instead of projecting guessed state', () => {
-    const event = parseGatewayEvent({ protocolVersion: '2026-09-03.1', cursor: 3, streamEpoch: 'epoch', sessionId: 'session', runId: 'run', agentMode: 'video', occurredAt: '2026-09-03T00:00:00.000Z', type: 'session.event', payload: { workflow: { ...workflow, stages: [{ id: 'broken' }] } } })
+    const event = parseGatewayEvent({ protocolVersion: '2026-08-26.2', cursor: 3, streamEpoch: 'epoch', sessionId: 'session', runId: 'run', agentMode: 'video', occurredAt: '2026-09-03T00:00:00.000Z', type: 'session.event', payload: { workflow: { ...workflow, stages: [{ id: 'broken' }] } } })
     expect(creativeWorkflow(event!)).toBeUndefined()
   })
 })

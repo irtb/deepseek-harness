@@ -32,6 +32,9 @@ export function gatewayStatusMessage(status: number, code: string | undefined, f
   if (code === 'CREATIVE_RUN_ADMISSION_UNAVAILABLE') return '当前工作台走普通图/视频生成，不经过 Creative Project 准入。请刷新后再发送。'
   if (code === 'SESSION_BUSY') return '上一轮还占着会话。已为你开新会话，请再发送一次。'
   if (code === 'GENERATION_CONTEXT_INVALID') return '参考素材或生成参数不被当前网关接受。请确认已选参考素材后重试。'
+  if (code === 'GATEWAY_PROTOCOL_UNSUPPORTED') {
+    return 'Agent 前后端协议版本不一致。请刷新后重试；若仍失败需发布对齐的 Gateway 与 Web。'
+  }
   if (code !== undefined && code.length > 0) return code
   if (status === 502 || status === 504 || status === 500) {
     return 'Agent 网关未就绪。本机请确认 3012 正在监听。'
@@ -56,13 +59,13 @@ export function connectionInterruptedMessage(detail?: string): string {
 
 /** Send failed before the Gateway accepted a Run — nothing to hang or resume. */
 export function sendBlockedOfflineMessage(detail?: string): string {
-  const base = '当前无法连接 Agent。请检查网络或本机 Gateway（3012）后重试。尚未创建生成任务，不会扣费。'
+  const chargeNote = '尚未创建生成任务，不会扣费。'
+  const base = `当前无法连接 Agent。请检查网络或 Gateway 后重试。${chargeNote}`
   if (detail === undefined || detail.length === 0) return base
   if (detail.includes('尚未创建生成任务')) return detail
-  if (detail.includes('无法连接') || detail.includes('网络已断开')) {
-    return detail.includes('不会扣费') ? detail : `${detail} 尚未创建生成任务，不会扣费。`
-  }
-  return base
+  const trimmed = detail.trim()
+  const withPeriod = /[。.!？?]$/.test(trimmed) ? trimmed : `${trimmed}。`
+  return `${withPeriod} ${chargeNote}`
 }
 
 /** Default connect budget when network/Gateway/proxy hangs instead of failing fast. */

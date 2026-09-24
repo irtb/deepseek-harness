@@ -24,6 +24,7 @@ describe('gateway network errors', () => {
     expect(gatewayStatusMessage(503, 'CREATIVE_RUN_ADMISSION_UNAVAILABLE', 'x')).toContain('普通图/视频')
     expect(gatewayStatusMessage(409, 'SESSION_BUSY', 'x')).toContain('开新会话')
     expect(gatewayStatusMessage(422, 'GENERATION_CONTEXT_INVALID', 'x')).toContain('参考素材')
+    expect(gatewayStatusMessage(426, 'GATEWAY_PROTOCOL_UNSUPPORTED', 'x')).toContain('协议版本不一致')
     expect(gatewayStatusMessage(502, undefined, 'x')).toContain('3012')
   })
 
@@ -36,6 +37,13 @@ describe('gateway network errors', () => {
     expect(sendBlockedOfflineMessage()).toContain('尚未创建生成任务')
     expect(sendBlockedOfflineMessage()).not.toContain('本轮处理已完成')
     expect(sendBlockedOfflineMessage('无法连接本机 Agent 网关')).toContain('不会扣费')
+  })
+
+  it('preserves gateway business errors instead of masking them as 3012 offline copy', () => {
+    const message = sendBlockedOfflineMessage('Agent 前后端协议版本不一致。请刷新后重试；若仍失败需发布对齐的 Gateway 与 Web。')
+    expect(message).toContain('协议版本不一致')
+    expect(message).toContain('不会扣费')
+    expect(message).not.toContain('3012')
   })
 
   it('maps gateway connect timeouts to unreachable copy', async () => {

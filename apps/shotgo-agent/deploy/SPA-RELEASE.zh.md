@@ -49,9 +49,10 @@ releases/<短SHA>/
 ## 2. 发布前条件
 
 1. 目标提交已在 GitLab `master`（本地已 `git push gitlab master`，且远程 tip 等于目标 SHA）。
-2. 本机或 CI 已对**同一 SHA** 做过聚焦测试（至少 agent-web / 相关门禁）。
+2. 本机或 CI 已对**同一 SHA** 做过聚焦测试（至少 agent-web / 相关门禁，含 `pnpm --filter @shotgo/agent-runtime run test:protocol-sync`）。
 3. 生产只重启 `agent-shotgo`；**禁止**动 Nginx、Laravel 队列、Reverb、Canvas、Console。
 4. **禁止** `scp` 覆盖 `current`；**禁止**在运行根执行 `git init` / `git pull`。
+5. Gateway ↔ Web 协议以 `apps/shotgo-agent/src/contracts/gateway-protocol.ts` 为唯一权威；禁止在 Web 侧另写协议字面量。
 
 将下方 `SHA=` 换成本次冻结的完整提交哈希。
 

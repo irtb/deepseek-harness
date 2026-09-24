@@ -1,3 +1,8 @@
+import {
+  SHOTGO_GATEWAY_PROTOCOL_HEADER,
+  SHOTGO_GATEWAY_PROTOCOL_VERSION,
+} from './gateway-protocol.ts'
+
 export interface GatewayExceptionStreamOptions {
   gatewayBaseUrl: string
   sessionId: string
@@ -21,7 +26,7 @@ export async function streamGatewayExceptionDecisions(options: GatewayExceptionS
     headers: {
       Accept: 'text/event-stream',
       Authorization: `Bearer ${options.capabilityGrant}`,
-      'X-ShotGo-Gateway-Protocol-Version': '2026-09-03.1',
+      [SHOTGO_GATEWAY_PROTOCOL_HEADER]: SHOTGO_GATEWAY_PROTOCOL_VERSION,
       ...(options.afterCursor === undefined ? {} : { 'Last-Event-ID': String(options.afterCursor) }),
     },
     ...(options.signal === undefined ? {} : { signal: options.signal }),

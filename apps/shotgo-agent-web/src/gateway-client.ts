@@ -1,9 +1,21 @@
 import type { AgentMode, ExecutionMode, GatewayEvent, GenerationContext } from './agent-session.ts'
 import { parseGatewayEvent, terminal } from './agent-session.ts'
 import { streamGatewayExceptionDecisions } from './gateway-exception-stream.ts'
+import {
+  SHOTGO_GATEWAY_PROTOCOL_HEADER,
+  SHOTGO_GATEWAY_PROTOCOL_VERSION,
+} from './gateway-protocol.ts'
 import { apiFetch, gatewayFetch, gatewayStatusMessage } from './network-error.ts'
 
-const protocol = '2026-09-03.1'
+/** RFC 9562 v4 UUID via getRandomValues (plain-HTTP safe; avoids crypto.randomUUID). */
+function newClientRequestId(): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(16))
+  const hex = Array.from(bytes, (byte, index) => {
+    const pinned = index === 6 ? (byte & 0x0f) | 0x40 : index === 8 ? (byte & 0x3f) | 0x80 : byte
+    return pinned.toString(16).padStart(2, '0')
+  }).join('')
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+}
 
 function apiBase(): string {
   return String(import.meta.env.VITE_SHOTGO_API_BASE_URL ?? 'https://api.shotgo.cn').replace(/\/$/, '')
@@ -64,7 +76,7 @@ export async function submitMessage(input: {
   }
   signal?: AbortSignal
 }) {
-  const clientRequestId = crypto.randomUUID()
+  const clientRequestId = newClientRequestId()
   const response = await gatewayFetch(
     `${gatewayBase()}/api/agent/v1/sessions/${encodeURIComponent(input.sessionId)}/messages`,
     {
@@ -74,7 +86,7 @@ export async function submitMessage(input: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${input.grant}`,
         'Idempotency-Key': clientRequestId,
-        'X-ShotGo-Gateway-Protocol-Version': protocol,
+        [SHOTGO_GATEWAY_PROTOCOL_HEADER]: SHOTGO_GATEWAY_PROTOCOL_VERSION,
       },
       body: JSON.stringify({
         clientRequestId,
@@ -176,7 +188,7 @@ export async function cancelRun(input: { grant: string; sessionId: string; runId
       headers: {
         Accept: 'application/json',
         Authorization: `Bearer ${input.grant}`,
-        'X-ShotGo-Gateway-Protocol-Version': protocol,
+        [SHOTGO_GATEWAY_PROTOCOL_HEADER]: SHOTGO_GATEWAY_PROTOCOL_VERSION,
       },
     },
   )
@@ -198,7 +210,7 @@ export async function respondRunStart(input: {
         Accept: 'application/json',
         'Content-Type': 'application/json',
         Authorization: `Bearer ${input.grant}`,
-        'X-ShotGo-Gateway-Protocol-Version': protocol,
+        [SHOTGO_GATEWAY_PROTOCOL_HEADER]: SHOTGO_GATEWAY_PROTOCOL_VERSION,
       },
       body: JSON.stringify({ outcome: input.outcome }),
       ...(input.signal === undefined ? {} : { signal: input.signal }),

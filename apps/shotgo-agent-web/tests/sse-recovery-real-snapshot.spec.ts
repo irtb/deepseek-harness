@@ -2,6 +2,7 @@ import { createServer } from 'node:http'
 import { readFileSync } from 'node:fs'
 import { afterEach, expect, it, vi } from 'vitest'
 import { streamRun } from '../src/gateway-client.ts'
+import { SHOTGO_GATEWAY_PROTOCOL_VERSION } from '../src/gateway-protocol.ts'
 
 const snapshotPath = '/Users/wayfarer/Library/Application Support/ShotGo/day6-recovery-01/runtime/ui-local/.gateway/657dd1887e75db268f887a3318cc113bf47497580d7260c603f0c7c304dd3011.snapshot.json'
 
@@ -13,7 +14,14 @@ it('advances past a prior Run terminal from the live UI snapshot without posting
   const snap = JSON.parse(readFileSync(snapshotPath, 'utf8')) as {
     sessionId: string
     streamEpoch: string
-    events: Array<{ cursor: number; runId: string; type: string; sessionId: string; streamEpoch: string }>
+    events: Array<{
+      cursor: number
+      runId: string
+      type: string
+      sessionId: string
+      streamEpoch: string
+      protocolVersion?: string
+    }>
   }
   const terminals = snap.events.filter(event => event.type === 'run.completed')
   expect(terminals.length).toBeGreaterThanOrEqual(2)
@@ -21,6 +29,8 @@ it('advances past a prior Run terminal from the live UI snapshot without posting
   const currentTerminal = terminals[1]!
   const afterCursor = oldTerminal.cursor - 1
   const lastEventIds: number[] = []
+  const frame = (event: (typeof snap.events)[number]) =>
+    JSON.stringify({ ...event, protocolVersion: SHOTGO_GATEWAY_PROTOCOL_VERSION })
 
   // Mirror Gateway: a retained prior-run terminal closes the stream; the next
   // connection then drains through the current Run terminal without re-POSTing.
@@ -33,13 +43,13 @@ it('advances past a prior Run terminal from the live UI snapshot without posting
     if (connections === 1) {
       const prior = snap.events.find(event => event.cursor > last && event.type === 'run.completed'
         && event.runId === oldTerminal.runId)
-      if (prior) res.write(`id: ${prior.cursor}\ndata: ${JSON.stringify(prior)}\n\n`)
+      if (prior) res.write(`id: ${prior.cursor}\ndata: ${frame(prior)}\n\n`)
       res.end()
       return
     }
     for (const event of snap.events) {
       if (event.cursor <= last) continue
-      res.write(`id: ${event.cursor}\ndata: ${JSON.stringify(event)}\n\n`)
+      res.write(`id: ${event.cursor}\ndata: ${frame(event)}\n\n`)
       if (event.runId === currentTerminal.runId && event.type === 'run.completed') break
     }
     res.end()

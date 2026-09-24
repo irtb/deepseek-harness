@@ -1,9 +1,9 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http'
 import {
   SHOTGO_GATEWAY_LEGACY_PROTOCOL_VERSION,
-  SHOTGO_GATEWAY_PREVIOUS_PROTOCOL_VERSION,
   SHOTGO_GATEWAY_PROTOCOL_HEADER,
   SHOTGO_GATEWAY_PROTOCOL_VERSION,
+  isShotGoGatewayProtocolVersion,
   type ShotGoGatewayProtocolVersion,
   type GatewayApprovalResponse,
   type GatewayMessageRequest,
@@ -93,10 +93,7 @@ function requestedGatewayProtocol(request: IncomingMessage): ShotGoGatewayProtoc
   const value = request.headers[SHOTGO_GATEWAY_PROTOCOL_HEADER.toLowerCase()]
   const version = Array.isArray(value) ? value[0] : value
   if (version === undefined || version === '') return SHOTGO_GATEWAY_LEGACY_PROTOCOL_VERSION
-  if (version !== SHOTGO_GATEWAY_PROTOCOL_VERSION
-    && version !== SHOTGO_GATEWAY_PREVIOUS_PROTOCOL_VERSION
-    && version !== SHOTGO_GATEWAY_LEGACY_PROTOCOL_VERSION
-  ) {
+  if (!isShotGoGatewayProtocolVersion(version)) {
     throw new GatewaySessionError('GATEWAY_PROTOCOL_UNSUPPORTED', 426)
   }
   return version
