@@ -4,6 +4,12 @@
 
 该基线与 `ve-shotgo` 上现有 `api.shotgo.cn`、`canvas.shotgo.cn` 的运维方式统一：项目直接位于 `/data/projects`，Nginx 配置和日志位于 `/data/nginx`，常驻进程由 Supervisor 管理，应用进程使用 `www-data` 运行。部署不得修改或重启现有 Laravel 队列 Worker 与 Reverb。
 
+## 日常 SPA / Gateway 发布（现网）
+
+现网运行目录 `/data/projects/agent.shotgo.cn` **不是** git 仓库，采用 `releases/<短SHA>` + `current` 符号链接。
+**日常发布（含仅改 Agent Web SPA）完整命令见：[SPA-RELEASE.zh.md](SPA-RELEASE.zh.md)。**
+下方章节保留首次装机与 tar.gz 离线包基线，供对照，不替代日常切链流程。
+
 ## 已核验的服务器约束
 
 2026-08-24 已核验：北京火山云 ECS 运行 Ubuntu 24.04、Nginx 1.24、Certbot 2.9、Redis、PHP-FPM 和 Supervisor；尚未安装 Node、pnpm 和 Docker。`/data/projects/zswx_canvas_api` 存在本地改动，禁止清理、替换该工作树，也禁止把它作为 Agent 发布目录。

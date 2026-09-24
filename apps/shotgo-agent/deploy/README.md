@@ -4,6 +4,12 @@ English | [中文](README.zh.md)
 
 This baseline follows the existing `api.shotgo.cn` and `canvas.shotgo.cn` operating model on `ve-shotgo`: projects live directly under `/data/projects`, Nginx configuration and logs live under `/data/nginx`, long-running processes are owned by Supervisor, and application processes run as `www-data`. It does not alter or restart the existing Laravel queue workers or Reverb process.
 
+## Routine SPA / Gateway release (live host)
+
+The live runtime directory `/data/projects/agent.shotgo.cn` is **not** a git checkout; it uses immutable `releases/<shortSHA>` directories plus a `current` symlink.
+**Full day-to-day commands (including SPA-only Agent Web changes): [SPA-RELEASE.md](SPA-RELEASE.md).**
+Sections below keep the first-install / tar.gz baseline for reference and do not replace the routine cutover flow.
+
 ## Verified host constraints
 
 Verified on 2026-08-24: the Beijing Volcano ECS runs Ubuntu 24.04, Nginx 1.24, Certbot 2.9, Redis, PHP-FPM, and Supervisor. Node, pnpm, and Docker are absent. `/data/projects/zswx_canvas_api` has local modifications and must not be cleaned, replaced, or used as an Agent deployment target.
