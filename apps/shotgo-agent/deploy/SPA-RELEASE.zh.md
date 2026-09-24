@@ -105,6 +105,7 @@ test -z "$(git status --porcelain)"
 ```bash
 cd "$SRC"
 pnpm install --frozen-lockfile
+# bare 公共仓上的 release worktree：lefthook 会因 core.bare=true 跳过（或设 CI=true）
 pnpm --filter @shotgo/agent-runtime run build:gateway
 test -f apps/shotgo-agent/dist/gateway-bin.js
 

@@ -1,4 +1,13 @@
 import type { AgentMode } from './laravel-v1.ts'
+import {
+  SHOTGO_GATEWAY_LEGACY_PROTOCOL_VERSION,
+  SHOTGO_GATEWAY_PREVIOUS_PROTOCOL_VERSION,
+  SHOTGO_GATEWAY_PROTOCOL_HEADER,
+  SHOTGO_GATEWAY_PROTOCOL_VERSION,
+  SHOTGO_GATEWAY_SUPPORTED_PROTOCOL_VERSIONS,
+  isShotGoGatewayProtocolVersion,
+  type ShotGoGatewayProtocolVersion,
+} from './gateway-protocol.ts'
 
 export {
   SHOTGO_GATEWAY_LEGACY_PROTOCOL_VERSION,
@@ -8,7 +17,7 @@ export {
   SHOTGO_GATEWAY_SUPPORTED_PROTOCOL_VERSIONS,
   isShotGoGatewayProtocolVersion,
   type ShotGoGatewayProtocolVersion,
-} from './gateway-protocol.ts'
+}
 
 export interface GatewayReferenceAsset {
   mediaLibraryItemId: number

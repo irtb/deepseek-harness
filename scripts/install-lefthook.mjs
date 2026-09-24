@@ -717,6 +717,19 @@ async function main() {
   const commonOutput = stripGitLineTerminator(git(['rev-parse', '--git-common-dir'], root).stdout)
   const commonDirectory = isAbsolute(commonOutput) ? commonOutput : resolve(root, commonOutput)
   const commonConfigPath = join(commonDirectory, 'config')
+  // Production/release builds use a worktree whose common dir is a bare clone.
+  // Lefthook requires extensions.worktreeConfig, which Git forbids on bare configs.
+  const commonBareText = assertSingle(
+    directFileConfigValues(root, commonConfigPath, 'core.bare'),
+    'core.bare',
+  )
+  if (commonBareText !== undefined && parseGitBoolean(commonBareText, 'core.bare') === true) {
+    console.warn(
+      '[install-lefthook] skipping: common git config is bare '
+      + `(file:${commonConfigPath}); hooks are not installed for release worktrees`,
+    )
+    return
+  }
   const worktreeConfigPath = join(gitDirectory, 'config.worktree')
   const hooksPath = join(gitDirectory, HOOKS_DIRECTORY)
   const releaseLock = await acquireInstallLock(commonDirectory)

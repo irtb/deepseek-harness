@@ -103,6 +103,7 @@ test -z "$(git status --porcelain)"
 ```bash
 cd "$SRC"
 pnpm install --frozen-lockfile
+# Release worktrees whose common dir is bare: lefthook skips (or set CI=true)
 pnpm --filter @shotgo/agent-runtime run build:gateway
 test -f apps/shotgo-agent/dist/gateway-bin.js
 
