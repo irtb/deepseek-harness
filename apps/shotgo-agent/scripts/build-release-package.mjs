@@ -49,6 +49,10 @@ const requiredFiles = [
   'node_modules/@deepseek-ai/dsh-agent-preset-registry/package.json',
   'node_modules/@deepseek-ai/dsh-agent-preset/package.json',
   'node_modules/@deepseek-ai/dsh-home-paths/package.json',
+  // dsh-tools peerDependencies resolved at module load; omit → Gateway crash
+  'node_modules/@deepseek-ai/dsh-sandbox/package.json',
+  'node_modules/@deepseek-ai/dsh-sandbox-policy/package.json',
+  'node_modules/@deepseek-ai/dsh-tools/package.json',
 ]
 for (const relativePath of requiredFiles) {
   if (!existsSync(resolve(packageRoot, relativePath))) {
