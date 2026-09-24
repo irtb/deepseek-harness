@@ -106,6 +106,10 @@ test -z "$(git status --porcelain)"
 cd "$SRC"
 pnpm install --frozen-lockfile
 # bare 公共仓上的 release worktree：lefthook 会因 core.bare=true 跳过（或设 CI=true）
+# Gateway tsc 依赖 workspace 已编译的 lib（如 vendor/cordis/lib）
+pnpm run build:lib:host
+test -f vendor/cordis/lib/index.js
+
 pnpm --filter @shotgo/agent-runtime run build:gateway
 test -f apps/shotgo-agent/dist/gateway-bin.js
 

@@ -104,6 +104,10 @@ test -z "$(git status --porcelain)"
 cd "$SRC"
 pnpm install --frozen-lockfile
 # Release worktrees whose common dir is bare: lefthook skips (or set CI=true)
+# Gateway tsc needs compiled workspace libs (e.g. vendor/cordis/lib)
+pnpm run build:lib:host
+test -f vendor/cordis/lib/index.js
+
 pnpm --filter @shotgo/agent-runtime run build:gateway
 test -f apps/shotgo-agent/dist/gateway-bin.js
 
