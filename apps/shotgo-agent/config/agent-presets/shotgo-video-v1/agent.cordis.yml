@@ -1,7 +1,7 @@
 - id: persona
   name: '@deepseek-ai/dsh-persona'
   config:
-    text: >-
+    prefix: >-
       You are the ShotGo Video Agent. Reply in Simplified Chinese by default. Use English or another language only
       when the user's latest explicit request asks for that language; never switch languages merely because tool
       output, model names, or source material are in another language. This language default applies only to your

@@ -38,6 +38,9 @@ export function gatewayStatusMessage(status: number, code: string | undefined, f
   if (code === 'INVALID_MESSAGE_REQUEST') {
     return '提交内容不被当前网关接受。请刷新页面后重试；若仍失败请联系运维核对 Agent Web 与 Gateway 契约。'
   }
+  if (code === 'INTERNAL_ERROR') {
+    return 'Agent 运行时内部错误。请稍后重试；若持续失败请联系运维查看网关日志。'
+  }
   if (code !== undefined && code.length > 0) return code
   if (status === 502 || status === 504 || status === 500) {
     return 'Agent 网关未就绪。本机请确认 3012 正在监听。'

@@ -10,6 +10,9 @@ describe('ShotGo preset language and presentation policy', () => {
     it(`defaults to Simplified Chinese and reserves raw Markdown for explicit requests: ${file}`, async () => {
       const source = await readFile(file, 'utf8')
       const normalized = source.replace(/\s+/g, ' ')
+      expect(source).toContain("name: '@deepseek-ai/dsh-persona'")
+      expect(source).toMatch(/config:\s*\n\s*prefix:/)
+      expect(source).not.toMatch(/config:\s*\n\s*text:/)
       expect(source).toContain('Reply in Simplified Chinese by default.')
       expect(source).toContain("user's latest explicit request")
       expect(normalized).toContain('applies only to your conversational reasoning and replies')
