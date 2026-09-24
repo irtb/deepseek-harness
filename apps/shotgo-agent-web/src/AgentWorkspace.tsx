@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
-import { useAuth } from './auth.tsx'
+import { useAuth, type AuthUser } from './auth.tsx'
 import type { AgentMode, AgentSessionRecord, ExecutionMode } from './agent-session.ts'
 import { ExceptionDecisionCard } from './ExceptionDecisionCard.tsx'
-import { fetchSpaces, switchActiveTeam, type SpaceSummary } from './project-context.ts'
+import { fetchSpaces, type SpaceSummary } from './project-context.ts'
 import { newSession, readSessions, sessionScope, writeSessions } from './session-store.ts'
 import { useAgentSession } from './useAgentSession.ts'
 import { AgentMarkdown } from './AgentMarkdown.tsx'
@@ -28,14 +28,14 @@ import {
   uploadLocalUserPrompts,
 } from './server-session-index.ts'
 import { WorkflowPanel } from './WorkflowPanel.tsx'
-import { ThemeToggle } from './ThemeToggle.tsx'
-import { buildCanvasAppUrl } from './canvas-app-url.ts'
+import { UserMenu } from './UserMenu.tsx'
+import { canvasAppUrl } from './canvas-app-links.ts'
 import { AgentScrollArea } from './AgentScrollArea.tsx'
 import { useGenerationLifecyclePoll } from './useGenerationLifecyclePoll.ts'
 import { artifactsForMessage, resolvedGenerationRefs } from './message-artifacts.ts'
 
 export function AgentWorkspace({ mode }: { mode: AgentMode }) {
-  const { token, user, logout, applyUser } = useAuth()
+  const { token, user, applyUser } = useAuth()
   const scope = useMemo(() => sessionScope(user?.id ?? 0, user?.active_team_id, mode), [mode, user])
   const [sessions, setSessions] = useState<AgentSessionRecord[]>(() => readSessions(localStorage, scope))
   const [activeId, setActiveId] = useState(() => sessions[0]?.sessionId ?? '')
@@ -243,9 +243,7 @@ export function AgentWorkspace({ mode }: { mode: AgentMode }) {
     }
     if (sent === 'session-busy') await startNew()
   }
-  async function changeAccount(value: string) {
-    if (token === null) return
-    const next = await switchActiveTeam(token, value === 'personal' ? null : Number(value))
+  function handleApplyUser(next: AuthUser) {
     applyUser(next)
     setSpaceId(undefined)
   }
@@ -285,44 +283,25 @@ export function AgentWorkspace({ mode }: { mode: AgentMode }) {
       <section className="agent-main">
         <header>
           <nav className="mode-tabs" aria-label="产品导航">
-            <a href={buildCanvasAppUrl('/projects')}>无限画布</a>
+            <a href={canvasAppUrl('/projects')}>无限画布</a>
             <a className={mode === 'image' ? 'active' : ''} href="/ai-tool/image-generator">
               图片生成
             </a>
             <a className={mode === 'video' ? 'active' : ''} href="/ai-tool/video-generator">
               视频生成
             </a>
-            <a href={buildCanvasAppUrl('/ai-tool/batch-image')}>AI卡片生成</a>
+            <a href={canvasAppUrl('/ai-tool/batch-image')}>AI卡片生成</a>
           </nav>
           <div className="account">
-            <ThemeToggle />
-            <span>
-              {user?.team?.name ?? '个人空间'} · {user?.name}
-            </span>
-            <button type="button" onClick={() => void logout()}>
-              退出
-            </button>
+            <UserMenu
+              onApplyUser={(next) => {
+                handleApplyUser(next)
+              }}
+            />
           </div>
         </header>
         <div className="context-bar">
           <div className="context-selectors">
-            {user?.team === null || user?.team === undefined ? null : (
-              <label>
-                账户
-                <select
-                  aria-label="账户上下文"
-                  value={
-                    user.active_team_id === null || user.active_team_id === undefined
-                      ? 'personal'
-                      : String(user.active_team_id)
-                  }
-                  onChange={event => void changeAccount(event.target.value)}
-                >
-                  <option value="personal">个人空间</option>
-                  <option value={user.team.id}>{user.team.name}</option>
-                </select>
-              </label>
-            )}
             <label>
               项目
               <select
