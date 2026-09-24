@@ -6,6 +6,7 @@ import {
   SHOTGO_ARK_MODELS,
   SHOTGO_ARK_PROVIDER,
   createArkAdapter,
+  resolveArkMessagesBaseURL,
 } from '../src/llm/ark.ts'
 import { SHOTGO_PROTOCOL_VERSION, type InferenceRuntimeConfig } from '../src/contracts/laravel-v1.ts'
 
@@ -39,6 +40,45 @@ function messagesSse(events: Array<{ type: string } & Record<string, unknown>>):
 afterEach(() => vi.unstubAllGlobals())
 
 describe('ShotGo Ark LLM adapter', () => {
+  it('rewrites OpenAI /api/v3 roots onto the Anthropic-compatible Messages host', () => {
+    expect(resolveArkMessagesBaseURL('https://ark.cn-beijing.volces.com/api/v3')).toBe(
+      'https://ark.cn-beijing.volces.com/api/compatible',
+    )
+    expect(resolveArkMessagesBaseURL('https://ark.cn-beijing.volces.com/api/v3/')).toBe(
+      'https://ark.cn-beijing.volces.com/api/compatible',
+    )
+    expect(resolveArkMessagesBaseURL('https://ark.cn-beijing.volces.com/api/compatible')).toBe(
+      'https://ark.cn-beijing.volces.com/api/compatible',
+    )
+  })
+
+  it('routes prepareCall streams through logical-to-wire model remapping', async () => {
+    const request = vi.fn<typeof fetch>().mockResolvedValue(new Response(
+      messagesSse([
+        { type: 'message_start', message: { id: 'msg_1', model: 'endpoint-flash', usage: { input_tokens: 1, output_tokens: 0 } } },
+        { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } },
+        { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'ok' } },
+        { type: 'content_block_stop', index: 0 },
+        { type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 1 } },
+        { type: 'message_stop' },
+      ]),
+      { headers: { 'content-type': 'text/event-stream' } },
+    ))
+    vi.stubGlobal('fetch', request)
+    const adapter = createArkAdapter({ resolveRuntimeConfig: () => runtimeConfiguration, resolveUserId: () => userId })
+
+    const prepared = await adapter.prepareCall(SHOTGO_ARK_PROVIDER, 'deepseek-v4-flash')
+    await drain(prepared.stream({
+      provider: SHOTGO_ARK_PROVIDER,
+      model: 'deepseek-v4-flash',
+      messages,
+    }))
+
+    expect(request).toHaveBeenCalledOnce()
+    if (typeof request.mock.calls[0]?.[1]?.body !== 'string') throw new Error('Expected JSON request body')
+    expect(JSON.parse(request.mock.calls[0][1].body)).toMatchObject({ model: 'endpoint-flash' })
+  })
+
   it('exposes only the approved Flash and Pro models', async () => {
     const adapter = createArkAdapter({ resolveRuntimeConfig: () => runtimeConfiguration, resolveUserId: () => userId })
 
@@ -77,7 +117,8 @@ describe('ShotGo Ark LLM adapter', () => {
     }))
 
     expect(request).toHaveBeenCalledOnce()
-    expect(request.mock.calls[0]?.[0]).toBe('https://ark.example.test/api/v3/v1/messages')
+    // Laravel may still store the OpenAI /api/v3 root; the adapter must hit Messages-compatible /api/compatible.
+    expect(request.mock.calls[0]?.[0]).toBe('https://ark.example.test/api/compatible/v1/messages')
     const init = request.mock.calls[0]?.[1]
     expect(new Headers(init?.headers).get('x-api-key')).toBe('ark-test-key')
     if (typeof init?.body !== 'string') throw new Error('Expected JSON request body')

@@ -10,6 +10,7 @@ import {
   type GenerateOptions,
   type LlmProviderInfo,
   type LlmResolvedModelInfo,
+  type PreparedAdapterCall,
   type ResolvedRetryPolicy,
   type RetryPolicyConfig,
   type StreamChunk,
@@ -40,6 +41,27 @@ export interface ArkAdapterOptions {
   retryPolicy?: RetryPolicyConfig
 }
 
+/**
+ * DeepSeekAdapter speaks Anthropic Messages (`…/v1/messages`).
+ * Volcengine Ark serves that surface under `/api/compatible`, while `/api/v3`
+ * is the OpenAI Chat Completions root used by image/video generation.
+ * Rewrite a mis-pointed Laravel credential so inference fails open on the
+ * Messages-compatible host instead of 401 AUTH against `/api/v3/messages`.
+ */
+export function resolveArkMessagesBaseURL(baseURL: string): string {
+  const trimmed = baseURL.replace(/\/+$/u, '')
+  try {
+    const url = new URL(trimmed)
+    if (url.pathname === '/api/v3' || url.pathname === '/api/v3/') {
+      url.pathname = '/api/compatible'
+      return url.toString().replace(/\/+$/u, '')
+    }
+  } catch {
+    // Fall through and return the original value for the adapter to reject.
+  }
+  return trimmed
+}
+
 function resolveConnection(
   options: ArkAdapterOptions,
   configuration: InferenceRuntimeConfig,
@@ -55,7 +77,7 @@ function resolveConnection(
   })
   return {
     ...resolved,
-    baseURL: configuration.baseURL,
+    baseURL: resolveArkMessagesBaseURL(configuration.baseURL),
     apiKeyEnv: LARAVEL_CREDENTIAL_REF,
     defaults: {
       thinking: options.reasoningEffort === 'off' ? 'disabled' : 'enabled',
@@ -110,6 +132,19 @@ export class ShotGoArkLlmAdapter extends DeepSeekAdapter {
   override resolveModel(provider: string, model: string, signal?: AbortSignal): Promise<LlmResolvedModelInfo> {
     this.assertAllowedModel(model)
     return super.resolveModel(provider, model, signal)
+  }
+
+  /**
+   * AgentLoop uses prepareCall().stream, which on DeepSeekAdapter closes over
+   * generate() and bypasses subclass stream(). Rebind so Laravel logical model
+   * ids are remapped to Ark wire ids before the Messages request leaves.
+   */
+  override prepareCall(provider: string, model: string, signal?: AbortSignal): Promise<PreparedAdapterCall> {
+    this.assertAllowedModel(model)
+    return this.resolveModel(provider, model, signal).then(resolved => ({
+      model: resolved,
+      stream: (options: GenerateOptions) => this.stream({ ...options, model }),
+    }))
   }
 
   override async * stream(options: GenerateOptions): AsyncIterable<StreamChunk> {
