@@ -88,12 +88,12 @@ export async function submitMessage(input: {
         'Idempotency-Key': clientRequestId,
         [SHOTGO_GATEWAY_PROTOCOL_HEADER]: SHOTGO_GATEWAY_PROTOCOL_VERSION,
       },
+      // Gateway parseMessage allows only clientRequestId/message/generationContext.
+      // executionMode and creativeRun are Web-local; sending them yields INVALID_MESSAGE_REQUEST.
       body: JSON.stringify({
         clientRequestId,
-        executionMode: input.mode,
         message: { type: 'text', text: input.text },
         generationContext: input.generationContext,
-        ...(input.creativeRun ? { creativeRun: input.creativeRun } : {}),
       }),
       ...(input.signal === undefined ? {} : { signal: input.signal }),
     },

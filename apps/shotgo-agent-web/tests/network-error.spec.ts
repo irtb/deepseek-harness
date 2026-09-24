@@ -25,6 +25,7 @@ describe('gateway network errors', () => {
     expect(gatewayStatusMessage(409, 'SESSION_BUSY', 'x')).toContain('开新会话')
     expect(gatewayStatusMessage(422, 'GENERATION_CONTEXT_INVALID', 'x')).toContain('参考素材')
     expect(gatewayStatusMessage(426, 'GATEWAY_PROTOCOL_UNSUPPORTED', 'x')).toContain('协议版本不一致')
+    expect(gatewayStatusMessage(422, 'INVALID_MESSAGE_REQUEST', 'x')).toContain('不被当前网关接受')
     expect(gatewayStatusMessage(502, undefined, 'x')).toContain('3012')
   })
 

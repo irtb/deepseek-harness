@@ -93,12 +93,40 @@ describe('Gateway client current Creative Run protocol', () => {
     expect(onEvent.mock.calls[0]?.[0]).toMatchObject({ runId: 'current-run', cursor: 5 })
   })
 
-  it('sends the current protocol and exact Creative Run envelope', async () => {
+  it('sends the Gateway-accepted message envelope without Web-local fields', async () => {
     const fetchMock = vi.fn<typeof fetch>(async () => new Response(JSON.stringify({ runId: 'run', streamEpoch: 'epoch' }), { status: 200 }))
     vi.stubGlobal('fetch', fetchMock)
-    await submitMessage({ grant: 'grant', sessionId: 'session', mode: 'automatic', text: '脚本', generationContext: { schemaVersion: 1, kind: 'video', modelId: 'seedance', parameters: { aspectRatioId: '16:9', resolutionId: '720P', duration: 5, audio: true } }, creativeRun: { schemaVersion: 1, creativeRunId: 'creative-run', objective: '脚本', deliveryTargets: ['16:9 视频'], sourceRef: 'agent-web:message', businessInput: { script: '脚本', assets: [41] } } })
+    await submitMessage({
+      grant: 'grant',
+      sessionId: 'session',
+      mode: 'automatic',
+      text: '脚本',
+      generationContext: {
+        schemaVersion: 1,
+        kind: 'video',
+        modelId: 'seedance',
+        parameters: { aspectRatioId: '16:9', resolutionId: '720P', duration: 5, audio: true },
+      },
+      creativeRun: {
+        schemaVersion: 1,
+        creativeRunId: 'creative-run',
+        objective: '脚本',
+        deliveryTargets: ['16:9 视频'],
+        sourceRef: 'agent-web:message',
+        businessInput: { script: '脚本', assets: [41] },
+      },
+    })
     const init = fetchMock.mock.calls[0]![1]!
     expect(new Headers(init.headers).get(SHOTGO_GATEWAY_PROTOCOL_HEADER)).toBe(SHOTGO_GATEWAY_PROTOCOL_VERSION)
-    expect(JSON.parse(String(init.body))).toMatchObject({ executionMode: 'automatic', creativeRun: { creativeRunId: 'creative-run', businessInput: { assets: [41] } } })
+    expect(JSON.parse(String(init.body))).toEqual({
+      clientRequestId: expect.any(String),
+      message: { type: 'text', text: '脚本' },
+      generationContext: {
+        schemaVersion: 1,
+        kind: 'video',
+        modelId: 'seedance',
+        parameters: { aspectRatioId: '16:9', resolutionId: '720P', duration: 5, audio: true },
+      },
+    })
   })
 })
