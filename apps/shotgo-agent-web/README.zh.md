@@ -10,7 +10,7 @@ ShotGo 私有产品前端。它与 Harness 上游 `apps/web` 分离，并以 `we
 
 Gateway Session Hook 会签发并静默续签短期 Capability Grant、幂等提交 Run、在每个事件后持久保存重放 Cursor；遇到旧 Run 的结束事件时先推进 Cursor，再连接当前 Run。它从版本化 Session 事件恢复 Assistant 文本，并支持取消；每个作用域最多保留五十条本地历史。例外决策投影只接受可重放的 Gateway `session.event`，且 `eventType` 必须为 `exception.decision`；前端按 Session 保存 Decision ID 和 Gateway Cursor，刷新后从 Laravel 恢复权威状态。浏览器使用自己的用户 Bearer Token 调用 Laravel 审批接口。Capability Grant 只用于带身份的 Gateway 流式连接，不进入 URL。
 
-新会话默认手动模式，避免未配置自动执行策略时在提交阶段被阻断。手动 Run Start 确认每个 Skill Run 最多一次。配置有效自动执行策略后仍可切换自动模式，普通操作无需确认；硬预算或扩权，以及删除、跨项目、公开分享或发布动作仍走例外决策。
+新会话默认自动模式，并在 Space 列表可用时优先绑定「默认项目」，否则绑定第一项；列表为空时会通过 `POST /api/spaces` 创建「默认项目」并绑定。用户仍可改回手动，或主动选择「不绑定项目」。自动模式下普通操作无需确认；手动 Run Start 确认每个 Skill Run 最多一次。硬预算或扩权，以及删除、跨项目、公开分享或发布动作仍走例外决策。
 
 图片和视频 Composer 会加载 Laravel 生成配置，并在失败时使用安全的本地默认值；每个 Run 均携带结构化 `generationContext`，图片参考素材最多接收九个素材库 ID。Assistant 输出使用禁用 HTML 且过滤链接的 Markdown。可重放 Gateway Artifact 事件只按权威状态展示排队中、生成中、成功或失败的图片/视频卡，不虚构进度百分比。
 
