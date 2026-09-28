@@ -337,10 +337,14 @@ describe('Agent workspace', () => {
           })}\n\n`,
         ),
       )
-    const fetcher = vi.fn<typeof fetch>(async (input) => {
+    const fetcher = vi.fn<typeof fetch>(async (input, init) => {
       const url = requestUrl(input)
       if (url.endsWith('/api/me')) return new Response(JSON.stringify({ user }))
       if (url.includes('/api/spaces')) {
+        const method = (input instanceof Request ? input.method : init?.method) ?? 'GET'
+        if (String(method).toUpperCase() === 'POST') {
+          return new Response(JSON.stringify({ code: 1, msg: 'fixture denies create' }), { status: 422 })
+        }
         return new Response(JSON.stringify({ code: 0, data: { list: [] } }))
       }
       if (url.includes('generation-config')) return new Response('{}', { status: 500 })
@@ -1058,7 +1062,7 @@ describe('Agent workspace', () => {
     history.replaceState({}, '', '/ai-tool/video-generator')
   })
 
-  it('restores its own login and defaults to manual confirmation when automatic policy is unknown', async () => {
+  it('restores its own login and defaults to automatic mode with preferred space', async () => {
     const user = { id: 7, name: '运营同事', email: 'ops@example.com', credits: 100, active_team_id: null, team: null }
     localStorage.setItem('shotgo-agent-access-token', 'agent-origin-token')
     localStorage.setItem('shotgo-agent-user', JSON.stringify(user))
@@ -1072,8 +1076,67 @@ describe('Agent workspace', () => {
     render(<AuthProvider><App /></AuthProvider>)
     expect(await screen.findByText('想制作什么视频？')).toBeInTheDocument()
     expect(screen.getByText('＋ 新建创作')).toBeInTheDocument()
-    expect(screen.getByRole('button', { name: '手动模式' })).toHaveClass('active')
-    expect(screen.getByText('手动模式：每轮开始前确认一次')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: '自动模式' })).toHaveClass('active')
     await waitFor(() => expect(screen.getByRole('option', { name: '广告项目' })).toBeInTheDocument())
+    await waitFor(() => expect(screen.getByLabelText('项目')).toHaveValue('space-1'))
+    expect(screen.getByText('自动模式：例外动作才会暂停')).toBeInTheDocument()
+  })
+
+  it('prefers 默认项目 over the first Space when both are visible', async () => {
+    const user = { id: 7, name: '运营同事', email: 'ops@example.com', credits: 100, active_team_id: null, team: null }
+    localStorage.setItem('shotgo-agent-access-token', 'agent-origin-token')
+    localStorage.setItem('shotgo-agent-user', JSON.stringify(user))
+    vi.stubGlobal('fetch', vi.fn<typeof fetch>(async (input) => {
+      const url = requestUrl(input)
+      if (url.endsWith('/api/me')) return new Response(JSON.stringify({ user }), { status: 200 })
+      if (url.includes('/api/spaces')) {
+        return new Response(JSON.stringify({
+          code: 0,
+          data: {
+            list: [
+              { uuid: 'space-ad', name: '广告项目', firstProjectUuid: 'project-ad', canvasCount: 1 },
+              { uuid: 'space-default', name: '默认项目', firstProjectUuid: 'project-default', canvasCount: 1 },
+            ],
+          },
+        }), { status: 200 })
+      }
+      throw new Error(`unexpected request ${url}`)
+    }))
+
+    render(<AuthProvider><App /></AuthProvider>)
+    await waitFor(() => expect(screen.getByLabelText('项目')).toHaveValue('space-default'))
+    expect(screen.getByText('自动模式：例外动作才会暂停')).toBeInTheDocument()
+  })
+
+  it('creates 默认项目 when the Space list is empty and binds it', async () => {
+    const user = { id: 7, name: '运营同事', email: 'ops@example.com', credits: 100, active_team_id: null, team: null }
+    localStorage.setItem('shotgo-agent-access-token', 'agent-origin-token')
+    localStorage.setItem('shotgo-agent-user', JSON.stringify(user))
+    const fetcher = vi.fn<typeof fetch>(async (input, init) => {
+      const url = requestUrl(input)
+      if (url.endsWith('/api/me')) return new Response(JSON.stringify({ user }), { status: 200 })
+      if (url.includes('/api/spaces') && (init?.method ?? 'GET').toUpperCase() === 'POST') {
+        expect(JSON.parse(String(init?.body))).toEqual({ name: '默认项目' })
+        return new Response(JSON.stringify({
+          code: 0,
+          data: {
+            space: { id: 9, uuid: 'space-created', name: '默认项目' },
+            defaultProject: { uuid: 'project-created', name: '画布 1' },
+          },
+        }), { status: 200 })
+      }
+      if (url.includes('/api/spaces')) {
+        return new Response(JSON.stringify({ code: 0, data: { list: [] } }), { status: 200 })
+      }
+      throw new Error(`unexpected request ${url}`)
+    })
+    vi.stubGlobal('fetch', fetcher)
+
+    render(<AuthProvider><App /></AuthProvider>)
+    await waitFor(() => expect(screen.getByLabelText('项目')).toHaveValue('space-created'))
+    expect(screen.getByRole('option', { name: '默认项目' })).toBeInTheDocument()
+    expect(screen.getByText('自动模式：例外动作才会暂停')).toBeInTheDocument()
+    expect(fetcher.mock.calls.filter(([input, init]) =>
+      requestUrl(input).includes('/api/spaces') && (init?.method ?? 'GET').toUpperCase() === 'POST')).toHaveLength(1)
   })
 })

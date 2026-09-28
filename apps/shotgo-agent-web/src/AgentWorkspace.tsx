@@ -1,8 +1,14 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { useAuth, type AuthUser } from './auth.tsx'
 import type { AgentMode, AgentSessionRecord, ExecutionMode } from './agent-session.ts'
 import { ExceptionDecisionCard } from './ExceptionDecisionCard.tsx'
-import { fetchSpaces, type SpaceSummary } from './project-context.ts'
+import {
+  createSpace,
+  DEFAULT_SPACE_NAME,
+  fetchSpaces,
+  preferredSpace,
+  type SpaceSummary,
+} from './project-context.ts'
 import { newSession, readSessions, sessionScope, writeSessions } from './session-store.ts'
 import { useAgentSession } from './useAgentSession.ts'
 import { AgentMarkdown } from './AgentMarkdown.tsx'
@@ -39,10 +45,14 @@ export function AgentWorkspace({ mode }: { mode: AgentMode }) {
   const scope = useMemo(() => sessionScope(user?.id ?? 0, user?.active_team_id, mode), [mode, user])
   const [sessions, setSessions] = useState<AgentSessionRecord[]>(() => readSessions(localStorage, scope))
   const [activeId, setActiveId] = useState(() => sessions[0]?.sessionId ?? '')
-  const [executionMode, setExecutionMode] = useState<ExecutionMode>('manual')
+  const [executionMode, setExecutionMode] = useState<ExecutionMode>('automatic')
   const [draft, setDraft] = useState('')
   const [spaces, setSpaces] = useState<SpaceSummary[]>([])
+  const [spacesReady, setSpacesReady] = useState(false)
   const [spaceId, setSpaceId] = useState<string>()
+  const [spaceUnboundByUser, setSpaceUnboundByUser] = useState(false)
+  const [defaultSpaceCreateFailed, setDefaultSpaceCreateFailed] = useState(false)
+  const defaultSpaceCreateInFlight = useRef(false)
   const [generationConfig, setGenerationConfig] = useState<GenerationConfig>(fallbackGenerationConfig)
   const [generationContext, setGenerationContext] = useState(() => defaultGenerationContext(mode))
   const [referenceItems, setReferenceItems] = useState<MediaLibraryItem[]>([])
@@ -150,17 +160,62 @@ export function AgentWorkspace({ mode }: { mode: AgentMode }) {
     }
   }, [activeId, historyReady, mode, scope, token])
   useEffect(() => {
-    if (token === null) return
+    if (token === null) {
+      setSpaces([])
+      setSpacesReady(false)
+      setDefaultSpaceCreateFailed(false)
+      defaultSpaceCreateInFlight.current = false
+      return
+    }
     const controller = new AbortController()
+    setSpacesReady(false)
+    setDefaultSpaceCreateFailed(false)
+    defaultSpaceCreateInFlight.current = false
     void fetchSpaces(token)
-      .then(setSpaces)
+      .then((list) => {
+        if (controller.signal.aborted) return
+        setSpaces(list)
+        setSpacesReady(true)
+      })
       .catch(() => {
+        if (controller.signal.aborted) return
         setSpaces([])
+        setSpacesReady(false)
       })
     return () => {
       controller.abort()
     }
   }, [token, user?.active_team_id])
+  useEffect(() => {
+    if (executionMode !== 'automatic' || spaceId !== undefined || spaceUnboundByUser || !spacesReady) return
+    const preferred = preferredSpace(spaces)
+    if (preferred !== undefined) {
+      setSpaceId(preferred.uuid)
+      return
+    }
+    if (token === null || defaultSpaceCreateFailed || defaultSpaceCreateInFlight.current) return
+    let cancelled = false
+    defaultSpaceCreateInFlight.current = true
+    void createSpace(token, DEFAULT_SPACE_NAME)
+      .then((created) => {
+        if (cancelled) return
+        setSpaces([created])
+        setSpaceId(created.uuid)
+      })
+      .catch(() => {
+        if (!cancelled) setDefaultSpaceCreateFailed(true)
+      })
+      .finally(() => {
+        defaultSpaceCreateInFlight.current = false
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [defaultSpaceCreateFailed, executionMode, spaceId, spaceUnboundByUser, spaces, spacesReady, token])
+  useEffect(() => {
+    const locked = session.activeRun?.executionMode
+    if (locked === 'automatic' || locked === 'manual') setExecutionMode(locked)
+  }, [session.activeRun?.executionMode, session.activeRun?.runId])
   useEffect(() => {
     setGenerationContext(defaultGenerationContext(mode, generationConfig))
     setReferenceItems([])
@@ -206,6 +261,7 @@ export function AgentWorkspace({ mode }: { mode: AgentMode }) {
     writeSessions(localStorage, scope, [next, ...readSessions(localStorage, scope)])
     setSessions(current => [next, ...current])
     setActiveId(next.sessionId)
+    setExecutionMode('automatic')
     if (token === null) return
     try {
       const saved = await saveServerSession(token, next, undefined, {
@@ -246,6 +302,7 @@ export function AgentWorkspace({ mode }: { mode: AgentMode }) {
   function handleApplyUser(next: AuthUser) {
     applyUser(next)
     setSpaceId(undefined)
+    setSpaceUnboundByUser(false)
   }
 
   const runLocked =
@@ -307,7 +364,9 @@ export function AgentWorkspace({ mode }: { mode: AgentMode }) {
               <select
                 value={spaceId ?? ''}
                 onChange={(event) => {
-                  setSpaceId(event.target.value || undefined)
+                  const next = event.target.value || undefined
+                  setSpaceId(next)
+                  setSpaceUnboundByUser(next === undefined)
                 }}
               >
                 <option value="">不绑定项目</option>
@@ -328,10 +387,10 @@ export function AgentWorkspace({ mode }: { mode: AgentMode }) {
               onClick={() => {
                 if (runLocked) return
                 setExecutionMode('automatic')
+                setSpaceUnboundByUser(false)
                 // Automatic paid runs require a Space-scoped AutoExecutionPolicy.
                 if (spaceId === undefined) {
-                  const preferred =
-                    spaces.find(item => item.name === '线上测试') ?? spaces[0]
+                  const preferred = preferredSpace(spaces)
                   if (preferred !== undefined) setSpaceId(preferred.uuid)
                 }
               }}
@@ -365,7 +424,7 @@ export function AgentWorkspace({ mode }: { mode: AgentMode }) {
             {session.messages.length === 0 ? (
               <div className="empty">
                 <h1>{mode === 'image' ? '想生成什么图片？' : '想制作什么视频？'}</h1>
-                <p>参考素材放在输入框上方。发送后 Agent 会整理参数；真正提交生成前会再确认一次。</p>
+                <p>参考素材放在输入框上方。发送后 Agent 会整理参数；自动模式下普通流程无需确认，例外动作才会暂停。</p>
               </div>
             ) : (
               session.messages.map((message) => {
