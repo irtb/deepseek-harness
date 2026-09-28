@@ -2,7 +2,18 @@
 
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  readdirSync,
+  rmSync,
+  statSync,
+  writeFileSync,
+} from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -12,8 +23,17 @@ const webRoot = resolve(repoRoot, 'apps/shotgo-agent-web')
 const artifactsRoot = resolve(repoRoot, '.artifacts')
 const packageRoot = resolve(artifactsRoot, 'shotgo-agent-release')
 
+if (process.platform !== 'linux' || process.arch !== 'x64') {
+  throw new Error('ShotGo production releases must be built on linux-x64 so the required native durability addon is included')
+}
+
 rmSync(packageRoot, { recursive: true, force: true })
 mkdirSync(artifactsRoot, { recursive: true })
+
+execFileSync('pnpm', ['--dir', 'native/system', 'run', 'build:native', '--host-addon-only'], {
+  cwd: repoRoot,
+  stdio: 'inherit',
+})
 
 execFileSync('pnpm', ['--filter', '@shotgo/agent-web', 'build'], {
   cwd: repoRoot,
@@ -34,6 +54,7 @@ cpSync(resolve(webRoot, 'dist'), resolve(packageRoot, 'web'), { recursive: true 
 
 const requiredFiles = [
   'dist/gateway-bin.js',
+  'scripts/verify-release-runtime.mjs',
   'dist/config/base.cordis.yml',
   'dist/tools/generation-config-read.js',
   'dist/tools/generation-quote.js',
@@ -54,6 +75,7 @@ const requiredFiles = [
   'node_modules/@deepseek-ai/dsh-sandbox/package.json',
   'node_modules/@deepseek-ai/dsh-sandbox-policy/package.json',
   'node_modules/@deepseek-ai/dsh-tools/package.json',
+  'node_modules/.pnpm/node_modules/@deepseek-ai/node-addon-system-linux-x64/bin/glibc/system.node',
 ]
 for (const relativePath of requiredFiles) {
   if (!existsSync(resolve(packageRoot, relativePath))) {
@@ -130,9 +152,22 @@ execFileSync('tar', [
   packageRoot,
   'dist',
   'web',
+  'scripts/verify-release-runtime.mjs',
   'node_modules',
   'package.json',
 ], { stdio: 'inherit' })
+
+const verificationRoot = mkdtempSync(resolve(tmpdir(), 'shotgo-agent-release-verify-'))
+try {
+  execFileSync('tar', ['-xzf', archivePath, '-C', verificationRoot], { stdio: 'inherit' })
+  execFileSync(process.execPath, [
+    resolve(verificationRoot, 'scripts/verify-release-runtime.mjs'),
+    verificationRoot,
+    verificationRoot,
+  ], { stdio: 'inherit' })
+} finally {
+  rmSync(verificationRoot, { recursive: true, force: true })
+}
 
 const digest = createHash('sha256').update(readFileSync(archivePath)).digest('hex')
 writeFileSync(`${archivePath}.sha256`, `${digest}  ${archiveName}\n`, { mode: 0o644 })

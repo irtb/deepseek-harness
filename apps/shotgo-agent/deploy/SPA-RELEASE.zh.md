@@ -110,6 +110,10 @@ pnpm install --frozen-lockfile
 pnpm run build:lib:host
 test -f vendor/cordis/lib/index.js
 
+# 会话持久化首次落盘依赖宿主平台的原生 flock；发布包必须先构建当前 Linux x64 addon。
+pnpm --dir native/system run build:native --host-addon-only
+test -f native/system/packages/linux-x64/bin/glibc/system.node
+
 pnpm --filter @shotgo/agent-runtime run build:gateway
 test -f apps/shotgo-agent/dist/gateway-bin.js
 
@@ -139,6 +143,10 @@ test -f "$REL/apps/shotgo-agent/package.json"
 test -d "$REL/apps/shotgo-agent/node_modules"
 test -f "$REL/web/index.html"
 test -d "$REL/web/assets"
+sudo -u www-data /opt/node-current/bin/node \
+  "$REL/apps/shotgo-agent/scripts/verify-release-runtime.mjs" \
+  "$REL/apps/shotgo-agent" \
+  "$RUN/storage/sessions"
 cat "$REL/deployment.env"
 cat "$REL/manifest.json"
 ```
