@@ -7,6 +7,104 @@ import { switchActiveTeam } from './project-context.ts'
 import { createTeam } from './team-api.ts'
 import { useTheme } from './ThemeContext.tsx'
 
+type IconProps = { className?: string; size?: number }
+
+function iconProps({ className, size = 16 }: IconProps) {
+  return {
+    className,
+    width: size,
+    height: size,
+    viewBox: '0 0 24 24',
+    fill: 'none',
+    stroke: 'currentColor',
+    strokeWidth: 1.75,
+    strokeLinecap: 'round' as const,
+    strokeLinejoin: 'round' as const,
+    'aria-hidden': true as const,
+  }
+}
+
+function UserIcon(props: IconProps) {
+  return (
+    <svg {...iconProps(props)}>
+      <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+      <circle cx="12" cy="7" r="4" />
+    </svg>
+  )
+}
+
+function PlusIcon(props: IconProps) {
+  return (
+    <svg {...iconProps({ ...props, size: props.size ?? 14 })}>
+      <path d="M5 12h14" />
+      <path d="M12 5v14" />
+    </svg>
+  )
+}
+
+function UsersIcon(props: IconProps) {
+  return (
+    <svg {...iconProps({ ...props, size: props.size ?? 14 })}>
+      <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+      <circle cx="9" cy="7" r="4" />
+      <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+      <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+    </svg>
+  )
+}
+
+function ContrastIcon(props: IconProps) {
+  return (
+    <svg {...iconProps(props)}>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M12 2a10 10 0 0 1 0 20z" />
+    </svg>
+  )
+}
+
+function SunIcon(props: IconProps) {
+  return (
+    <svg {...iconProps({ ...props, size: props.size ?? 14 })}>
+      <circle cx="12" cy="12" r="4" />
+      <path d="M12 2v2" />
+      <path d="M12 20v2" />
+      <path d="m4.93 4.93 1.41 1.41" />
+      <path d="m17.66 17.66 1.41 1.41" />
+      <path d="M2 12h2" />
+      <path d="M20 12h2" />
+      <path d="m6.34 17.66-1.41 1.41" />
+      <path d="m19.07 4.93-1.41 1.41" />
+    </svg>
+  )
+}
+
+function MoonIcon(props: IconProps) {
+  return (
+    <svg {...iconProps({ ...props, size: props.size ?? 14 })}>
+      <path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+    </svg>
+  )
+}
+
+function LogOutIcon(props: IconProps) {
+  return (
+    <svg {...iconProps({ ...props, size: props.size ?? 14 })}>
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+      <polyline points="16 17 21 12 16 7" />
+      <line x1="21" x2="9" y1="12" y2="12" />
+    </svg>
+  )
+}
+
+function CloseIcon(props: IconProps) {
+  return (
+    <svg {...iconProps(props)}>
+      <path d="M18 6 6 18" />
+      <path d="m6 6 12 12" />
+    </svg>
+  )
+}
+
 function teamMenuFlags(user: AuthUser | null) {
   const accountKind = user?.account_kind ?? 'normal'
   const hasTeam = Boolean(user?.team)
@@ -141,7 +239,10 @@ export function UserMenu(props: UserMenuProps = {}) {
         </button>
 
         <div className="user-menu__panel">
-          <div className="user-menu__section-title">个人信息</div>
+          <div className="user-menu__section-title">
+            <UserIcon className="user-menu__section-icon" />
+            <span>个人信息</span>
+          </div>
           <div className="user-menu__rows">
             <div className="user-menu__row">
               <span>用户名</span>
@@ -202,6 +303,7 @@ export function UserMenu(props: UserMenuProps = {}) {
             <div className="user-menu__actions">
               {flags.showCreate ? (
                 <button type="button" className="user-menu__action" onClick={openCreateModal}>
+                  <PlusIcon />
                   创建团队
                 </button>
               ) : null}
@@ -215,6 +317,7 @@ export function UserMenu(props: UserMenuProps = {}) {
                     void handleSwitch(user.team.id)
                   }}
                 >
+                  <UsersIcon />
                   {switching ? '切换中...' : '进入团队'}
                 </button>
               ) : null}
@@ -225,6 +328,7 @@ export function UserMenu(props: UserMenuProps = {}) {
                   disabled={switching}
                   onClick={() => void handleSwitch(null)}
                 >
+                  <UserIcon size={14} />
                   {switching ? '切换中...' : '切换个人账户'}
                 </button>
               ) : null}
@@ -238,6 +342,7 @@ export function UserMenu(props: UserMenuProps = {}) {
                     openCanvasPath(`/team/${encodeURIComponent(teamCode)}/users`)
                   }}
                 >
+                  <UsersIcon />
                   团队管理
                 </button>
               ) : null}
@@ -251,6 +356,7 @@ export function UserMenu(props: UserMenuProps = {}) {
                     openCanvasPath(`/team/${encodeURIComponent(teamCode)}/credits`)
                   }}
                 >
+                  <UsersIcon />
                   查看团队
                 </button>
               ) : null}
@@ -259,7 +365,10 @@ export function UserMenu(props: UserMenuProps = {}) {
           ) : null}
 
           <div className="user-menu__theme">
-            <span>模式切换</span>
+            <span className="user-menu__theme-label">
+              <ContrastIcon className="user-menu__theme-icon" />
+              模式切换
+            </span>
             <button
               type="button"
               role="switch"
@@ -268,12 +377,17 @@ export function UserMenu(props: UserMenuProps = {}) {
               className="user-menu__theme-switch"
               onClick={() => setTheme(isDark ? 'light' : 'dark')}
             >
-              <span className={!isDark ? 'is-active' : undefined} aria-hidden="true">☀</span>
-              <span className={isDark ? 'is-active' : undefined} aria-hidden="true">☾</span>
+              <span className={!isDark ? 'is-active' : undefined}>
+                <SunIcon />
+              </span>
+              <span className={isDark ? 'is-active' : undefined}>
+                <MoonIcon />
+              </span>
             </button>
           </div>
 
           <button type="button" className="user-menu__logout" onClick={() => void handleLogout()}>
+            <LogOutIcon />
             退出登录
           </button>
         </div>
@@ -291,7 +405,7 @@ export function UserMenu(props: UserMenuProps = {}) {
             <div className="user-menu-modal__head">
               <h2 id="create-team-title">创建团队</h2>
               <button type="button" onClick={closeCreateModal} disabled={creating} aria-label="关闭">
-                ×
+                <CloseIcon />
               </button>
             </div>
             <form className="user-menu-modal__form" onSubmit={event => void handleCreateTeam(event)}>
