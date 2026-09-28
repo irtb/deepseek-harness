@@ -41,7 +41,7 @@ button, a { -webkit-tap-highlight-color: transparent; }
 .account { display: flex; align-items: center; gap: 12px; color: #a8abb3; font-size: 12px; }
 .account button { border: 0; color: #8f949e; background: transparent; cursor: pointer; }
 .account .theme-toggle { flex: 0 0 auto; border: 1px solid #4b515c; background: #2b3038; }
-.user-menu { position: relative; }
+.user-menu { position: relative; z-index: 40; }
 .user-menu__trigger {
   display: inline-flex; align-items: center; gap: 8px; padding: 4px 10px 4px 4px;
   border: 1px solid #34353d; border-radius: 999px; color: #d7dae0; background: #17181d; cursor: pointer;
@@ -55,9 +55,12 @@ button, a { -webkit-tap-highlight-color: transparent; }
   padding: 2px 6px; border: 1px solid #34353d; border-radius: 6px; color: #14b3da; background: #1c1e24; font-size: 10px;
 }
 .user-menu__panel {
-  position: absolute; right: 0; top: calc(100% + 8px); z-index: 40; width: 224px; padding: 12px;
-  border: 1px solid #2f3138; border-radius: 14px; background: #15161aee; box-shadow: 0 18px 48px #0009;
+  position: absolute; right: 0; top: 100%; z-index: 40; width: 224px; padding-top: 8px;
   opacity: 0; pointer-events: none; transition: opacity .15s ease;
+}
+.user-menu__card {
+  padding: 12px;
+  border: 1px solid #2f3138; border-radius: 14px; background: #15161aee; box-shadow: 0 18px 48px #0009;
 }
 .user-menu:hover .user-menu__panel,
 .user-menu:focus-within .user-menu__panel { opacity: 1; pointer-events: auto; }
@@ -809,7 +812,7 @@ button:disabled { cursor: wait; opacity: .55; }
 :root[data-theme='light'] .run-start-card { border-color: #b6d4f7; background: #eff6ff; }
 :root[data-theme='light'] .user-menu__trigger { border-color: #d2dbe6; color: #344054; background: #fff; }
 :root[data-theme='light'] .user-menu__badge { border-color: #d2dbe6; background: #f8fafc; }
-:root[data-theme='light'] .user-menu__panel,
+:root[data-theme='light'] .user-menu__card,
 :root[data-theme='light'] .user-menu-modal__card { border-color: #d9e0e8; background: #fffc; box-shadow: 0 18px 48px #2430411f; }
 :root[data-theme='light'] .user-menu__section-title,
 :root[data-theme='light'] .user-menu__row strong,
